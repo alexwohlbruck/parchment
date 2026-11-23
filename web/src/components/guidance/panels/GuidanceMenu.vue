@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ListIcon, MapPinIcon, SearchIcon, SplitIcon } from 'lucide-vue-next'
+import { ListIcon, MapPinIcon, SearchIcon, SplitIcon, SquareParkingIcon } from 'lucide-vue-next'
 import { CAMERA_MODES } from '@/lib/guidance/camera-framing'
 import { segmentAt } from '@/lib/guidance/nav-route'
 import { FREE_MODES } from '@/lib/guidance/free-roam'
@@ -18,7 +18,7 @@ import { useGuidanceContext } from '../context'
 
 const { t } = useI18n()
 const guidance = useGuidanceStore()
-const { camera, openPanel } = useGuidanceContext()
+const { camera, openPanel, parking } = useGuidanceContext()
 
 const s = computed(() => guidance.progress?.puck.s ?? 0)
 const travelMode = computed(() => guidance.travelMode)
@@ -31,9 +31,12 @@ const actions = computed(() => guidance.kind === 'free' ? [
   { key: 'alongTheWay', icon: SearchIcon, enabled: canSearchAhead(travelMode.value), open: () => openPanel('search') },
 ] : [
   { key: 'searchAlongRoute', icon: SearchIcon, enabled: canSearchAhead(travelMode.value), open: () => openPanel('search') },
+  ...(parking.destination.value ? [{ key: 'parking', icon: SquareParkingIcon, enabled: true, open: () => openPanel('parking') }] : []),
   { key: 'routes', icon: SplitIcon, enabled: canReroute(travelMode.value), open: () => openPanel('routes') },
   { key: 'steps', icon: ListIcon, enabled: !!guidance.route?.steps.length, open: () => openPanel('steps') },
 ])
+
+const GRID_COLUMNS: Record<number, string> = { 2: 'grid-cols-2', 3: 'grid-cols-3', 4: 'grid-cols-4' }
 
 const sound = computed(() => guidance.soundModeAt(s.value))
 function setSound(mode: (typeof SOUND_MODES)[number]) {
@@ -111,7 +114,7 @@ const choices = computed(() => [
       :stage="guidance.transit"
     />
 
-    <div class="grid gap-1" :class="actions.length === 2 ? 'grid-cols-2' : 'grid-cols-3'">
+    <div class="grid gap-1" :class="GRID_COLUMNS[actions.length] ?? 'grid-cols-3'">
       <button
         v-for="action in actions"
         :key="action.key"

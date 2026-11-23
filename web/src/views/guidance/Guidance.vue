@@ -13,6 +13,7 @@ import { useMissedRecovery } from '@/composables/guidance/useMissedRecovery'
 import { useVehicleSwitch } from '@/composables/guidance/useVehicleSwitch'
 import { useLaneGuidance } from '@/composables/guidance/useLaneGuidance'
 import { useDockWatch } from '@/composables/guidance/useDockWatch'
+import { useParkingOffer } from '@/composables/guidance/useParkingOffer'
 import { useGuidanceCamera } from '@/composables/guidance/useGuidanceCamera'
 import { guidanceRouteSource, useGuidanceRouteLine } from '@/composables/guidance/useGuidanceRouteLine'
 import { useGuidanceVehicle } from '@/composables/guidance/useGuidanceVehicle'
@@ -42,6 +43,7 @@ const routeLine = useGuidanceRouteLine(guidanceRouteSource(camera.state))
 useGuidanceVehicle()
 useLaneGuidance()
 const docks = useDockWatch()
+const parking = useParkingOffer()
 const alternatives = useAlternativeRoutes()
 const recovery = useMissedRecovery()
 const itinerary = useBetterItinerary(() => !!recovery.view.value)
@@ -96,6 +98,7 @@ provide(GUIDANCE_CONTEXT, {
   recovery,
   vehicleSwitch,
   docks,
+  parking,
   metric,
   panel,
   panelReturnsToMenu: computed(() => panel.value !== 'menu' && openedFrom.value === 'menu'),

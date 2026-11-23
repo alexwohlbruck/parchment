@@ -8,6 +8,7 @@ import GuidanceSteps from './GuidanceSteps.vue'
 import AheadSearch from './AheadSearch.vue'
 import RoutesPanel from './RoutesPanel.vue'
 import DestinationSearch from './DestinationSearch.vue'
+import ParkingPanel from './ParkingPanel.vue'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { useGuidanceContext, type GuidancePanelKind } from '../context'
 
@@ -26,6 +27,7 @@ const TITLES = {
   search: 'guidance.ahead.title',
   routes: 'guidance.alternatives.title',
   destination: 'guidance.free.whereTo',
+  parking: 'guidance.parking.title',
 } as const
 
 const title = computed(() => (props.kind === 'search' && guidance.kind === 'free' ? 'guidance.free.ahead.title' : TITLES[props.kind]))
@@ -53,5 +55,6 @@ const header = computed(() => props.kind !== 'menu' || props.menuHeader)
     <AheadSearch v-else-if="kind === 'search'" :metric="metric" @done="closePanel(true)" @found="camera.overview()" />
     <RoutesPanel v-else-if="kind === 'routes'" :alternatives="alternatives" @done="closePanel(true)" />
     <DestinationSearch v-else-if="kind === 'destination'" @done="closePanel(true)" />
+    <ParkingPanel v-else-if="kind === 'parking'" @done="closePanel(true)" @found="camera.overview()" />
   </div>
 </template>

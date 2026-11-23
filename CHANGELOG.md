@@ -2,11 +2,15 @@
 
 ### Added
 
-* Ask quotes the reviews behind a pick, like "quiet" or "great coffee", under its place card.
-
 ### Changed
 
 ### Fixed
+
+## [0.24.4] - 2026-11-22
+
+### Added
+
+* Ask quotes the reviews behind a pick, like "quiet" or "great coffee", under its place card.
 
 ## [0.24.3] - 2026-11-22
 

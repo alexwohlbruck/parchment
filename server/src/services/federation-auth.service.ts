@@ -28,6 +28,7 @@ import {
   type ServerManifest,
 } from '../lib/server-identity'
 import { logger } from '../lib/logger'
+import { assertPublicUrl, outboundRequestConfig } from '../lib/outbound-fetch'
 
 const MANIFEST_PATH = '/.well-known/parchment-server'
 const NONCE_SKEW_SECONDS = 300
@@ -61,7 +62,9 @@ export async function resolvePeerServer(
   enforceHttpsDomain(domain)
   const url = `${federationScheme(domain)}://${domain}${MANIFEST_PATH}`
 
+  await assertPublicUrl(url)
   const response = await axios.get<ServerManifest>(url, {
+    ...outboundRequestConfig,
     timeout: 10000,
     headers: { Accept: 'application/json' },
   })

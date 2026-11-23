@@ -5,6 +5,7 @@ import * as collectionsService from '../../services/library/collections.service'
 import * as encryptedPointsService from '../../services/library/encrypted-points.service'
 import * as sharingService from '../../services/sharing.service'
 import { i18nPlugin } from '../../lib/i18n/plugin'
+import { logError } from '../../lib/logger'
 import { archiveEndpoints } from './archive'
 
 const collectionMetadata = {
@@ -203,8 +204,9 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
         }
         set.status = 204
       } catch (err) {
+        logError('Collection delete failed', err, { id })
         set.status = 400
-        return { error: (err as Error).message }
+        return { error: t('errors.library.collectionDeleteFailed') }
       }
     },
     {
@@ -495,8 +497,9 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
           set.status = 403
           return { error: t('errors.library.collectionPointsViewerReadOnly') }
         }
+        logError('Encrypted point create failed', err, { id })
         set.status = 400
-        return { error: (err as Error).message }
+        return { error: t('errors.library.pointCreateFailed') }
       }
     },
     {
@@ -529,6 +532,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
         ))!.userId
         const point = await encryptedPointsService.updateEncryptedPoint(
           params.pointId,
+          params.id,
           ownerId,
           body.encryptedData,
           body.nonce,
@@ -578,6 +582,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
         ))!.userId
         const deleted = await encryptedPointsService.deleteEncryptedPoint(
           params.pointId,
+          params.id,
           ownerId,
         )
         if (!deleted) {

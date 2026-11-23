@@ -151,7 +151,7 @@ describe('updateEncryptedPoint', () => {
   test('writes the new envelope and stamps updatedAt', async () => {
     dbMock.setReturningRows([point])
 
-    await updateEncryptedPoint('pt-1', 'user-1', 'new-cipher', 'new-nonce')
+    await updateEncryptedPoint('pt-1', 'col-1', 'user-1', 'new-cipher', 'new-nonce')
 
     expect(dbMock.updated[0]).toMatchObject({
       encryptedData: 'new-cipher',
@@ -164,14 +164,14 @@ describe('updateEncryptedPoint', () => {
     dbMock.setReturningRows([])
 
     expect(
-      await updateEncryptedPoint('pt-1', 'other', 'c', 'n'),
+      await updateEncryptedPoint('pt-1', 'col-1', 'other', 'c', 'n'),
     ).toBeNull()
   })
 
   test('broadcasts on success', async () => {
     dbMock.setReturningRows([point])
 
-    await updateEncryptedPoint('pt-1', 'user-1', 'c', 'n')
+    await updateEncryptedPoint('pt-1', 'col-1', 'user-1', 'c', 'n')
 
     expect(emitCollection).toHaveBeenCalledWith(
       'encrypted-point:updated',
@@ -183,7 +183,7 @@ describe('updateEncryptedPoint', () => {
   test('does not broadcast when nothing matched', async () => {
     dbMock.setReturningRows([])
 
-    await updateEncryptedPoint('pt-1', 'other', 'c', 'n')
+    await updateEncryptedPoint('pt-1', 'col-1', 'other', 'c', 'n')
 
     expect(emitCollection).not.toHaveBeenCalled()
   })
@@ -193,7 +193,7 @@ describe('deleteEncryptedPoint', () => {
   test('reports true and broadcasts the removal', async () => {
     dbMock.setReturningRows([point])
 
-    expect(await deleteEncryptedPoint('pt-1', 'user-1')).toBe(true)
+    expect(await deleteEncryptedPoint('pt-1', 'col-1', 'user-1')).toBe(true)
     expect(emitCollection).toHaveBeenCalledWith(
       'encrypted-point:deleted',
       { id: 'pt-1', collectionId: 'col-1' },
@@ -204,7 +204,7 @@ describe('deleteEncryptedPoint', () => {
   test('broadcasts only ids, never the ciphertext', async () => {
     dbMock.setReturningRows([point])
 
-    await deleteEncryptedPoint('pt-1', 'user-1')
+    await deleteEncryptedPoint('pt-1', 'col-1', 'user-1')
 
     const payload = emitCollection.mock.calls[0][1] as any
     expect(Object.keys(payload).sort()).toEqual(['collectionId', 'id'])
@@ -213,7 +213,7 @@ describe('deleteEncryptedPoint', () => {
   test('reports false and stays quiet when nothing matched', async () => {
     dbMock.setReturningRows([])
 
-    expect(await deleteEncryptedPoint('pt-1', 'other')).toBe(false)
+    expect(await deleteEncryptedPoint('pt-1', 'col-1', 'other')).toBe(false)
     expect(emitCollection).not.toHaveBeenCalled()
   })
 })

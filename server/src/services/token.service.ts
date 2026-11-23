@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto'
 import { alphabet, generateRandomString, sha256 } from 'oslo/crypto'
 import { encodeHex } from 'oslo/encoding'
 import { eq, and } from 'drizzle-orm'
@@ -66,6 +67,12 @@ export async function createServerToken(
  */
 export type TokenValidation = 'valid' | 'invalid' | 'expired'
 
+function hashesMatch(a: string, b: string): boolean {
+  const left = Buffer.from(a)
+  const right = Buffer.from(b)
+  return left.length === right.length && timingSafeEqual(left, right)
+}
+
 export async function validateServerToken(
   input: string,
   type: Token['type'],
@@ -80,7 +87,7 @@ export async function validateServerToken(
   const now = new Date()
 
   for (let existing of matchingTokens) {
-    if (existing.hash === hash) {
+    if (existing.hash && hashesMatch(existing.hash, hash)) {
       // A code past its expiry is refused and cleared, so an OTP that surfaces
       // later — an old email, a synced inbox — never buys a session.
       if (existing.expires && new Date(existing.expires) <= now) {

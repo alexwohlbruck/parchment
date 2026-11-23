@@ -30,6 +30,14 @@ export const INTEGRATION_CONFIG_BLOB_PREFIX = 'integration-config:'
 export const integrationConfigBlobType = (integrationId: string) =>
   `${INTEGRATION_CONFIG_BLOB_PREFIX}${integrationId}`
 
+/** A request the caller can fix; its message is safe to show them. */
+export class IntegrationRequestError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'IntegrationRequestError'
+  }
+}
+
 /**
  * Thrown when a create would violate the (userId, integrationId, scheme)
  * uniqueness constraint. The controller maps this to HTTP 409.
@@ -849,27 +857,27 @@ export async function createIntegration(
   )
 
   if (!integrationDef) {
-    throw new Error(`Integration with ID ${integrationId} not found`)
+    throw new IntegrationRequestError(`Integration with ID ${integrationId} not found`)
   }
 
   const supportedSchemes: IntegrationScheme[] =
     integrationDef.supportedSchemes ?? ['server-key']
   if (!supportedSchemes.includes(scheme)) {
-    throw new Error(
+    throw new IntegrationRequestError(
       `Integration ${integrationId} does not support scheme ${scheme}`,
     )
   }
 
   if (scheme === 'user-e2ee') {
     if (!userId) {
-      throw new Error(
+      throw new IntegrationRequestError(
         'Scheme user-e2ee requires a user — system-scope integrations must use server-key',
       )
     }
     if (config && Object.keys(config).length > 0) {
       // Server never sees e2ee config. The client posts the metadata row, then
       // uploads the encrypted blob via PUT /me/blobs/integration-config:<id>.
-      throw new Error(
+      throw new IntegrationRequestError(
         'Scheme user-e2ee must be created with no config — post the encrypted blob separately',
       )
     }
@@ -883,7 +891,7 @@ export async function createIntegration(
       config,
     )
     if (!testResult.success) {
-      throw new Error(
+      throw new IntegrationRequestError(
         testResult.message || `Failed to test integration: ${integrationId}`,
       )
     }
@@ -960,7 +968,7 @@ export async function updateIntegration(
   const currentIntegration = await getIntegration(id, userId)
 
   if (!currentIntegration) {
-    throw new Error('Integration not found')
+    throw new IntegrationRequestError('Integration not found')
   }
 
   const updateData: Record<string, any> = {
@@ -973,7 +981,7 @@ export async function updateIntegration(
       // PUT /me/blobs/integration-config:<id>. The integrations row holds
       // only metadata; config updates through this endpoint would fan out
       // into two writes the server can't keep consistent.
-      throw new Error(
+      throw new IntegrationRequestError(
         'Scheme user-e2ee configs must be updated via PUT /me/blobs',
       )
     }
@@ -984,7 +992,7 @@ export async function updateIntegration(
     )
 
     if (!testResult.success) {
-      throw new Error(
+      throw new IntegrationRequestError(
         testResult.message || 'Failed to test updated configuration',
       )
     }
@@ -1000,7 +1008,7 @@ export async function updateIntegration(
   }
 
   if (Object.keys(updateData).length <= 1) {
-    throw new Error('No updates provided')
+    throw new IntegrationRequestError('No updates provided')
   }
 
   let whereCondition
@@ -1070,7 +1078,7 @@ export async function deleteIntegration(
   const result = await db.select().from(integrations).where(whereCondition)
 
   if (result.length === 0) {
-    throw new Error(`Integration with ID ${id} not found`)
+    throw new IntegrationRequestError(`Integration with ID ${id} not found`)
   }
 
   const row = result[0]

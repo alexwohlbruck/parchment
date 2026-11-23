@@ -1,6 +1,12 @@
 #!/bin/bash
 set -e
 
+# Started as root only to fix ownership of volumes created by older images.
+if [ "$NODE_ENV" = "production" ] && [ "$(id -u)" = "0" ] && id bun >/dev/null 2>&1; then
+    [ -d /app/data ] && chown -R bun:bun /app/data
+    exec setpriv --reuid=bun --regid=bun --init-groups "$0" "$@"
+fi
+
 # Check if we're in production mode
 if [ "$NODE_ENV" = "production" ]; then
     echo "Production mode detected - using compiled JavaScript"

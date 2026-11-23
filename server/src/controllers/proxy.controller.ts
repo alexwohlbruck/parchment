@@ -21,6 +21,13 @@ import { logError } from '../lib/logger'
 
 const app = new Elysia({ prefix: '/proxy' })
 
+const TILE_COORD_RE = /^\d{1,10}$/
+const SOURCE_NAME_RE = /^[a-z0-9_-]{1,64}$/i
+
+const isTileCoord = (...values: string[]) => values.every((v) => TILE_COORD_RE.test(v))
+const isSourceName = (...values: string[]) => values.every((v) => SOURCE_NAME_RE.test(v))
+const badTileRequest = () => new Response('Invalid tile request', { status: 400 })
+
 // Helper function to proxy tile requests with integration API key
 async function proxyTileRequest(
   integrationId: IntegrationId,
@@ -71,6 +78,7 @@ app.get(
   '/loom/:service/geo/:z/:x/:y',
   async ({ params }) => {
     const { service, z, x, y } = params
+    if (!isSourceName(service) || !isTileCoord(z, x, y)) return badTileRequest()
 
     try {
       const targetUrl = `https://loom.cs.uni-freiburg.de/tiles/${service}/geo/${z}/${x}/${y}.mvt`
@@ -107,6 +115,8 @@ app.get(
 app.get(
   '/mapillary/:dataset/:version/:z/:x/:y',
   async ({ params }) => {
+    const { dataset, version, z, x, y } = params
+    if (!isSourceName(dataset, version) || !isTileCoord(z, x, y)) return badTileRequest()
     return proxyTileRequest(
       IntegrationId.MAPILLARY,
       (accessToken, { dataset, version, z, x, y }) =>
@@ -129,6 +139,7 @@ app.get(
 app.get(
   '/transitland/routes/:z/:x/:y',
   async ({ params }) => {
+    if (!isTileCoord(params.z, params.x, params.y)) return badTileRequest()
     return proxyTileRequest(
       IntegrationId.TRANSITLAND,
       (apiKey, { z, x, y }) =>
@@ -151,6 +162,7 @@ app.get(
 app.get(
   '/transitland/stops/:z/:x/:y',
   async ({ params }) => {
+    if (!isTileCoord(params.z, params.x, params.y)) return badTileRequest()
     return proxyTileRequest(
       IntegrationId.TRANSITLAND,
       (apiKey, { z, x, y }) =>
@@ -309,7 +321,6 @@ const martinInflight = new Map<string, Promise<MartinFetch>>()
  * wins over the parameter either way, but reading in order makes that plain.
  */
 const LANDMARK_MODEL_RE = /^[a-z0-9]+(-[a-z0-9]+)*\.[0-9a-f]{12}\.glb$/
-const TILE_COORD_RE = /^\d{1,10}$/
 
 async function proxyLandmarks(path: string, acceptEncoding?: string): Promise<Response> {
   const config = resolveLandmarksConfig()
@@ -339,8 +350,7 @@ async function proxyLandmarks(path: string, acceptEncoding?: string): Promise<Re
 app.get(
   '/barrelman/landmarks/:z/:x/:y',
   ({ params: { z, x, y }, headers }) => {
-    if (![z, x, y].every(v => TILE_COORD_RE.test(v)))
-      return new Response('Invalid tile coordinates', { status: 400 })
+    if (!isTileCoord(z, x, y)) return badTileRequest()
     return proxyLandmarks(`${z}/${x}/${y}`, headers['accept-encoding'])
   },
   { detail: { tags: ['Proxy'], summary: 'Proxy 3D landmark placement tiles' } },
@@ -383,7 +393,7 @@ app.get(
 app.get(
   '/barrelman/bridges/index/:z/:x/:y',
   async ({ params: { z, x, y }, headers: requestHeaders }) => {
-    if (![z, x, y].every(v => /^\d+$/.test(v))) return new Response('Not found', { status: 404 })
+    if (!isTileCoord(z, x, y)) return new Response('Not found', { status: 404 })
     const config = resolveBarrelmanConfig()
     if (!config?.host) return new Response('Barrelman not configured', { status: 501 })
     try {
@@ -513,6 +523,7 @@ app.get(
     const gzipOk = acceptsGzip(reqHeaders['accept-encoding'])
     const ifNoneMatch = reqHeaders['if-none-match']
     const { source, z, x, y } = params
+    if (!isSourceName(source) || !isTileCoord(z, x, y)) return badTileRequest()
     // A detail tile can carry the 3D bridge decks drawn over it, when asked.
     const decks = query.decks === '1' ? '?decks=1' : ''
     const cacheKey = `${source}/${z}/${x}/${y}${decks}`
@@ -619,7 +630,7 @@ app.get(
     const rest = params['*']
 
     // only pyramid content leaves this route, and never a path escape
-    if (rest.includes('..') || !/\.(json|mvt)$/.test(rest)) {
+    if (rest.includes('..') || !/^[\w\-.~/]+\.(json|mvt)$/.test(rest)) {
       return new Response('Not found', { status: 404 })
     }
 

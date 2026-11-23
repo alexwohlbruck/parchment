@@ -46,7 +46,7 @@
     "@types/lodash": "^4.17.17",
     "@types/nodemailer": "^6.4.15",
     "arctic": "^3.7.0",
-    "axios": "^1.8.4",
+    "axios": "^1.21.1",
     "drizzle-kit": "^0.31.0",
     "drizzle-orm": "^0.43.1",
     "elysia": "^1.4.22",
@@ -66,7 +66,7 @@
     "pluscodes": "^2.6.0",
     "postgres": "^3.4.5",
     "qs": "^6.14.0",
-    "sharp": "^0.34.5",
+    "sharp": "^0.35.5",
     "suncalc": "^2.0.1",
     "ua-parser-js": "^2.0.9",
     "ws": "^8.18.3"

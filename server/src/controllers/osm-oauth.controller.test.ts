@@ -367,7 +367,7 @@ describe('GET /integrations/osm/callback — handing the result back', () => {
     )
   })
 
-  test('encodes an error message rather than passing it through', async () => {
+  test('never passes an internal error message through', async () => {
     dbMock.queueSelect([futureStateToken()])
     tokenExchangeError = new Error('boom </script><script>alert(1)</script>')
 
@@ -376,8 +376,8 @@ describe('GET /integrations/osm/callback — handing the result back', () => {
     })
 
     const location = res.headers.get('location') ?? ''
-    expect(location).not.toContain('<script>')
-    expect(location).toContain('%3Cscript%3E')
+    expect(location).not.toContain('script')
+    expect(location).toContain('message=OAuth2+callback+failed')
   })
 
   test('answers with JSON when the app asks for it', async () => {

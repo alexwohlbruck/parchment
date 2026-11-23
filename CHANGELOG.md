@@ -6,6 +6,7 @@
 
 ### Fixed
 
+* Tightened security across sharing, sign-in, saved places and profile photos, so your account and shared collections are better protected.
 * Links from map data, transit agencies and search sources only open real web, email and phone addresses, never scripts.
 
 ## [0.25.0] - 2026-11-23

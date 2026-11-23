@@ -229,12 +229,35 @@ app.use(permissions(PermissionId.SOCIAL_READ)).get(
       return status(404, { message: t('errors.notFound.user') })
     }
 
-    return userInfo
+    const { handle: resolved, signingKey, encryptionKey, inbox, name, picture } = userInfo
+    if ([resolved, signingKey, encryptionKey, inbox].some((v) => typeof v !== 'string')) {
+      return status(404, { message: t('errors.notFound.user') })
+    }
+    return {
+      handle: resolved,
+      signingKey,
+      encryptionKey,
+      inbox,
+      ...(typeof name === 'string' && { name }),
+      ...(typeof picture === 'string' && { picture }),
+    }
   },
   {
     params: t.Object({
       handle: t.String(),
     }),
+    response: {
+      200: t.Object({
+        handle: t.String(),
+        signingKey: t.String(),
+        encryptionKey: t.String(),
+        inbox: t.String(),
+        name: t.Optional(t.String()),
+        picture: t.Optional(t.String()),
+      }),
+      400: t.Object({ message: t.String() }),
+      404: t.Object({ message: t.String() }),
+    },
     detail: {
       tags: ['Friends'],
       description: 'Resolve a handle to user info (local or remote)',

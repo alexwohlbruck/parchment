@@ -25,6 +25,7 @@ const hasPermission = mock((perms: string[], required: string) =>
 mock.module('../services/auth.service', () => ({ getPermissions, hasPermission }))
 
 class IntegrationSchemeConflictError extends Error {}
+class IntegrationRequestError extends Error {}
 
 const systemRow = {
   id: 'sys-1',
@@ -112,6 +113,7 @@ mock.module('../services/integration.service', () => ({
   extractPublicConfig,
   getDependentIntegrations,
   IntegrationSchemeConflictError,
+  IntegrationRequestError,
 }))
 
 mock.module('../services/integrations', () => ({

@@ -117,11 +117,15 @@ const getSubscriptionStatus = mock(async (_userId: string) => ({
 mock.module('../services/subscription.service', () => ({ getSubscriptionStatus }))
 
 mock.module('@simplewebauthn/server', () => ({
-  verifyAuthenticationResponse: mock(async () => ({ verified: true })),
+  verifyAuthenticationResponse: mock(async () => ({
+    verified: true,
+    authenticationInfo: { newCounter: 8 },
+  })),
   verifyRegistrationResponse: mock(async () => ({ verified: true })),
 }))
 
 mock.module('../util', () => ({ generateId: () => 'generated-id' }))
+const { publicSessionId } = await import('../lib/public-session-id')
 mock.module('../lib/passkey-aaguid', () => ({
   passkeyNameFromAAGUID: () => 'iCloud Keychain',
 }))
@@ -202,8 +206,9 @@ describe('POST /auth/verify', () => {
   // `registrationMode` is read from the config module namespace at import, so
   // a second value needs its own module registry.
 
-  test('uses the fixed code and skips email for the app tester account', async () => {
+  test('uses the configured code and skips email for the app tester account', async () => {
     process.env.APP_TESTER_EMAIL = 'tester@parchment.test'
+    process.env.APP_TESTER_CODE = '13572468'
     existingUser = { id: 'tester', email: 'tester@parchment.test' }
 
     const res = await req(app).post('/auth/verify', {
@@ -211,8 +216,22 @@ describe('POST /auth/verify', () => {
     })
 
     expect(res.status).toBe(201)
-    expect(createServerToken.mock.calls[0][2]).toBe('00000000')
+    expect(createServerToken.mock.calls[0][2]).toBe('13572468')
     expect(sendEmailVerificationCode).not.toHaveBeenCalled()
+  })
+
+  test('emails a random code to the tester when no tester code is set', async () => {
+    process.env.APP_TESTER_EMAIL = 'tester@parchment.test'
+    delete process.env.APP_TESTER_CODE
+    existingUser = { id: 'tester', email: 'tester@parchment.test' }
+
+    const res = await req(app).post('/auth/verify', {
+      body: { email: 'tester@parchment.test' },
+    })
+
+    expect(res.status).toBe(201)
+    expect(createServerToken.mock.calls[0][2]).toBeUndefined()
+    expect(sendEmailVerificationCode).toHaveBeenCalled()
   })
 
   test('500s when the verification email fails to send', async () => {
@@ -365,13 +384,22 @@ describe('session teardown', () => {
     expect(destroyOtherSessions).not.toHaveBeenCalled()
   })
 
-  test('DELETE /auth/sessions/:id is scoped to the caller’s own sessions', async () => {
-    const res = await req(app).delete('/auth/sessions/some-session')
+  test('DELETE /auth/sessions/:id deletes the caller’s session it names', async () => {
+    dbMock.queueSelect([{ id: 'session-1' }, { id: 'session-2' }])
+
+    const res = await req(app).delete(`/auth/sessions/${publicSessionId('session-2')}`)
 
     expect(res.status).toBe(204)
-    // The WHERE clause pairs the session id with the caller's user id, so a
-    // token belonging to another user can't be revoked here.
     expect(dbMock.deleteCount).toBe(1)
+  })
+
+  test('DELETE /auth/sessions/:id ignores an id outside the caller’s sessions', async () => {
+    dbMock.queueSelect([{ id: 'session-1' }])
+
+    const res = await req(app).delete('/auth/sessions/session-1')
+
+    expect(res.status).toBe(204)
+    expect(dbMock.deleteCount).toBe(0)
   })
 
   test('DELETE /auth/sessions/:id rejects an unauthenticated caller', async () => {
@@ -393,6 +421,18 @@ describe('GET /auth/sessions/current', () => {
     expect(res.status).toBe(200)
     expect(res.body.user.id).toBe(TEST_USER.id)
     expect(res.body.subscription.tier).toBe('basic')
+  })
+
+  test('echoes the token only to a bearer-authenticated caller', async () => {
+    dbMock.queueSelect([{ id: TEST_USER.id }])
+    const cookie = await req(app).get('/auth/sessions/current')
+    expect(cookie.body.token).toBeUndefined()
+
+    dbMock.queueSelect([{ id: TEST_USER.id }])
+    const bearer = await req(app).get('/auth/sessions/current', {
+      headers: { Authorization: 'Bearer session-for-test-user-1' },
+    })
+    expect(bearer.body.token).toBe('session-for-test-user-1')
   })
 
   test('answers 204 when signed out, not 401', async () => {
@@ -447,13 +487,22 @@ describe('GET /auth/sessions/current/permissions', () => {
 })
 
 describe('GET /auth/sessions', () => {
-  test('lists the caller’s sessions', async () => {
-    dbMock.queueSelect([{ id: 'session-1' }, { id: 'session-2' }])
+  test('lists the caller’s sessions without their tokens', async () => {
+    const row = { createdAt: new Date(), expiresAt: new Date(), ipv4: null, userAgent: null }
+    dbMock.queueSelect([
+      { id: 'session-for-test-user-1', ...row },
+      { id: 'session-2', ...row },
+    ])
 
     const res = await req(app).get('/auth/sessions')
 
     expect(res.status).toBe(200)
-    expect(res.body).toHaveLength(2)
+    expect(res.body.map((s: any) => s.id)).toEqual([
+      publicSessionId('session-for-test-user-1'),
+      publicSessionId('session-2'),
+    ])
+    expect(res.body.map((s: any) => s.current)).toEqual([true, false])
+    expect(JSON.stringify(res.body)).not.toContain('session-2"')
   })
 
   test('rejects an unauthenticated caller', async () => {
@@ -487,6 +536,46 @@ describe('passkey management', () => {
 
     expect((await req(app).get('/auth/passkeys')).status).toBe(401)
     expect((await req(app).delete('/auth/passkeys/pk-1')).status).toBe(401)
+  })
+})
+
+describe('passkey sign-in', () => {
+  const assertion = {
+    id: 'cred-1',
+    rawId: 'cred-1',
+    response: {
+      authenticatorData: 'a',
+      clientDataJSON: 'c',
+      signature: 's',
+      userHandle: 'u',
+    },
+    type: 'public-key',
+    clientExtensionResults: {},
+    authenticatorAttachment: 'platform',
+  }
+
+  test('issues the challenge as an httpOnly cookie', async () => {
+    const res = await req(app).post('/auth/passkeys/authenticate/options')
+
+    const cookie = res.headers.get('set-cookie') ?? ''
+    expect(cookie).toContain('challenge=chal')
+    expect(cookie).toContain('HttpOnly')
+    expect(cookie).toContain('SameSite=Lax')
+  })
+
+  test('stores the new signature counter and clears the challenge', async () => {
+    dbMock.queueSelect([
+      { id: 'cred-1', publicKey: '', counter: 7, transports: 'internal', userId: 'user-1' },
+    ])
+
+    const res = await req(app).post('/auth/passkeys/authenticate/verify', {
+      body: assertion,
+      headers: { cookie: 'challenge=chal' },
+    })
+
+    expect(res.status).toBe(201)
+    expect(dbMock.updated).toContainEqual({ counter: 8 })
+    expect(res.headers.get('set-cookie') ?? '').toMatch(/challenge=;|Max-Age=0|Expires=Thu, 01 Jan 1970/)
   })
 })
 

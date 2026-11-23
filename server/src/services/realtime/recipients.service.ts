@@ -23,7 +23,8 @@
  * per resolver is the target.
  */
 
-import { and, eq, or } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
+import { grantsLocalAccess } from '../sharing.service'
 import { db } from '../../db'
 import { collections, bookmarksCollections } from '../../schema/library.schema'
 import { shares, incomingShares } from '../../schema/shares.schema'
@@ -94,10 +95,7 @@ export async function resolveCollectionRecipients(
       and(
         eq(incomingShares.resourceType, 'collection'),
         eq(incomingShares.resourceId, collectionId),
-        or(
-          eq(incomingShares.status, 'accepted'),
-          eq(incomingShares.status, 'pending'),
-        ),
+        grantsLocalAccess(),
       ),
     )
   for (const row of sameServerRows) localUserIds.add(row.userId)

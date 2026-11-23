@@ -10,7 +10,8 @@ const PICTURE = 'https://cdn.test/avatars/u/abc.webp'
 const setAvatar = mock(async (_userId: string, _image: Uint8Array) => PICTURE)
 const removeAvatar = mock(async (_userId: string) => undefined)
 
-mock.module('../services/avatar.service', () => ({ setAvatar, removeAvatar }))
+class UnreadableImageError extends Error {}
+mock.module('../services/avatar.service', () => ({ setAvatar, removeAvatar, UnreadableImageError }))
 mock.module('../middleware/auth.middleware', () => authMockModule())
 
 const avatar = (await import('./avatar.controller')).default
@@ -43,9 +44,18 @@ const EXTENSIONS: Record<string, string> = {
   'text/html': 'html',
 }
 
+const SIGNATURES: Record<string, number[]> = {
+  'image/png': [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+  'image/jpeg': [0xff, 0xd8, 0xff, 0xe0],
+  'image/webp': [...new TextEncoder().encode('RIFF\0\0\0\0WEBP')],
+  'image/gif': [...new TextEncoder().encode('GIF89a')],
+}
+
 /** Elysia derives `file.type` from the filename extension, so the name must match the type. */
-function imageFile(type: string, size = 1024) {
-  return new File([new Uint8Array(size)], `avatar.${EXTENSIONS[type] ?? 'bin'}`, { type })
+function imageFile(type: string, size = 1024, content = type) {
+  const bytes = new Uint8Array(size)
+  bytes.set(SIGNATURES[content] ?? [])
+  return new File([bytes], `avatar.${EXTENSIONS[type] ?? 'bin'}`, { type })
 }
 
 beforeEach(() => {
@@ -82,6 +92,19 @@ describe('POST /users/me/avatar', () => {
     })
   }
 
+  test('judges the type by content, not by name', async () => {
+    const res = await postAvatar(imageFile('image/png', 1024, 'image/svg+xml'))
+
+    expect(res.status).toBe(400)
+    expect(setAvatar).not.toHaveBeenCalled()
+  })
+
+  test('accepts a real image whatever its name says', async () => {
+    const res = await postAvatar(imageFile('application/pdf', 1024, 'image/webp'))
+
+    expect(res.status).toBe(200)
+  })
+
   test('rejects a file over 2MB', async () => {
     const res = await postAvatar(imageFile('image/png', 2 * 1024 * 1024 + 1))
 
@@ -95,8 +118,16 @@ describe('POST /users/me/avatar', () => {
     expect(res.status).toBe(200)
   })
 
-  test('a file that fails to decode is a server error', async () => {
-    setAvatar.mockRejectedValueOnce(new Error('Input buffer contains unsupported image format'))
+  test('a file that fails to decode is rejected', async () => {
+    setAvatar.mockRejectedValueOnce(new UnreadableImageError())
+
+    const res = await postAvatar(imageFile('image/png'))
+
+    expect(res.status).toBe(400)
+  })
+
+  test('an unexpected processing failure is a server error', async () => {
+    setAvatar.mockRejectedValueOnce(new Error('disk full'))
 
     const res = await postAvatar(imageFile('image/png'))
 

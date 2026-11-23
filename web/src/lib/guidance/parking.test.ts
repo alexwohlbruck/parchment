@@ -22,6 +22,11 @@ describe('parkingOptions', () => {
     expect(options.map(o => o.id)).toEqual(['public'])
   })
 
+  test('names an unnamed lot after whoever runs it', () => {
+    const [option] = parkingOptions([lot('deck', door.lat + 0.001, { operator: 'SP+' })], door)
+    expect(option.name).toBe('SP+')
+  })
+
   test('reads the name, kind and fee from the tags', () => {
     const [option] = parkingOptions([lot('deck', door.lat + 0.001, { parking: 'multi-storey', fee: 'yes' }, 'Plaza Deck')], door)
     expect(option).toMatchObject({ name: 'Plaza Deck', kind: 'garage', paid: true })

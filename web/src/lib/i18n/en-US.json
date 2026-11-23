@@ -2558,8 +2558,6 @@
       "nearby": "Parking near your destination",
       "find": "Find",
       "dismiss": "Not now",
-      "walk": "{duration} walk",
-      "park": "Park here",
       "paid": "Paid",
       "free": "Free",
       "empty": "No public parking nearby",
@@ -2570,7 +2568,9 @@
         "underground": "Underground garage",
         "street": "Street parking",
         "lot": "Parking lot"
-      }
+      },
+      "minutes": "{n} min",
+      "walking": "walk"
     }
   },
   "attribution": {

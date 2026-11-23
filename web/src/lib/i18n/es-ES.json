@@ -2480,8 +2480,6 @@
       "nearby": "Estacionamiento cerca de tu destino",
       "find": "Buscar",
       "dismiss": "Ahora no",
-      "walk": "{duration} a pie",
-      "park": "Estacionar aquí",
       "paid": "De pago",
       "free": "Gratis",
       "empty": "No hay estacionamiento público cerca",
@@ -2492,7 +2490,9 @@
         "underground": "Garaje subterráneo",
         "street": "En la calle",
         "lot": "Estacionamiento"
-      }
+      },
+      "minutes": "{n} min",
+      "walking": "a pie"
     }
   },
   "attribution": {

@@ -17,6 +17,7 @@ export type ParkingKind = 'garage' | 'underground' | 'street' | 'lot'
 export interface ParkingOption {
   id: string
   name: string | null
+  address: string | null
   kind: ParkingKind
   location: LngLat
   walkSeconds: number
@@ -63,7 +64,8 @@ export function parkingOptions(places: Place[], destination: LngLat): ParkingOpt
       if (meters > PARKING_SEARCH_M) return []
       return [{
         id: place.id,
-        name: place.name?.value || null,
+        name: place.name?.value || place.tags?.operator || null,
+        address: place.address?.value?.street1 || null,
         kind: parkingKind(place.tags),
         location: { lat: center.lat, lng: center.lng },
         walkSeconds: (meters * WALK_DETOUR) / walkSpeed,

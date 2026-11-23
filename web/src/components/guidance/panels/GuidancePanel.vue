@@ -18,7 +18,7 @@ const props = defineProps<{
   menuHeader?: boolean
 }>()
 const { t } = useI18n()
-const { panelReturnsToMenu, closePanel, camera, alternatives, metric } = useGuidanceContext()
+const { panelReturnsToMenu, closePanel, camera, alternatives, metric, parking } = useGuidanceContext()
 const guidance = useGuidanceStore()
 
 const TITLES = {
@@ -30,7 +30,12 @@ const TITLES = {
   parking: 'guidance.parking.title',
 } as const
 
-const title = computed(() => (props.kind === 'search' && guidance.kind === 'free' ? 'guidance.free.ahead.title' : TITLES[props.kind]))
+const title = computed(() => {
+  if (props.kind === 'search' && guidance.kind === 'free') return t('guidance.free.ahead.title')
+  const place = parking.destination.value?.label
+  if (props.kind === 'parking' && place) return t('guidance.parking.near', { place })
+  return t(TITLES[props.kind])
+})
 
 const header = computed(() => props.kind !== 'menu' || props.menuHeader)
 </script>
@@ -48,7 +53,7 @@ const header = computed(() => props.kind !== 'menu' || props.menuHeader)
         <ChevronLeftIcon v-if="panelReturnsToMenu" class="size-5" />
         <XIcon v-else class="size-5" />
       </Button>
-      <h2 class="font-sans text-lg font-semibold">{{ t(title) }}</h2>
+      <h2 class="min-w-0 truncate font-sans text-lg font-semibold">{{ title }}</h2>
     </div>
     <GuidanceMenu v-if="kind === 'menu'" />
     <GuidanceSteps v-else-if="kind === 'steps'" />

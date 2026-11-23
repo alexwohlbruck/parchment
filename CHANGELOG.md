@@ -6,6 +6,8 @@
 
 ### Fixed
 
+* In 3D, road names and one-way arrows on bridges sit on the bridge instead of on the water or ground below.
+
 * Links from map data, transit agencies and search sources only open real web, email and phone addresses, never scripts.
 
 ## [0.25.0] - 2026-11-23

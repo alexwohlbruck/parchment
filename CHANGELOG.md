@@ -2,6 +2,14 @@
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.26.0] - 2026-11-24
+
+### Added
+
 * While driving or biking, find parking or a bike rack near your destination and get walking directions from the spot you pick.
 * Group directions by trip type from the view menu, so walk-and-transit trips stand apart from bike-and-transit ones.
 * Settings that follow your account show a cloud next to them; tap it to keep that setting on this device only.

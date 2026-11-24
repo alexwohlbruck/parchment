@@ -107,6 +107,9 @@ app.use(permissions(PermissionId.SHARING_WRITE)).post(
       if (err instanceof sharingService.DuplicateShareError) {
         return status(409, { message: t('errors.sharing.alreadyShared') })
       }
+      if (err instanceof sharingService.NotFriendsError) {
+        return status(403, { message: t('errors.sharing.notFriends') })
+      }
       if (err instanceof sharingService.RemoteShareDeliveryError) {
         return status(502, { message: t('errors.sharing.remoteDeliveryFailed') })
       }
@@ -140,7 +143,7 @@ app.use(permissions(PermissionId.SHARING_WRITE)).post(
       tags: ['Sharing'],
       summary: 'Share a resource with a friend',
       description:
-        'Collections may be shared by their owner, or by an editor when the resharing policy allows it; other resource types only by their owner. Returns 409 when the resource is already shared with the recipient, and 502 when a cross-server share could not be delivered (nothing is stored).',
+        'Collections may be shared by their owner, or by an editor when the resharing policy allows it; other resource types only by their owner. The recipient must be an accepted friend (403 otherwise). Returns 409 when the resource is already shared with the recipient, and 502 when a cross-server share could not be delivered (nothing is stored).',
     },
   },
 )

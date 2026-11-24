@@ -29,6 +29,7 @@ import {
 } from './federation.service'
 import { parseHandle } from '../lib/crypto'
 import { publish } from './realtime/event-bus.service'
+import { isFriend } from './friends.service'
 import { logError } from '../lib/logger'
 
 export type ResourceType = 'collection' | 'route' | 'map' | 'layer'
@@ -75,6 +76,13 @@ export class DuplicateShareError extends Error {
 }
 
 /** Thrown when a cross-server share could not be delivered to the peer. */
+export class NotFriendsError extends Error {
+  constructor() {
+    super('Resources can only be shared with accepted friends')
+    this.name = 'NotFriendsError'
+  }
+}
+
 export class RemoteShareDeliveryError extends Error {
   constructor() {
     super('Could not deliver the share to the recipient\'s server')
@@ -91,6 +99,10 @@ function isUniqueViolation(err: unknown): boolean {
  * Create a share for a resource
  */
 export async function createShare(params: CreateShareParams): Promise<Share> {
+  if (!(await isFriend(params.userId, params.recipientHandle))) {
+    throw new NotFriendsError()
+  }
+
   const isLocal = isLocalHandle(params.recipientHandle)
   let recipientUserId: string | null = null
 
@@ -108,9 +120,8 @@ export async function createShare(params: CreateShareParams): Promise<Share> {
 
   const role: ShareRole = params.role ?? 'viewer'
 
-  // Same-server shares auto-accept — there's no accept/reject UI for v1 and
-  // the share is already authenticated (the sender's session). Cross-server
-  // shares stay 'pending' until the recipient server processes them.
+  // Same-server shares between friends auto-accept. Cross-server shares stay
+  // 'pending' until the recipient server processes them.
   const status = isLocal && recipientUserId ? 'accepted' : 'pending'
   const senderHandle = await getLocalUserHandle(params.userId)
 

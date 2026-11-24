@@ -59,6 +59,7 @@ const ownsResource = mock(
 
 class DuplicateShareError extends Error {}
 class RemoteShareDeliveryError extends Error {}
+class NotFriendsError extends Error {}
 
 let localRecipient = true
 const isLocalRecipient = mock((_handle: string) => localRecipient)
@@ -81,6 +82,7 @@ mock.module('../services/sharing.service', () => ({
   isLocalRecipient,
   DuplicateShareError,
   RemoteShareDeliveryError,
+  NotFriendsError,
 }))
 
 mock.module('../middleware/auth.middleware', () => authMockModule())
@@ -239,6 +241,14 @@ describe('POST /sharing — failures', () => {
     const res = await req(app).post('/sharing', { body: localShare })
 
     expect(res.status).toBe(409)
+  })
+
+  test('403s a share to someone who is not a friend', async () => {
+    createShare.mockRejectedValueOnce(new NotFriendsError())
+
+    const res = await req(app).post('/sharing', { body: localShare })
+
+    expect(res.status).toBe(403)
   })
 
   test('502s when the recipient server cannot be reached', async () => {

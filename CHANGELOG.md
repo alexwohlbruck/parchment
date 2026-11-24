@@ -14,6 +14,8 @@
 * Collections and routes can only be shared with friends.
 * Location sharing with friends on other servers isn't available yet, and the switch says so.
 
+* Water names are set in italic, in every map style.
+
 ### Fixed
 
 * Turning off location sharing from a friend's profile now removes your last position from their map.
@@ -27,6 +29,7 @@
 * A device with outdated keys can no longer overwrite your synced data after you rotate keys elsewhere.
 * A friend's location disappears from your map a day after they last shared it, instead of staying forever.
 * Changes to collections shared with friends on other servers now show up for them right away.
+* Ponds and smaller lakes now show their names, when the name fits inside the water.
 
 ## [0.26.0] - 2026-11-24
 

@@ -50,7 +50,6 @@
  "ocean_labels_text_halo_color": "hsla(196, 72%, 80%, 0.05)",
  "ocean_labels_text_halo_color_2": "hsla(200, 100%, 88%, 0.75)",
  "lake_labels_text_color": "hsl(204, 46%, 36%)",
- "lake_labels_text_halo_color": "hsla(0, 100%, 100%, 0.45)",
  "gondola_text_color": "hsl(0,0%,40%)",
  "ferry_text_color": "hsl(204, 46%, 36%)",
  "oneway_icon_color": "hsl(0, 0%, 65%)",

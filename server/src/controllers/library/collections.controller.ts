@@ -7,6 +7,7 @@ import * as sharingService from '../../services/sharing.service'
 import { i18nPlugin } from '../../lib/i18n/plugin'
 import { logError } from '../../lib/logger'
 import { archiveEndpoints } from './archive'
+import { KEY_VERSION } from '../../lib/payload-limits'
 
 const collectionMetadata = {
   name: t.Optional(t.String()),
@@ -57,7 +58,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
           t.Union([t.Literal('server-key'), t.Literal('user-e2ee')]),
         ),
         metadataEncrypted: t.Optional(t.String()),
-        metadataKeyVersion: t.Optional(t.Number()),
+        metadataKeyVersion: t.Optional(KEY_VERSION),
         isPublic: t.Optional(t.Boolean()),
       }),
       detail: {
@@ -180,7 +181,6 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
       body: t.Object({
         ...collectionMetadata,
         metadataEncrypted: t.Optional(t.String()),
-        metadataKeyVersion: t.Optional(t.Number()),
         isPublic: t.Optional(t.Boolean()),
       }),
       detail: {
@@ -279,7 +279,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
         ]),
         newMetadataEncrypted: t.Optional(t.String()),
         metadata: t.Optional(t.Object(collectionMetadata)),
-        newMetadataKeyVersion: t.Number(),
+        newMetadataKeyVersion: KEY_VERSION,
         expectedUpdatedAt: t.Optional(t.String()),
         newEncryptedPoints: t.Optional(
           t.Array(
@@ -362,7 +362,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
       params: t.Object({ id: t.String() }),
       body: t.Object({
         newMetadataEncrypted: t.String(),
-        newMetadataKeyVersion: t.Number(),
+        newMetadataKeyVersion: KEY_VERSION,
         newEncryptedPoints: t.Array(
           t.Object({
             id: t.Optional(t.String()),

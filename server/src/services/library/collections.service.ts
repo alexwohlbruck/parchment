@@ -269,17 +269,18 @@ export function resolveMetadataWrite(
   scheme: CollectionScheme,
   updates: CollectionUpdate,
 ): Partial<NewCollection> {
-  const { metadataEncrypted, metadataKeyVersion, isPublic, ...cleartext } =
+  const { name, description, icon, iconPack, iconColor, metadataEncrypted, isPublic } =
     updates
+  const cleartext = { name, description, icon, iconPack, iconColor }
   const hasCleartext = Object.values(cleartext).some((v) => v !== undefined)
 
   if (scheme === 'user-e2ee') {
     if (hasCleartext) throw new PlaintextMetadataOnE2eeError()
-    return { metadataEncrypted, metadataKeyVersion, isPublic }
+    return { metadataEncrypted, isPublic }
   }
   return hasCleartext
     ? { ...cleartext, metadataEncrypted: null, isPublic }
-    : { metadataEncrypted, metadataKeyVersion, isPublic }
+    : { metadataEncrypted, isPublic }
 }
 
 /**

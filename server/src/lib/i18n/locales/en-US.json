@@ -183,6 +183,7 @@
       "impersonationNotAllowed": "Impersonation is not available in production",
       "cannotImpersonateSelf": "Cannot impersonate yourself",
       "eraseConfirmationRequired": "Confirmation required. Pass `{ \"confirm\": \"erase-all-my-data\" }`.",
+      "stepUpFailed": "Couldn't confirm it's you. Try again.",
       "invalidAlias": "Invalid alias. Use 3-30 alphanumeric characters or underscores.",
       "noPendingRevocation": "No pending revocation"
     },

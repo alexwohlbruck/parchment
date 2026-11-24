@@ -183,6 +183,7 @@
       "impersonationNotAllowed": "La suplantación no está disponible en producción",
       "cannotImpersonateSelf": "No puedes suplantarte a ti mismo",
       "eraseConfirmationRequired": "Se requiere confirmación. Envía `{ \"confirm\": \"erase-all-my-data\" }`.",
+      "stepUpFailed": "No pudimos confirmar que eres tú. Inténtalo de nuevo.",
       "invalidAlias": "Alias no válido. Usa entre 3 y 30 caracteres alfanuméricos o guiones bajos.",
       "noPendingRevocation": "No hay ninguna revocación pendiente"
     },

@@ -90,6 +90,16 @@ mock.module('../services/realtime/event-bus.service', () => ({ publish }))
 const resetUserIdentity = mock(async (_userId: string) => undefined)
 mock.module('../services/identity-reset.service', () => ({ resetUserIdentity }))
 
+const beginStepUp = mock(async (_userId: string, _opts?: unknown) => ({
+  method: 'passkey' as const,
+  options: { challenge: 'step-up-challenge' },
+}))
+const verifyStepUp = mock(
+  async (_userId: string, proof: { code?: string }, _challenge?: string) =>
+    proof.code === '12345678',
+)
+mock.module('../services/step-up.service', () => ({ beginStepUp, verifyStepUp }))
+
 class RotationConflict extends Error {}
 class RotationIncomplete extends Error {
   constructor(readonly missing: string[]) {
@@ -563,13 +573,35 @@ describe('POST /users/me/identity/reset', () => {
     expect(resetUserIdentity).not.toHaveBeenCalled()
   })
 
-  test('wipes the identity with the right confirmation', async () => {
+  test('wipes the identity after a fresh step-up', async () => {
     const res = await req(app).post('/users/me/identity/reset', {
-      body: { confirm: 'erase-all-my-data' },
+      body: { confirm: 'erase-all-my-data', code: '12345678' },
     })
 
     expect(res.status).toBe(200)
     expect(resetUserIdentity).toHaveBeenCalledWith(TEST_USER.id)
+  })
+
+  test('refuses without a valid step-up', async () => {
+    const res = await req(app).post('/users/me/identity/reset', {
+      body: { confirm: 'erase-all-my-data', code: '00000000' },
+    })
+
+    expect(res.status).toBe(401)
+    expect(resetUserIdentity).not.toHaveBeenCalled()
+  })
+
+  test('step-up stores the passkey challenge for the reset to check', async () => {
+    const res = await req(app).post('/users/me/identity/reset/step-up', {
+      body: {},
+    })
+
+    expect(res.status).toBe(200)
+    expect(beginStepUp).toHaveBeenCalledWith(
+      TEST_USER.id,
+      expect.objectContaining({ preferEmail: false }),
+    )
+    expect(res.headers.get('set-cookie')).toContain('step_up_challenge=step-up-challenge')
   })
 
   test('rejects an unauthenticated caller', async () => {

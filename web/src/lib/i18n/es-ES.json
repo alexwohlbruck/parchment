@@ -2936,7 +2936,14 @@
           "confirmDescription": "Esto borra permanentemente todos tus datos cifrados en esta cuenta — lugares guardados, colecciones, amigos y ajustes de compartición. Tu correo y claves de acceso permanecen, así que puedes seguir iniciando sesión. Esto no se puede deshacer.",
           "typePromptTitle": "Escribe RESET para confirmar",
           "typePromptLabel": "Confirmación",
-          "failedFallback": "Error al restablecer. Por favor, inténtalo de nuevo."
+          "failedFallback": "Error al restablecer. Por favor, inténtalo de nuevo.",
+          "verifyTitle": "Confirma que eres tú",
+          "verifyPasskeyDescription": "Usa tu llave de acceso para borrar tus datos cifrados",
+          "verifyEmailDescription": "Introduce el código de 8 dígitos que te enviamos por correo",
+          "usePasskey": "Usar llave de acceso",
+          "emailInstead": "Enviarme un código por correo",
+          "eraseAction": "Borrar y restablecer",
+          "verifyFailed": "No pudimos confirmar que eres tú. Inténtalo de nuevo"
         },
         "view": {
           "title": "Tu clave de recuperación",

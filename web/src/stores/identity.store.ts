@@ -17,6 +17,7 @@ import {
   unlockSeedWithPasskey,
   resetServerIdentity,
   type Identity,
+  type ResetProof,
 } from '@/services/identity.service'
 import { useAuthService } from '@/services/auth.service'
 import { useAuthStore } from '@/stores/auth.store'
@@ -324,13 +325,13 @@ export const useIdentityStore = defineStore('identity', () => {
    * This is the only path short of "make a new account" when every
    * other recovery tier has failed. Irreversible.
    */
-  async function resetIdentity(): Promise<{
+  async function resetIdentity(proof: ResetProof): Promise<{
     success: boolean
     error?: string
   }> {
     isLoading.value = true
     try {
-      const serverResult = await resetServerIdentity()
+      const serverResult = await resetServerIdentity(proof)
       if (!serverResult.success) {
         return { success: false, error: serverResult.error }
       }

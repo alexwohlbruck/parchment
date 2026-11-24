@@ -3039,7 +3039,14 @@
           "confirmDescription": "This permanently erases all your encrypted data on this account — saved places, collections, friends, and sharing settings. Your email and passkeys stay, so you can keep signing in. This can't be undone.",
           "typePromptTitle": "Type RESET to confirm",
           "typePromptLabel": "Confirmation",
-          "failedFallback": "Reset failed. Please try again."
+          "failedFallback": "Reset failed. Please try again.",
+          "verifyTitle": "Confirm it's you",
+          "verifyPasskeyDescription": "Use your passkey to erase your encrypted data",
+          "verifyEmailDescription": "Enter the 8-digit code we emailed you",
+          "usePasskey": "Use passkey",
+          "emailInstead": "Email me a code instead",
+          "eraseAction": "Erase and reset",
+          "verifyFailed": "Couldn't confirm it's you. Try again"
         },
         "view": {
           "title": "Your recovery key",

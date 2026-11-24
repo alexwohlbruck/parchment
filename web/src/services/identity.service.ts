@@ -8,6 +8,7 @@
  * - Get current identity for signing requests
  */
 
+import { startAuthentication } from '@simplewebauthn/browser'
 import { api } from '@/lib/api'
 import {
   generateSeed,
@@ -245,13 +246,41 @@ export async function clearLocalIdentity(): Promise<void> {
  * every path back to their seed. Server returns 400 unless the
  * `confirm` literal is included — speed-bump against accidental calls.
  */
-export async function resetServerIdentity(): Promise<{
+type PasskeyRequestOptions = Parameters<typeof startAuthentication>[0]
+type PasskeyAssertion = Awaited<ReturnType<typeof startAuthentication>>
+
+export type ResetStepUp =
+  | { method: 'passkey'; options: PasskeyRequestOptions }
+  | { method: 'email' }
+
+export interface ResetProof {
+  code?: string
+  passkey?: PasskeyAssertion
+}
+
+/** Start the re-authentication a reset needs: a passkey prompt or an emailed code. */
+export async function beginResetStepUp(method?: 'email'): Promise<ResetStepUp> {
+  const response = await api.post<ResetStepUp>(
+    '/users/me/identity/reset/step-up',
+    method ? { method } : {},
+  )
+  return response.data
+}
+
+export async function assertPasskeyForReset(
+  options: PasskeyRequestOptions,
+): Promise<PasskeyAssertion> {
+  return startAuthentication(options)
+}
+
+export async function resetServerIdentity(proof: ResetProof): Promise<{
   success: boolean
   error?: string
 }> {
   try {
     await api.post('/users/me/identity/reset', {
       confirm: 'erase-all-my-data',
+      ...proof,
     })
     return { success: true }
   } catch (err: unknown) {

@@ -32,6 +32,12 @@ import {
 import { emit } from '../services/realtime/emit'
 import { publish } from '../services/realtime/event-bus.service'
 import { resetUserIdentity } from '../services/identity-reset.service'
+import {
+  beginStepUp,
+  verifyStepUp,
+  type StepUpProof,
+} from '../services/step-up.service'
+import { byUser, rateLimitHandler } from '../middleware/rate-limit.middleware'
 import { purgeHandle } from '../services/handle-references.service'
 import { closeUserConnections } from '../services/realtime/registry.service'
 import {
@@ -868,26 +874,88 @@ app.group('', (admin) =>
  * Requires `confirm: 'erase-all-my-data'` in the body — a deliberate
  * speed-bump against accidental calls.
  */
+const stepUpCookie = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax',
+  path: '/',
+  maxAge: 5 * 60,
+} as const
+
+const stepUpRateLimit = rateLimitHandler(
+  { name: 'identity-reset-step-up', limit: 10, windowMs: 15 * 60_000 },
+  byUser,
+)
+
+app.use(requireAuth).post(
+  '/me/identity/reset/step-up',
+  async ({ user, body, cookie: { step_up_challenge }, language }) => {
+    const challenge = await beginStepUp(user.id, {
+      preferEmail: body?.method === 'email',
+      language,
+    })
+    if (challenge.method === 'passkey') {
+      step_up_challenge.set({
+        value: challenge.options.challenge,
+        ...stepUpCookie,
+      })
+    }
+    return challenge
+  },
+  {
+    beforeHandle: stepUpRateLimit,
+    body: t.Optional(
+      t.Object({ method: t.Optional(t.Literal('email')) }),
+    ),
+    detail: {
+      tags: ['Users', 'Federation'],
+      description:
+        'Start the re-authentication an identity reset requires. Returns ' +
+        'passkey assertion options when the user has a passkey, otherwise ' +
+        'emails a one-time code. Pass `method: "email"` to force the code. ' +
+        'Shares a limit of 10 a user every 15 minutes with the reset itself.',
+    },
+  },
+)
+
 app.use(requireAuth).post(
   '/me/identity/reset',
-  async ({ user, body, status, t }) => {
+  async ({ user, body, status, t, cookie: { step_up_challenge } }) => {
     if (body.confirm !== 'erase-all-my-data') {
       return status(400, {
         message: t('errors.user.eraseConfirmationRequired'),
       })
     }
+    const expected =
+      typeof step_up_challenge.value === 'string'
+        ? step_up_challenge.value
+        : undefined
+    step_up_challenge.remove()
+    const verified = await verifyStepUp(
+      user.id,
+      { passkey: body.passkey as StepUpProof['passkey'], code: body.code },
+      expected,
+    )
+    if (!verified) {
+      return status(401, { message: t('errors.user.stepUpFailed') })
+    }
     await resetUserIdentity(user.id)
     return { success: true }
   },
   {
+    beforeHandle: stepUpRateLimit,
     body: t.Object({
       confirm: t.Literal('erase-all-my-data'),
+      code: t.Optional(t.String({ maxLength: 16 })),
+      passkey: t.Optional(t.Any()),
     }),
     detail: {
       tags: ['Users', 'Federation'],
       description:
         "Last-resort: wipe all of this user's encrypted data and clear " +
         'the federation identity so they can re-run identity setup. ' +
+        'Requires a fresh step-up from `/me/identity/reset/step-up`: the ' +
+        'passkey assertion as `passkey`, or the emailed code as `code`. ' +
         'Session + passkeys survive; everything encrypted under the old ' +
         'seed is gone. Irreversible.',
     },

@@ -42,6 +42,15 @@ vi.mock('@/stores/friends.store', () => ({
   }),
 }))
 
+vi.mock('@/stores/friends/friend-key-pins.store', () => ({
+  useFriendKeyPinsStore: () => ({
+    trustedKeys: async (friend: any) => ({
+      signingKey: friend.friendSigningKey,
+      encryptionKey: friend.friendEncryptionKey,
+    }),
+  }),
+}))
+
 const mockGetE2eeConfigs = vi.fn()
 const mockUpdateLocation = vi.fn()
 
@@ -70,6 +79,7 @@ const mockPause = vi.fn()
 vi.mock('@/services/geolocation.service', () => ({
   useGeolocationService: () => ({
     coords: mockCoords,
+    locatedAt: ref<number | null>(null),
     error: mockGeoError,
     isSupported: mockIsSupported,
     resume: mockResume,
@@ -86,6 +96,10 @@ vi.mock('@/services/geolocation.service', () => ({
     ),
     heading: computed(() => mockCoords.value.heading),
   }),
+}))
+
+vi.mock('@vueuse/core', () => ({
+  createSharedComposable: (fn: () => any) => fn,
 }))
 
 // Import after mocks
@@ -182,15 +196,17 @@ describe('useE2eeLocationBroadcast', () => {
         {
           friendHandle: 'bob@server',
           friendEncryptionKey: exportPublicKey(bobKeys.encryption.publicKey),
+          friendSigningKey: exportPublicKey(bobKeys.signing.publicKey),
         },
         {
           friendHandle: 'charlie@server',
           friendEncryptionKey: exportPublicKey(charlieKeys.encryption.publicKey),
+          friendSigningKey: exportPublicKey(charlieKeys.signing.publicKey),
         },
       ]
 
-      const { start, friendsWithSharing } = useE2eeLocationBroadcast()
-      await start()
+      const { activate, friendsWithSharing } = useE2eeLocationBroadcast()
+      await activate()
 
       // Only Bob should be in the sharing list
       expect(friendsWithSharing.value).toHaveLength(1)
@@ -230,6 +246,34 @@ describe('useE2eeLocationBroadcast', () => {
     })
   })
 
+  describe('lifecycle', () => {
+    test('a stop() during start() leaves broadcasting off', async () => {
+      mockIsSetupComplete.value = true
+      let release!: (v: unknown[]) => void
+      mockGetE2eeConfigs.mockReturnValue(new Promise((r) => (release = r)))
+
+      const { start, stop, isEnabled } = useE2eeLocationBroadcast()
+      const starting = start()
+      stop()
+      release([])
+      await starting
+
+      expect(isEnabled.value).toBe(false)
+    })
+
+    test('starts once sharing is on, and stops when deactivated', async () => {
+      mockIsSetupComplete.value = true
+      mockGetE2eeConfigs.mockResolvedValue([{ friendHandle: 'bob@server', enabled: true }])
+
+      const { activate, deactivate, isEnabled } = useE2eeLocationBroadcast()
+      await activate()
+      await vi.waitFor(() => expect(isEnabled.value).toBe(true))
+
+      deactivate()
+      expect(isEnabled.value).toBe(false)
+    })
+  })
+
   describe('loadFriendsWithSharing', () => {
     test('filters out friends without encryption key', async () => {
       mockGetE2eeConfigs.mockResolvedValue([
@@ -241,6 +285,7 @@ describe('useE2eeLocationBroadcast', () => {
         {
           friendHandle: 'bob@server',
           friendEncryptionKey: exportPublicKey(bobKeys.encryption.publicKey),
+          friendSigningKey: exportPublicKey(bobKeys.signing.publicKey),
         },
         {
           friendHandle: 'nokey@server',
@@ -248,8 +293,8 @@ describe('useE2eeLocationBroadcast', () => {
         },
       ]
 
-      const { loadFriendsWithSharing, friendsWithSharing } = useE2eeLocationBroadcast()
-      await loadFriendsWithSharing()
+      const { activate, friendsWithSharing } = useE2eeLocationBroadcast()
+      await activate()
 
       expect(friendsWithSharing.value).toHaveLength(1)
       expect(friendsWithSharing.value[0].friendHandle).toBe('bob@server')
@@ -258,8 +303,8 @@ describe('useE2eeLocationBroadcast', () => {
     test('returns empty array when no friends have sharing enabled', async () => {
       mockGetE2eeConfigs.mockResolvedValue([])
 
-      const { loadFriendsWithSharing, friendsWithSharing } = useE2eeLocationBroadcast()
-      await loadFriendsWithSharing()
+      const { activate, friendsWithSharing } = useE2eeLocationBroadcast()
+      await activate()
 
       expect(friendsWithSharing.value).toEqual([])
     })

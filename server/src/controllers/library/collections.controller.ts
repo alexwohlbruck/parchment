@@ -355,6 +355,10 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
           set.status = 400
           return { error: err.message }
         }
+        if (err instanceof collectionsService.RotationStaleError) {
+          set.status = 409
+          return { error: err.message }
+        }
         throw err
       }
     },
@@ -365,7 +369,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
         newMetadataKeyVersion: KEY_VERSION,
         newEncryptedPoints: t.Array(
           t.Object({
-            id: t.Optional(t.String()),
+            id: t.String(),
             encryptedData: t.String(),
             nonce: t.String(),
           }),
@@ -383,6 +387,8 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
         tags: ['Library'],
         summary:
           'Rotate the collection key: re-encrypt content, rewrap remaining shares, drop revoked',
+        description:
+          'The bundle must carry every stored point by id and an envelope for every recipient not being revoked; otherwise nothing changes and the response is 409.',
       },
     },
   )

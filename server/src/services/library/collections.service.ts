@@ -508,11 +508,13 @@ export interface RotateCollectionKeyParams {
   userId: string
   newMetadataEncrypted: string
   newMetadataKeyVersion: number
+  /** Every stored point, by its existing id: the point AAD binds the id. */
   newEncryptedPoints: Array<{
-    id?: string // reuse existing id when possible; mint a fresh one when null
+    id: string
     encryptedData: string
     nonce: string
   }>
+  /** One envelope for each recipient who is not being revoked. */
   updatedShareEnvelopes: Array<{
     recipientHandle: string
     encryptedData: string
@@ -532,6 +534,23 @@ export class RotationVersionError extends Error {
     )
     this.name = 'RotationVersionError'
   }
+}
+
+/**
+ * Thrown when a rotation bundle no longer matches the stored collection: a
+ * point or a share was added or removed after the client staged it.
+ * Controllers map this to 409; the client refetches and rebuilds.
+ */
+export class RotationStaleError extends Error {
+  constructor(what: 'points' | 'shares') {
+    super(`Collection ${what} changed since the rotation was prepared`)
+    this.name = 'RotationStaleError'
+  }
+}
+
+function sameMembers(a: string[], b: string[]): boolean {
+  const set = new Set(a)
+  return set.size === new Set(b).size && b.every((x) => set.has(x))
 }
 
 /**
@@ -586,23 +605,54 @@ export async function rotateCollectionKey(
       .where(eq(collections.id, params.collectionId))
       .returning()
 
-    // 2. Re-seed the encrypted_points table with the new ciphertexts.
-    //    Simplest correct sequence: delete all, reinsert. The client
-    //    supplies new ids (or we mint).
-    await tx
+    // 2. Replace every point. The bundle must cover exactly the stored set,
+    //    or a point added meanwhile would be lost.
+    const removed = await tx
       .delete(encryptedPoints)
       .where(eq(encryptedPoints.collectionId, params.collectionId))
+      .returning({ id: encryptedPoints.id })
+    if (
+      !sameMembers(
+        removed.map((p) => p.id),
+        params.newEncryptedPoints.map((p) => p.id),
+      )
+    ) {
+      throw new RotationStaleError('points')
+    }
 
     if (params.newEncryptedPoints.length > 0) {
       await tx.insert(encryptedPoints).values(
         params.newEncryptedPoints.map((p) => ({
-          id: p.id ?? generateId(),
+          id: p.id,
           collectionId: params.collectionId,
           userId: params.userId,
           encryptedData: p.encryptedData,
           nonce: p.nonce,
         })),
       )
+    }
+
+    // 3. Every recipient who keeps access needs the new key.
+    const existingShares = await tx
+      .select({ recipientHandle: shares.recipientHandle })
+      .from(shares)
+      .where(
+        and(
+          eq(shares.userId, params.userId),
+          eq(shares.resourceType, 'collection'),
+          eq(shares.resourceId, params.collectionId),
+        ),
+      )
+    const kept = existingShares
+      .map((r) => r.recipientHandle)
+      .filter((h) => !params.revokeRecipientHandles.includes(h))
+    if (
+      !sameMembers(
+        kept,
+        params.updatedShareEnvelopes.map((e) => e.recipientHandle),
+      )
+    ) {
+      throw new RotationStaleError('shares')
     }
 
     await rewrapShareEnvelopes(

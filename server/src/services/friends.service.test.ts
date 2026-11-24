@@ -83,7 +83,6 @@ const {
   updateFriendKeys,
   isFriend,
   acceptFriendInvitation,
-  removeFriend,
 } = await import('./friends.service')
 
 beforeEach(() => {

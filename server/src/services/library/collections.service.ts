@@ -62,6 +62,14 @@ async function rewrapShareEnvelopes(
   }
 }
 
+/** A collection row for an event that reaches more people than its owner. */
+export function withoutPublicToken<T extends { publicToken?: string | null }>(
+  collection: T,
+): Omit<T, 'publicToken'> {
+  const { publicToken: _, ...rest } = collection
+  return rest
+}
+
 /** Joins in when `userId` archived the collection, null if they haven't. */
 function archivedBy(userId: string) {
   return and(
@@ -164,6 +172,7 @@ export async function getAccessibleCollection(
 
   return {
     ...collection,
+    publicToken: null,
     role: share.role,
     shareEnvelope: { encryptedData: share.encryptedData, nonce: share.nonce },
     senderHandle: share.senderHandle,
@@ -202,6 +211,7 @@ export async function getSharedCollections(
 
   return rows.map((r) => ({
     ...r.collection,
+    publicToken: null,
     archivedAt: r.archivedAt,
     role: r.role,
     shareEnvelope: { encryptedData: r.encryptedData, nonce: r.nonce },
@@ -312,7 +322,7 @@ export async function createCollection(params: CreateCollectionParams) {
   // Owner-only at creation; no share rows exist yet. The resolver still
   // looks them up but returns only the owner — keeps the emit site
   // uniform with `updateCollection` etc.
-  await emit.collection('collection:created', inserted, inserted.id)
+  await emit.collection('collection:created', withoutPublicToken(inserted), inserted.id)
   return inserted
 }
 
@@ -344,7 +354,7 @@ export async function updateCollection(
   if (updatedCollection) {
     await emit.collection(
       'collection:updated',
-      updatedCollection,
+      withoutPublicToken(updatedCollection),
       updatedCollection.id,
     )
   }
@@ -684,7 +694,7 @@ export async function rotateCollectionKey(
     return updatedCollection ?? null
   })
   if (result) {
-    await emit.collection('collection:rotated', result, result.id)
+    await emit.collection('collection:rotated', withoutPublicToken(result), result.id)
   }
   return result
 }
@@ -948,7 +958,7 @@ export async function changeCollectionScheme(
     return updatedCollection ?? null
   })
   if (result) {
-    await emit.collection('collection:scheme-changed', result, result.id)
+    await emit.collection('collection:scheme-changed', withoutPublicToken(result), result.id)
   }
   return result
 }

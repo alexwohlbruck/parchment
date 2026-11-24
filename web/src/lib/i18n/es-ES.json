@@ -1081,6 +1081,12 @@
       }
     },
     "refresh": "Actualizar",
+    "view": {
+      "title": "Vista",
+      "timeline": "Cronología",
+      "list": "Lista",
+      "group": "Agrupar por tipo de viaje"
+    },
     "station": {
       "transfer": {
         "crossPlatform": "Mismo andén",
@@ -1810,7 +1816,9 @@
       "show": "Mostrar opciones del viaje",
       "hide": "Ocultar opciones del viaje",
       "destination": "Destino",
-      "alongTheWay": "En el camino"
+      "alongTheWay": "En el camino",
+      "parking": "Buscar estacionamiento",
+      "docks": "Otras estaciones"
     },
     "arrival": {
       "destination": "Tu destino",
@@ -2380,7 +2388,17 @@
       "keep": "Mantener",
       "voice": {
         "switched": "Cambiando a {station}"
-      }
+      },
+      "pick": {
+        "dock": "Dónde dejarla",
+        "bike": "Dónde recogerla"
+      },
+      "none": {
+        "dock": "No hay anclajes libres cerca",
+        "bike": "No hay bicis cerca"
+      },
+      "goTo": "Ir a {station}",
+      "failed": "No se pudo calcular la ruta a esa estación"
     },
     "alternatives": {
       "faster": "{duration} más rápido",
@@ -2476,6 +2494,37 @@
         "pickup": "Pickup",
         "bike": "Bici"
       }
+    },
+    "parking": {
+      "find": "Buscar",
+      "dismiss": "Ahora no",
+      "paid": "De pago",
+      "free": "Gratis",
+      "unavailable": "La búsqueda de estacionamiento no está disponible ahora",
+      "failed": "No se pudo trazar la ruta a ese estacionamiento",
+      "kinds": {
+        "garage": "Garaje",
+        "underground": "Garaje subterráneo",
+        "street": "En la calle",
+        "lot": "Estacionamiento",
+        "rack": "Aparcabicis",
+        "lockers": "Taquillas para bicis",
+        "shelter": "Aparcabicis cubierto"
+      },
+      "car": {
+        "near": "Estacionamiento cerca de {place}",
+        "nearby": "Estacionamiento cerca de tu destino",
+        "empty": "No hay estacionamiento público cerca"
+      },
+      "bike": {
+        "near": "Aparcabicis cerca de {place}",
+        "nearby": "Aparcabicis cerca de tu destino",
+        "empty": "No hay aparcabicis cerca"
+      }
+    },
+    "pick": {
+      "minutes": "{n} min",
+      "walk": "a pie"
     }
   },
   "attribution": {
@@ -3507,6 +3556,11 @@
       "usage": {
         "title": "Este mes"
       }
+    },
+    "sync": {
+      "title": "Dónde se guarda este ajuste",
+      "synced": "Todos tus dispositivos",
+      "deviceOnly": "Solo este dispositivo"
     }
   },
   "notes": {

@@ -1,21 +1,16 @@
-import { onScopeDispose, ref, shallowRef, watch } from 'vue'
-import type { Map as MaplibreMap } from 'maplibre-gl'
+import { ref, shallowRef } from 'vue'
 import { useAbortController } from '@/composables/useAbortController'
-import { useMapStore } from '@/stores/map.store'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { routeAhead } from '@/lib/guidance/nav-route'
 import { searchAhead, type AheadResult } from '@/services/guidance/route-search.service'
-import { AheadResultsLayer } from '@/services/guidance/ahead-results-layer'
 
-/** Searches the route still ahead and marks what it finds on the map. */
+/** Searches the route still ahead. */
 export function useAheadSearch() {
   const guidance = useGuidanceStore()
   const { nextSignal } = useAbortController()
   const results = shallowRef<AheadResult[]>([])
   const loading = ref(false)
   const failed = ref(false)
-  const map = useMapStore().getMapStrategy()?.mapInstance as MaplibreMap | undefined
-  const layer = map ? new AheadResultsLayer(map) : null
 
   async function search(params: { query?: string; categories?: string[] }) {
     const route = guidance.followed
@@ -38,13 +33,6 @@ export function useAheadSearch() {
       loading.value = false
     }
   }
-
-  const stop = watch(results, list => layer?.setPlaces(list.map(r => r.place.geometry.value.center)))
-
-  onScopeDispose(() => {
-    stop()
-    layer?.destroy()
-  })
 
   return { results, loading, failed, search }
 }

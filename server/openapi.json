@@ -22016,7 +22016,7 @@
         "tags": [
           "Users"
         ],
-        "description": "Update current user preferences. Each navigation or app section sent replaces the stored one; sections left out are kept. Ask settings sent are merged into the stored ones.",
+        "description": "Update current user preferences. Each navigation or app section sent replaces the stored one; sections left out are kept. Ask settings sent are merged into the stored ones. A change is pushed to the user's other signed-in clients as a preferences:updated event.",
         "requestBody": {
           "required": true,
           "content": {
@@ -22231,6 +22231,11 @@
                         "properties": {}
                       }
                     }
+                  },
+                  "origin": {
+                    "maxLength": 64,
+                    "description": "The sending client's id, echoed in the preferences:updated event so it can skip its own change.",
+                    "type": "string"
                   }
                 }
               }
@@ -22446,6 +22451,11 @@
                         "properties": {}
                       }
                     }
+                  },
+                  "origin": {
+                    "maxLength": 64,
+                    "description": "The sending client's id, echoed in the preferences:updated event so it can skip its own change.",
+                    "type": "string"
                   }
                 }
               }
@@ -22661,6 +22671,11 @@
                         "properties": {}
                       }
                     }
+                  },
+                  "origin": {
+                    "maxLength": 64,
+                    "description": "The sending client's id, echoed in the preferences:updated event so it can skip its own change.",
+                    "type": "string"
                   }
                 }
               }

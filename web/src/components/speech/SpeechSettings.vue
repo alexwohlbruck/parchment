@@ -38,14 +38,14 @@ onBeforeUnmount(() => { if (unlocked) releaseSpeech() })
 </script>
 
 <template>
-  <SettingsItem :title="$t('guidance.settings.speechVoice')" :description="voices.length ? $t('guidance.settings.speechVoiceDescription') : $t('guidance.settings.speechFallback')" :icon="Volume2Icon">
+  <SettingsItem :title="$t('guidance.settings.speechVoice')" sync-key="navigation.speech.voices" :description="voices.length ? $t('guidance.settings.speechVoiceDescription') : $t('guidance.settings.speechFallback')" :icon="Volume2Icon">
     <Button v-if="voices.length" variant="outline" class="max-w-48 gap-1.5" @click="openPicker">
       <span class="truncate">{{ voiceName }}</span>
       <ChevronRightIcon class="size-4 shrink-0 opacity-50" />
     </Button>
   </SettingsItem>
   <VoicePicker v-model:open="pickerOpen" />
-  <SettingsItem :title="$t('guidance.settings.speechRate')" :description="$t('guidance.settings.speechRateDescription')" :icon="AudioLinesIcon">
+  <SettingsItem :title="$t('guidance.settings.speechRate')" sync-key="navigation.speech.rate" :description="$t('guidance.settings.speechRateDescription')" :icon="AudioLinesIcon">
     <div class="flex items-center gap-2">
       <Select v-model="rate">
         <SelectTrigger class="w-fit"><SelectValue /></SelectTrigger>

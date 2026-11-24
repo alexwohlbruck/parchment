@@ -2,18 +2,38 @@
 
 ### Added
 
+* While driving or biking, find parking or a bike rack near your destination and get walking directions from the spot you pick.
+* Group directions by trip type from the view menu, so walk-and-transit trips stand apart from bike-and-transit ones.
+* Settings that follow your account show a cloud next to them; tap it to keep that setting on this device only.
+* Changing a synced setting updates your other signed-in devices right away.
 * Choose which imagery the satellite map uses, add your own, and order them so lower sources fill in where higher ones have no coverage.
 * Add Google's photorealistic 3D imagery to the satellite map with Premium, to see cities as 3D models you can tilt around. In hybrid with 3D terrain, street names follow its bridges.
 
 ### Changed
 
+* When your bike share station fills up or runs out of bikes, pick another from a list. If you don't tap one, the closest is chosen after 10 seconds.
+* Places suggested during navigation look like the map's own places, numbered to match the list.
 * The satellite map now shows sharp USGS aerial photos across the contiguous US, with Esri imagery everywhere else.
 * Satellite and hybrid maps no longer draw 3D trees, street furniture, landmarks or raised bridges over the photos, and hybrid shows street names without drawing the streets.
 
 ### Fixed
 
+* Bike share station checks no longer stop partway through a ride.
+* Tapping a suggested place on the map during navigation now adds it to your route instead of closing the list.
+* Transit rides in offline directions now show their line colour in the trip timeline.
 * Tapping the basemap that's already selected keeps it, instead of switching to the standard map.
 * In 3D, road names and one-way arrows on bridges sit on the bridge instead of on the water or ground below.
+* Expanding the sheet while saving an offline map no longer shrinks the area you framed.
+
+## [0.25.1-1] - 2026-11-23
+
+### Changed
+
+* On phones, dialogs open just tall enough for their content, and you can drag them up to full height.
+
+### Fixed
+
+* On phones, the feedback form and other sheets opened from the account menu no longer close right after opening.
 
 ## [0.25.1] - 2026-11-23
 

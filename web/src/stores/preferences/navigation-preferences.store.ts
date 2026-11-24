@@ -65,6 +65,7 @@ export const useNavigationPreferencesStore = defineStore('navigationPreferences'
   }
 
   const sync = useAccountSync<Required<NavigationPreferences>>(
+    'navigation',
     {
       excludedModes: () => excludedModes.value,
       sortPreference: () => sortPreference.value,
@@ -76,12 +77,12 @@ export const useNavigationPreferencesStore = defineStore('navigationPreferences'
   )
 
   function adopt(remote: NavigationPreferences) {
-    sync.adopt(remote, () => {
-      if (remote.excludedModes) excludedModes.value = [...remote.excludedModes]
-      if (remote.sortPreference !== undefined) sortPreference.value = remote.sortPreference
-      if (remote.routing) routing.value = parseRoutingPreferences(remote.routing)
-      if (remote.speech) speech.value = mergeSpeechPreferences(remote.speech)
-      if (remote.guidance) guidance.value = mergeGuidancePreferences(remote.guidance)
+    sync.adopt(remote, values => {
+      if (values.excludedModes) excludedModes.value = [...values.excludedModes]
+      if (values.sortPreference !== undefined) sortPreference.value = values.sortPreference
+      if (values.routing) routing.value = parseRoutingPreferences(values.routing)
+      if (values.speech) speech.value = mergeSpeechPreferences(values.speech)
+      if (values.guidance) guidance.value = mergeGuidancePreferences(values.guidance)
     })
   }
 

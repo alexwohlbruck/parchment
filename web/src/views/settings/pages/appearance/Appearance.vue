@@ -90,7 +90,7 @@ const handleColorChange = (value: any) => {
       id="app-theme"
       :title="$t('settings.appearance.appTheme.title')"
     >
-      <SettingsItem :title="$t('settings.appearance.appTheme.uiTheme.title')">
+      <SettingsItem :title="$t('settings.appearance.appTheme.uiTheme.title')" sync-key="app.theme.uiTheme">
         <Select
           :model-value="uiTheme"
           @update:model-value="value => setUiTheme(value as UiTheme)"
@@ -110,7 +110,7 @@ const handleColorChange = (value: any) => {
         </Select>
       </SettingsItem>
 
-      <SettingsItem :title="$t('settings.appearance.appTheme.color.title')">
+      <SettingsItem :title="$t('settings.appearance.appTheme.color.title')" sync-key="app.theme.accentColor">
         <Select
           :model-value="accentColor"
           @update:model-value="handleColorChange"
@@ -140,7 +140,7 @@ const handleColorChange = (value: any) => {
         </Select>
       </SettingsItem>
 
-      <SettingsItem :title="$t('settings.appearance.appTheme.radius.title')">
+      <SettingsItem :title="$t('settings.appearance.appTheme.radius.title')" sync-key="app.theme.radius">
         <div class="flex min-w-0 items-center gap-2">
           <Span class="text-sm text-muted-foreground font-medium">
             {{ sliderRadius[0] }}
@@ -158,6 +158,7 @@ const handleColorChange = (value: any) => {
 
       <SettingsItem
         :title="$t('settings.appearance.appTheme.theme.title')"
+        sync-key="app.theme.colorScheme"
         :command-id="CommandName.TOGGLE_THEME"
       >
         <Select
@@ -286,6 +287,7 @@ const handleColorChange = (value: any) => {
 
       <SettingsItem
         :title="$t('settings.mapSettings.configuration.indoorMaps')"
+        sync-key="app.map.indoorMaps"
         :description="
           $t('settings.mapSettings.configuration.indoorMapsDescription')
         "
@@ -299,6 +301,7 @@ const handleColorChange = (value: any) => {
 
       <SettingsItem
         :title="$t('settings.mapSettings.configuration.poiLabels')"
+        sync-key="app.map.poiLabels"
         :icon="InfoIcon"
       >
         <Switch
@@ -309,6 +312,7 @@ const handleColorChange = (value: any) => {
 
       <SettingsItem
         :title="$t('settings.mapSettings.configuration.roadLabels')"
+        sync-key="app.map.roadLabels"
         :icon="MilestoneIcon"
       >
         <Switch
@@ -319,6 +323,7 @@ const handleColorChange = (value: any) => {
 
       <SettingsItem
         :title="$t('settings.mapSettings.configuration.transitLabels')"
+        sync-key="app.map.transitLabels"
         :icon="TrainIcon"
       >
         <Switch
@@ -329,6 +334,7 @@ const handleColorChange = (value: any) => {
 
       <SettingsItem
         :title="$t('settings.mapSettings.configuration.placeLabels')"
+        sync-key="app.map.placeLabels"
         :icon="MapPinIcon"
       >
         <Switch
@@ -346,6 +352,7 @@ const handleColorChange = (value: any) => {
     >
       <SettingsItem
         :title="$t('settings.mapSettings.style.mapStyle')"
+        sync-key="app.map.mapStyle"
         :description="
           isMaplibre
             ? $t('settings.mapSettings.style.descriptionMaplibre')
@@ -380,6 +387,7 @@ const handleColorChange = (value: any) => {
       <SettingsItem
         v-if="isMaplibre"
         :title="$t('settings.mapSettings.style.poiStyle')"
+        sync-key="app.map.poiStyle"
         :icon="MapPinIcon"
       >
         <Select

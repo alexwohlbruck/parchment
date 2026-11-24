@@ -3,6 +3,7 @@ import { createPinia, setActivePinia, type Pinia } from 'pinia'
 import { nextTick } from 'vue'
 import { useNavigationPreferencesStore } from './navigation-preferences.store'
 import { useAuthStore } from '@/stores/auth.store'
+import { useDeviceOnlyStore } from './device-only.store'
 import type { NavigationPreferences } from '@/lib/preferences/navigation-preferences'
 
 const save = vi.hoisted(() => vi.fn(async (_patch: NavigationPreferences) => {}))
@@ -145,4 +146,38 @@ describe('navigation preferences store', () => {
     expect(save).not.toHaveBeenCalled()
     expect(store.excludedModes).toEqual(['transit'])
   })
+
+  it('saves each in-place guidance edit, not just the first', async () => {
+    const store = useNavigationPreferencesStore()
+    store.adopt({ ...remote, routing: { general: {}, mode: {} }, speech: {}, guidance: {} })
+    await settle()
+    save.mockClear()
+
+    store.guidance.cameraMode = 'north-up'
+    await settle()
+    store.guidance.cameraMode = 'heading-up'
+    await settle()
+    expect(save.mock.calls.map(([patch]) => patch.guidance?.cameraMode)).toEqual(['north-up', 'heading-up'])
+  })
+
+  it('keeps one routing mode on the device while the rest sync', async () => {
+    useDeviceOnlyStore().setDeviceOnly('navigation.routing.mode.walking', true)
+    const store = useNavigationPreferencesStore()
+    store.setModePreference('walking', 'hills', 0.9)
+    store.adopt({
+      ...remote,
+      routing: { general: {}, mode: { walking: { hills: 0.1 }, biking: { hills: 0.2 } } },
+      speech: {},
+      guidance: {},
+    })
+    expect(store.routing.mode.walking.hills).toBe(0.9)
+    expect(store.routing.mode.biking.hills).toBe(0.2)
+
+    store.setModePreference('biking', 'hills', 0.4)
+    await settle()
+    const routing = save.mock.calls.at(-1)![0].routing!
+    expect(routing.mode.walking).toEqual({ hills: 0.1 })
+    expect(routing.mode.biking.hills).toBe(0.4)
+  })
 })
+

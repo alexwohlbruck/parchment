@@ -21,6 +21,7 @@ import Lookout from '@/views/lookout/Lookout.vue'
 
 import { useAuthStore } from '@/stores/auth.store'
 import { isChunkLoadError } from '@/lib/network-errors'
+import type { SheetMeta } from '@/types/app.types'
 
 export enum AppRoute {
   OFFLINE = 'offline',
@@ -97,6 +98,9 @@ const DEV_ROUTES: RouteRecordRaw[] = import.meta.env.DEV
       },
     ]
   : []
+
+// Opening the sheet past half shouldn't shrink the square that frames the area.
+const OFFLINE_AREA_SHEET: SheetMeta = { maxObstructingSnapIndex: 1 }
 
 function keepDefaultView(to, from) {
   if (from.matched.length) {
@@ -428,11 +432,13 @@ const router = createRouter({
           path: '/offline-maps/new',
           name: AppRoute.OFFLINE_MAPS_NEW,
           component: () => import('@/views/offline/NewOfflineMap.vue'),
+          meta: { sheet: OFFLINE_AREA_SHEET },
         },
         {
           path: '/offline-maps/:id/edit',
           name: AppRoute.OFFLINE_MAPS_EDIT,
           component: () => import('@/views/offline/NewOfflineMap.vue'),
+          meta: { sheet: OFFLINE_AREA_SHEET },
           props: true,
         },
       ],

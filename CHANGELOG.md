@@ -6,6 +6,16 @@
 
 ### Fixed
 
+## [0.25.1-1] - 2026-11-23
+
+### Changed
+
+* On phones, dialogs open just tall enough for their content, and you can drag them up to full height.
+
+### Fixed
+
+* On phones, the feedback form and other sheets opened from the account menu no longer close right after opening.
+
 ## [0.25.1] - 2026-11-23
 
 ### Fixed

@@ -7,7 +7,13 @@ import * as sharingService from '../../services/sharing.service'
 import { i18nPlugin } from '../../lib/i18n/plugin'
 import { logError } from '../../lib/logger'
 import { archiveEndpoints } from './archive'
-import { KEY_VERSION } from '../../lib/payload-limits'
+import {
+  ENVELOPE,
+  HANDLE,
+  KEY_VERSION,
+  MAX_BATCH,
+  NONCE,
+} from '../../lib/payload-limits'
 
 const collectionMetadata = {
   name: t.Optional(t.String()),
@@ -57,7 +63,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
         scheme: t.Optional(
           t.Union([t.Literal('server-key'), t.Literal('user-e2ee')]),
         ),
-        metadataEncrypted: t.Optional(t.String()),
+        metadataEncrypted: t.Optional(ENVELOPE),
         metadataKeyVersion: t.Optional(KEY_VERSION),
         isPublic: t.Optional(t.Boolean()),
       }),
@@ -180,7 +186,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
       }),
       body: t.Object({
         ...collectionMetadata,
-        metadataEncrypted: t.Optional(t.String()),
+        metadataEncrypted: t.Optional(ENVELOPE),
         isPublic: t.Optional(t.Boolean()),
       }),
       detail: {
@@ -277,7 +283,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
           t.Literal('server-key'),
           t.Literal('user-e2ee'),
         ]),
-        newMetadataEncrypted: t.Optional(t.String()),
+        newMetadataEncrypted: t.Optional(ENVELOPE),
         metadata: t.Optional(t.Object(collectionMetadata)),
         newMetadataKeyVersion: KEY_VERSION,
         expectedUpdatedAt: t.Optional(t.String()),
@@ -285,9 +291,10 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
           t.Array(
             t.Object({
               id: t.Optional(t.String()),
-              encryptedData: t.String(),
-              nonce: t.String(),
+              encryptedData: ENVELOPE,
+              nonce: NONCE,
             }),
+            { maxItems: MAX_BATCH },
           ),
         ),
         newBookmarks: t.Optional(
@@ -306,14 +313,16 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
               iconColor: t.Optional(t.String()),
               frequentType: t.Optional(t.Nullable(t.String())),
             }),
+            { maxItems: MAX_BATCH },
           ),
         ),
         updatedShareEnvelopes: t.Array(
           t.Object({
-            recipientHandle: t.String(),
-            encryptedData: t.String(),
-            nonce: t.String(),
+            recipientHandle: HANDLE,
+            encryptedData: ENVELOPE,
+            nonce: NONCE,
           }),
+          { maxItems: MAX_BATCH },
         ),
       }),
       detail: {
@@ -365,23 +374,25 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
     {
       params: t.Object({ id: t.String() }),
       body: t.Object({
-        newMetadataEncrypted: t.String(),
+        newMetadataEncrypted: ENVELOPE,
         newMetadataKeyVersion: KEY_VERSION,
         newEncryptedPoints: t.Array(
           t.Object({
             id: t.String(),
-            encryptedData: t.String(),
-            nonce: t.String(),
+            encryptedData: ENVELOPE,
+            nonce: NONCE,
           }),
+          { maxItems: MAX_BATCH },
         ),
         updatedShareEnvelopes: t.Array(
           t.Object({
-            recipientHandle: t.String(),
-            encryptedData: t.String(),
-            nonce: t.String(),
+            recipientHandle: HANDLE,
+            encryptedData: ENVELOPE,
+            nonce: NONCE,
           }),
+          { maxItems: MAX_BATCH },
         ),
-        revokeRecipientHandles: t.Array(t.String()),
+        revokeRecipientHandles: t.Array(HANDLE, { maxItems: MAX_BATCH }),
       }),
       detail: {
         tags: ['Library'],
@@ -514,8 +525,8 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
       }),
       body: t.Object({
         id: t.Optional(t.String({ minLength: 8, maxLength: 64 })),
-        encryptedData: t.String(),
-        nonce: t.String(),
+        encryptedData: ENVELOPE,
+        nonce: NONCE,
       }),
       detail: {
         tags: ['Library'],
@@ -566,8 +577,8 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
         pointId: t.String(),
       }),
       body: t.Object({
-        encryptedData: t.String(),
-        nonce: t.String(),
+        encryptedData: ENVELOPE,
+        nonce: NONCE,
       }),
       detail: {
         tags: ['Library'],

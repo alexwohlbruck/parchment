@@ -3,6 +3,7 @@ import { permissions } from '../middleware/auth.middleware'
 import { PermissionId } from '../types/auth.types'
 import * as sharingService from '../services/sharing.service'
 import { i18nPlugin } from '../lib/i18n/plugin'
+import { ENVELOPE, HANDLE, NONCE, RESOURCE_ID, SIGNATURE } from '../lib/payload-limits'
 
 const app = new Elysia({ prefix: '/sharing' }).use(i18nPlugin)
 
@@ -43,7 +44,7 @@ app.use(permissions(PermissionId.SHARING_READ)).get(
   {
     params: t.Object({
       resourceType: t.String(),
-      resourceId: t.String(),
+      resourceId: RESOURCE_ID,
     }),
     detail: {
       tags: ['Sharing'],
@@ -114,16 +115,16 @@ app.use(permissions(PermissionId.SHARING_WRITE)).post(
   },
   {
     body: t.Object({
-      recipientHandle: t.String(),
+      recipientHandle: HANDLE,
       resourceType: t.Union([
         t.Literal('collection'),
         t.Literal('route'),
         t.Literal('map'),
         t.Literal('layer'),
       ]),
-      resourceId: t.String(),
-      encryptedData: t.Optional(t.String()),
-      nonce: t.Optional(t.String()),
+      resourceId: RESOURCE_ID,
+      encryptedData: t.Optional(ENVELOPE),
+      nonce: t.Optional(NONCE),
       role: t.Optional(
         t.Union([t.Literal('viewer'), t.Literal('editor')]),
       ),
@@ -131,9 +132,9 @@ app.use(permissions(PermissionId.SHARING_WRITE)).post(
       // client builds the canonical envelope, signs it with the sender's
       // Ed25519 private key, and submits all three pieces. Same-server
       // shares may omit them.
-      federationSignature: t.Optional(t.String()),
-      federationNonce: t.Optional(t.String()),
-      federationTimestamp: t.Optional(t.String()),
+      federationSignature: t.Optional(SIGNATURE),
+      federationNonce: t.Optional(NONCE),
+      federationTimestamp: t.Optional(t.String({ maxLength: 64 })),
     }),
     detail: {
       tags: ['Sharing'],
@@ -190,16 +191,16 @@ app.use(permissions(PermissionId.SHARING_WRITE)).put(
   },
   {
     body: t.Object({
-      recipientHandle: t.String(),
+      recipientHandle: HANDLE,
       resourceType: t.Union([
         t.Literal('collection'),
         t.Literal('route'),
         t.Literal('map'),
         t.Literal('layer'),
       ]),
-      resourceId: t.String(),
-      encryptedData: t.String(),
-      nonce: t.String(),
+      resourceId: RESOURCE_ID,
+      encryptedData: ENVELOPE,
+      nonce: NONCE,
     }),
     detail: {
       tags: ['Sharing'],

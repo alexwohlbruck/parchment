@@ -3638,7 +3638,8 @@
       "publicLinkRevokeFailed": "No se pudo revocar el enlace público",
       "copyFailed": "Error al copiar — selecciona y copia el enlace manualmente",
       "identityRequired": "Configura tus claves de cifrado en Ajustes antes de compartir",
-      "missingFriendKey": "Las claves de este amigo aún no están sincronizadas; inténtalo en un momento"
+      "missingFriendKey": "Las claves de este amigo aún no están sincronizadas; inténtalo en un momento",
+      "remainingKeysMissing": "No se puede quitar el acceso hasta que se sincronicen las claves de los demás; inténtalo en un momento"
     },
     "removeAction": "Quitar a {name}"
   },

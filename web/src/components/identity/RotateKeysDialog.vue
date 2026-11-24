@@ -14,6 +14,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
+import RecoveryKeyDisplay from '@/components/identity/RecoveryKeyDisplay.vue'
 import { AlertTriangle, Check, RefreshCw, Fingerprint } from 'lucide-vue-next'
 
 interface Props {
@@ -26,12 +27,29 @@ const emit = defineEmits<{ 'update:open': [value: boolean] }>()
 const { t } = useI18n()
 const identityStore = useIdentityStore()
 
-type UiStep = 'confirm' | 'running' | 'done' | 'error'
+type UiStep = 'confirm' | 'running' | 'recovery-key' | 'done' | 'error'
 
 const step = ref<UiStep>('confirm')
 const phase = ref<RotationPhase | null>(null)
 const error = ref<string | null>(null)
 const slotWarnings = ref<string[]>([])
+const newRecoveryKey = ref<string | null>(null)
+let resolveRecoveryKey: ((saved: boolean) => void) | null = null
+
+function confirmRecoveryKey(recoveryKey: string): Promise<boolean> {
+  newRecoveryKey.value = recoveryKey
+  step.value = 'recovery-key'
+  return new Promise(resolve => {
+    resolveRecoveryKey = resolve
+  })
+}
+
+function settleRecoveryKey(saved: boolean) {
+  resolveRecoveryKey?.(saved)
+  resolveRecoveryKey = null
+  newRecoveryKey.value = null
+  if (saved) step.value = 'running'
+}
 
 const isOpen = computed({
   get: () => props.open,
@@ -41,7 +59,9 @@ const isOpen = computed({
 watch(
   () => props.open,
   (open) => {
-    if (open) {
+    if (!open) {
+      settleRecoveryKey(false)
+    } else {
       step.value = 'confirm'
       phase.value = null
       error.value = null
@@ -74,6 +94,8 @@ const progressMessage = computed(() => {
         index: p.index,
         total: p.total,
       })
+    case 'confirming-recovery-key':
+      return t('friends.rotateKeys.progress.confirmingRecoveryKey')
     case 'committing':
       return t('friends.rotateKeys.progress.committing')
     case 'storing-seed':
@@ -93,7 +115,9 @@ async function handleConfirm() {
     onProgress: (p) => {
       phase.value = p
     },
+    confirmRecoveryKey,
   })
+  if (result.cancelled) return
 
   if (result.success) {
     if (result.slotResults) {
@@ -149,6 +173,7 @@ function handleClose() {
               <ul class="list-disc pl-4 space-y-1 text-xs mt-1">
                 <li>{{ t('friends.rotateKeys.warning.keepOpen') }}</li>
                 <li>{{ t('friends.rotateKeys.warning.tapEach') }}</li>
+                <li>{{ t('friends.rotateKeys.warning.newRecoveryKey') }}</li>
                 <li>{{ t('friends.rotateKeys.warning.failsSafe') }}</li>
               </ul>
             </AlertDescription>
@@ -185,6 +210,25 @@ function handleClose() {
             <span>{{ progressMessage }}</span>
           </div>
         </div>
+      </template>
+
+      <template v-else-if="step === 'recovery-key'">
+        <DialogHeader>
+          <DialogTitle>{{ t('friends.rotateKeys.recoveryKeyTitle') }}</DialogTitle>
+          <DialogDescription>
+            {{ t('friends.rotateKeys.recoveryKeyDescription') }}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div class="py-2">
+          <RecoveryKeyDisplay :recovery-key="newRecoveryKey" />
+        </div>
+
+        <DialogFooter>
+          <Button @click="settleRecoveryKey(true)">
+            {{ t('friends.rotateKeys.recoveryKeySaved') }}
+          </Button>
+        </DialogFooter>
       </template>
 
       <template v-else-if="step === 'done'">

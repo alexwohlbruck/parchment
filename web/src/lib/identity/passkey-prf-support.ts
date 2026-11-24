@@ -170,3 +170,17 @@ export function extractPrfOutputFromAssertion(
     response.clientExtensionResults?.prf?.results?.first,
   )
 }
+
+/**
+ * The response as the server should see it: the PRF output unwraps the
+ * seed, so it never leaves the device. `prf.enabled` stays.
+ */
+export function withoutPrfOutput<T extends object>(response: T): T {
+  const extensions = (response as ResponseWithExtensions).clientExtensionResults
+  if (!extensions?.prf?.results) return response
+  const { results: _results, ...prf } = extensions.prf
+  return {
+    ...response,
+    clientExtensionResults: { ...extensions, prf },
+  }
+}

@@ -18,7 +18,7 @@
  * return them newest-first for display.
  */
 
-import { loadBlob, saveBlob } from '@/lib/identity/personal-blob'
+import { BlobUnreadableError, loadBlob, saveBlob } from '@/lib/identity/personal-blob'
 import {
   getNetworkErrorKind,
   isRetriableNetworkError,
@@ -148,9 +148,12 @@ export function createRecentsStore<T>(
     try {
       blob = await loadBlob<RecentsBlob<T>>(config.blobType, userId)
     } catch (error) {
-      if (!isRetriableNetworkError(getNetworkErrorKind(error))) throw error
-      // Offline or unreachable: keep the mirrored entries and stay
-      // un-hydrated so the next call tries the server again.
+      const retriable =
+        error instanceof BlobUnreadableError ||
+        isRetriableNetworkError(getNetworkErrorKind(error))
+      if (!retriable) throw error
+      // Offline, unreachable, or sealed under keys this device doesn't
+      // have yet: keep the mirrored entries and stay un-hydrated.
       loadedForUserId = userId
       return snapshot()
     }

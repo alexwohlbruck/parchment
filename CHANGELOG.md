@@ -16,6 +16,7 @@
 * Places suggested during navigation look like the map's own places, numbered to match the list.
 * The satellite map now shows sharp USGS aerial photos across the contiguous US, with Esri imagery everywhere else.
 * Satellite and hybrid maps no longer draw 3D trees, street furniture, landmarks or raised bridges over the photos, and hybrid shows street names without drawing the streets.
+* Rotating your keys shows your new recovery key before it finishes, since the old one stops working.
 
 ### Fixed
 
@@ -29,6 +30,9 @@
 * Making a collection private no longer removes its places from your other collections.
 * Removing someone from a private collection now stops with a message, instead of cutting off others whose keys haven't synced.
 * Changing someone's role on a shared collection takes effect even after you change your username.
+* Rotating your keys no longer leaves saved routes, canvases or shared private collections unreadable, and stops instead of skipping anything it can't carry over.
+* Setting up encryption can no longer replace keys your account already has after a failed connection.
+* A device with outdated keys can no longer overwrite your synced data after you rotate keys elsewhere.
 
 ## [0.25.1-1] - 2026-11-23
 

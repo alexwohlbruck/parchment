@@ -4,6 +4,7 @@ import { PermissionId } from '../types/auth.types'
 import {
   getPersonalBlob,
   putPersonalBlob,
+  StaleKmVersion,
   deletePersonalBlob,
   listPersonalBlobTypes,
 } from '../services/personal-blob.service'
@@ -80,11 +81,18 @@ app.use(permissions(PermissionId.LIBRARY_WRITE)).put(
     if (!ALLOWED_TYPE_PATTERN.test(type)) {
       return status(400, { message: t('errors.personalBlob.invalidType') })
     }
-    await putPersonalBlob(user.id, type, {
-      encryptedBlob: body.encryptedBlob,
-      nonce: body.nonce ?? '',
-      kmVersion: body.kmVersion ?? 1,
-    })
+    try {
+      await putPersonalBlob(user.id, type, {
+        encryptedBlob: body.encryptedBlob,
+        nonce: body.nonce ?? '',
+        kmVersion: body.kmVersion ?? 1,
+      })
+    } catch (err) {
+      if (err instanceof StaleKmVersion) {
+        return status(409, { message: err.message, kmVersion: err.current })
+      }
+      throw err
+    }
     emitIfIntegrationConfig(user.id, type)
     return { success: true }
   },
@@ -97,7 +105,11 @@ app.use(permissions(PermissionId.LIBRARY_WRITE)).put(
     }),
     detail: {
       tags: ['PersonalBlob'],
-      description: 'Upsert a client-encrypted personal blob by type',
+      description:
+        'Upsert a client-encrypted personal blob by type. `kmVersion` is the ' +
+        'master-key version the blob was sealed under (default 1); 409 when ' +
+        "it isn't the account's current version, so a device holding a " +
+        'rotated-out seed cannot overwrite data sealed under the new one.',
     },
   },
 )

@@ -22,7 +22,7 @@ const canAccessFriends = computed(() => authService.hasPermission(PermissionId.S
 const friendsStore = useFriendsStore()
 const identityStore = useIdentityStore()
 
-const { isSetupComplete, needsImport } = storeToRefs(identityStore)
+const { isSetupComplete, needsImport, needsSetup } = storeToRefs(identityStore)
 const { pendingIncomingCount } = storeToRefs(friendsStore)
 
 const showAddFriendDialog = ref(false)
@@ -37,10 +37,10 @@ onMounted(async () => {
   if (needsImport.value) {
     recoveryDialogMode.value = 'import'
     showRecoveryKeyDialog.value = true
-  } else if (!isSetupComplete.value) {
+  } else if (needsSetup.value) {
     recoveryDialogMode.value = 'setup'
     showRecoveryKeyDialog.value = true
-  } else {
+  } else if (isSetupComplete.value) {
     await friendsStore.loadAll()
   }
 })

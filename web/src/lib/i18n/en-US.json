@@ -1636,6 +1636,7 @@
       "setupDescription": "Set up a handle so friends can find you",
       "importButton": "Import recovery key",
       "importDescription": "Your identity exists on this server, but you need to import your recovery key to use it on this device.",
+      "unavailableDescription": "Couldn't load your identity. Check your connection and try again.",
       "recoveryKey": "Recovery key",
       "recoveryKeyDescription": "View your recovery key for backup",
       "viewKey": "View key",
@@ -1656,7 +1657,8 @@
       "warning": {
         "keepOpen": "Keep this tab open until it finishes.",
         "tapEach": "Any passkey you don't tap before finishing won't work for recovery afterward — have at least one passkey or your recovery key ready.",
-        "failsSafe": "If rotation fails partway, nothing changes on the server."
+        "failsSafe": "If rotation fails partway, nothing changes on the server.",
+        "newRecoveryKey": "You'll get a new recovery key at the end. Your old one stops working."
       },
       "action": "Rotate keys",
       "runningTitle": "Rotating keys",
@@ -1667,7 +1669,10 @@
       "failedTitle": "Rotation failed",
       "failedFallback": "Rotation failed",
       "close": "Close",
-      "slotWarning": "Passkey {id}… was not re-secured ({reason}). It will no longer work for recovery — remove and re-add it.",
+      "recoveryKeyTitle": "Save your new recovery key",
+      "recoveryKeyDescription": "Your old recovery key stops working once this finishes. Keep this one somewhere safe.",
+      "recoveryKeySaved": "I've saved it",
+      "slotWarning": "Passkey {id}… couldn't be re-secured ({reason}), so it can't unlock your keys anymore. Remove it and add it again.",
       "unknownReason": "unknown",
       "progress": {
         "preparing": "Preparing…",
@@ -1678,6 +1683,7 @@
         "resealingSlot": "Tap your passkey to re-secure slot {index} of {total}",
         "committing": "Finalizing — saving everything at once…",
         "storingSeed": "Updating this device…",
+        "confirmingRecoveryKey": "Waiting for you to save your new recovery key",
         "done": "Done — now on key version {version}"
       }
     },

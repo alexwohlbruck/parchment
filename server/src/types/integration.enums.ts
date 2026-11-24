@@ -31,6 +31,8 @@ export enum IntegrationId {
   OPENAQ = 'openaq',
   /** NASA FIRMS — active-fire satellite detections (Environment wildfire overlay). */
   FIRMS = 'firms',
+  /** Esri — World Imagery for the satellite map, through ArcGIS Location Platform. */
+  ESRI = 'esri',
   /** Quackback — backend for the in-app feedback form. System-only, config-only. */
   QUACKBACK = 'quackback',
   /** OpenRouter — the language model behind Ask. System key or a user's own. */

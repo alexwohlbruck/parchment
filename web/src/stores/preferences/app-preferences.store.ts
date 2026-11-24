@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import type { AppPreferences } from '@server/types/app-preferences.types'
-import { isBoolean, oneOf, pickKnown, pickValid, type Validators } from '@/lib/preferences/setting-validators'
+import { isBoolean, isStringArray, oneOf, pickKnown, pickValid, type Validators } from '@/lib/preferences/setting-validators'
 import { POI_STYLES } from '@/lib/map-style/build'
 import { saveAppPreferences } from '@/services/preferences.service'
 import { useAppStore, type HomeSheetStart } from '@/stores/app.store'
@@ -48,6 +48,7 @@ type SyncedMapSettings = Pick<
   | 'gridSnapMode'
   | 'locateFlySpeed'
   | 'startupLocation'
+  | 'satelliteImagery'
 >
 
 const THEME: Validators<ThemeSettings> = {
@@ -76,6 +77,7 @@ const MAP: Validators<SyncedMapSettings> = {
   gridSnapMode: oneOf(Object.values(GridSnapMode)),
   locateFlySpeed: oneOf(Object.values(LocateFlySpeed)),
   startupLocation: oneOf(Object.values(StartupLocation)),
+  satelliteImagery: isStringArray,
 }
 
 /** Look-and-feel settings that follow the account: theme, map, and a few app-wide choices. */

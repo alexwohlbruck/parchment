@@ -60,6 +60,7 @@ const premium: Role = {
     PermissionId.PREMIUM_NAVIGATION,
     PermissionId.PREMIUM_LOCATION_SHARING,
     PermissionId.PREMIUM_ASK,
+    PermissionId.PREMIUM_PHOTOREALISTIC_3D,
   ],
 }
 

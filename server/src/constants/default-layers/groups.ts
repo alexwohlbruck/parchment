@@ -160,4 +160,14 @@ export const DEFAULT_LAYER_GROUPS: DefaultLayerGroupTemplate[] = [
     order: 8,
     parentGroupId: null,
   },
+  {
+    templateId: 'default:group:imagery',
+    description: 'Aerial and satellite sources the satellite map draws from.',
+    name: 'Satellite imagery',
+    icon: 'SatelliteIcon',
+    showInLayerSelector: false,
+    visible: true,
+    order: 9,
+    parentGroupId: null,
+  },
 ]

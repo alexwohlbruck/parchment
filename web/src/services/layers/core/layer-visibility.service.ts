@@ -10,7 +10,7 @@ import type { Layer, LayerGroup } from '@/types/map.types'
 import {
   LayerType,
   MapColorTheme,
-  MARKER_RENDERED_LAYER_TYPES,
+  NON_OVERLAY_LAYER_TYPES,
 } from '@/types/map.types'
 import { MapStrategy } from '@/services/map/providers/map.strategy'
 import { useThemeStore } from '@/stores/theme.store'
@@ -36,17 +36,15 @@ export function useLayerVisibilityService() {
   }
 
   /**
-   * Marker-rendered layers (friends, trackers, OSM notes) have no layer on the
-   * style — their services watch the in-memory `visible` flag and redraw their
-   * own markers. Calling the strategy for one only logs a "layer does not
-   * exist" warning.
+   * Non-overlay layers (markers, imagery) have no style layer of their own, so
+   * calling the strategy for one only logs a "layer does not exist" warning.
    */
   function applyMapVisibility(
     layer: Layer,
     visible: boolean,
     mapStrategy?: MapStrategy,
   ) {
-    if (MARKER_RENDERED_LAYER_TYPES.has(layer.type)) return
+    if (NON_OVERLAY_LAYER_TYPES.has(layer.type)) return
     toggleLayerVisibility(layer.configuration.id, visible, mapStrategy)
   }
 

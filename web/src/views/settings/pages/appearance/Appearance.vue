@@ -48,6 +48,7 @@ import { SettingsSection, SettingsItem } from '@/components/settings'
 import { CommandName } from '@/stores/command.store'
 import Layers from '@/components/library/layers/LayerList.vue'
 import ControlSettingsSection from '@/components/map/controls/ControlSettingsSection.vue'
+import ImageryStackSettings from '@/components/map/imagery/ImageryStackSettings.vue'
 
 // Theme store
 const themeStore = useThemeStore()
@@ -406,6 +407,8 @@ const handleColorChange = (value: any) => {
           </SelectContent>
         </Select>
       </SettingsItem>
+
+      <ImageryStackSettings v-if="isMaplibre" />
     </SettingsSection>
 
     <!-- Layers configuration -->

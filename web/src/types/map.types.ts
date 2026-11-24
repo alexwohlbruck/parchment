@@ -144,6 +144,8 @@ export interface MapSettings {
   gridSnapMode: GridSnapMode
   locateFlySpeed: LocateFlySpeed
   startupLocation: StartupLocation
+  /** Imagery layer ids the satellite basemap draws, top first; each fills the gaps of those above. */
+  satelliteImagery: string[]
 }
 
 export type MapCamera = {
@@ -235,6 +237,8 @@ export type MapEvents = {
     trackerId: string
   }
   indoor: IndoorFocus
+  /** Credits the 3D imagery on screen requires, or null while none is drawn. */
+  'imagery:credits': string | null
 }
 
 export enum SourceType {
@@ -307,17 +311,21 @@ export enum LayerType {
   FRIENDS = 'friends',
   TRACKERS = 'trackers',
   NOTES = 'notes',
+  /** A raster source the satellite basemap can draw; never an overlay. */
+  IMAGERY = 'imagery',
 }
 
 /**
- * Layer types the map engine never draws itself: their features are rendered
- * as Vue markers by a dedicated service, which watches the layer's `visible`
- * flag. Handing one to `addLayer` would just warn about a missing source.
+ * Layer types never added to the map as overlays. Friends, trackers and notes
+ * are Vue markers drawn by their own services; imagery is drawn inside the
+ * satellite basemap. Handing one to `addLayer` would just warn about a missing
+ * source.
  */
-export const MARKER_RENDERED_LAYER_TYPES: ReadonlySet<LayerType> = new Set([
+export const NON_OVERLAY_LAYER_TYPES: ReadonlySet<LayerType> = new Set([
   LayerType.FRIENDS,
   LayerType.TRACKERS,
   LayerType.NOTES,
+  LayerType.IMAGERY,
 ])
 
 /**

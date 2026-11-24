@@ -768,6 +768,7 @@
     },
     "editor": {
       "newTitle": "New layer",
+      "newImageryTitle": "New imagery source",
       "editTitle": "Edit layer",
       "namePlaceholder": "Layer name",
       "layerType": "Draw as",
@@ -852,6 +853,8 @@
       "options": {
         "showInSelectorHint": "List this layer in the map's layer menu.",
         "fadeBasemapHint": "Mute the basemap while this layer is on, so it reads clearly.",
+        "imagery": "Satellite imagery",
+        "imageryHint": "Draw this under the satellite map instead of as an overlay.",
         "filter": "Filter",
         "filterHint": "A style expression. Only features matching it are drawn.",
         "rawLayer": "Paint and layout JSON",
@@ -884,7 +887,8 @@
         "nameRequired": "Give the layer a name.",
         "urlRequired": "A URL is required.",
         "tilesRequired": "Add at least one tile URL.",
-        "tileTemplate": "Tile URLs need {z}, {x} and {y} placeholders.",
+        "tileTemplate": "Tile URLs need {'{z}'}, {'{x}'} and {'{y}'} placeholders.",
+        "imageryNeedsRaster": "Satellite imagery has to be a raster source.",
         "sourceLayerRequired": "Vector layers need a source layer.",
         "invalidGeoJson": "That isn't valid GeoJSON.",
         "cornersRequired": "An image needs four corner coordinates.",
@@ -3404,6 +3408,14 @@
         "poiStyle": "Place icons",
         "poiStyleBadge": "Colored badges",
         "poiStyleGlyph": "Icons only",
+        "imagery": {
+          "title": "Satellite imagery",
+          "description": "Higher sources win; lower ones fill the gaps",
+          "add": "Add",
+          "create": "New source…",
+          "remove": "Remove",
+          "empty": "No sources, so satellite shows a blank map"
+        },
         "descriptionMaplibre": "Visual style for the map",
         "descriptionMapbox": "Mapbox uses its own standard style",
         "placeholder": "Choose a style"
@@ -3608,6 +3620,7 @@
         "dawarich": "Private, encrypted location history tracking",
         "openaq": "Open air-quality data from ground monitoring stations",
         "firms": "Active wildfire detections from satellite (VIIRS/MODIS)",
+        "esri": "World Imagery for the satellite map",
         "quackback": "Feedback boards, voting and roadmap for the in-app feedback form",
         "openrouter": "The language model behind Ask"
       },

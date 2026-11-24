@@ -58,8 +58,10 @@ const DAY = 24 * 60 * 60
 // Tile sources: the app's own proxy (any origin — the API host differs from
 // the page origin) and the third-party raster hosts used by the basemap.
 const TILE_PROXY_PATH = /\/proxy\/[^/]+\//
+/** Google requires its own caching headers be honoured, so its tiles go straight to the browser cache. */
+const UNCACHED_PROXY_PATH = /\/proxy\/google\//
 const TILE_HOSTS =
-  /(^|\.)(arcgisonline\.com|elevation-tiles-prod\.s3\.amazonaws\.com|tiles\.mapterhorn\.com|tile\.openstreetmap\.org|opentopomap\.org|openrailwaymap\.org|openseamap\.org)$/
+  /(^|\.)(arcgisonline\.com|nationalmap\.gov|maps\.eox\.at|elevation-tiles-prod\.s3\.amazonaws\.com|tiles\.mapterhorn\.com|tile\.openstreetmap\.org|opentopomap\.org|openrailwaymap\.org|openseamap\.org)$/
 
 const stripAuthParams = {
   cacheKeyWillBeUsed: async ({ request }: { request: Request }) => {
@@ -104,7 +106,7 @@ const tileCachePlugins = [
 // Our tile URLs stay the same across releases, so a cached tile is drawn at
 // once and refreshed behind it; an import shows up on the next visit.
 registerRoute(
-  ({ url }) => TILE_PROXY_PATH.test(url.pathname),
+  ({ url }) => TILE_PROXY_PATH.test(url.pathname) && !UNCACHED_PROXY_PATH.test(url.pathname),
   savedFirst(new StaleWhileRevalidate({ cacheName: 'map-tiles', plugins: tileCachePlugins }), true),
 )
 

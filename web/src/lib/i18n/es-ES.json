@@ -747,6 +747,7 @@
     },
     "editor": {
       "newTitle": "Nueva capa",
+      "newImageryTitle": "Nueva fuente de imágenes",
       "editTitle": "Editar capa",
       "namePlaceholder": "Nombre de la capa",
       "layerType": "Dibujar como",
@@ -831,6 +832,8 @@
       "options": {
         "showInSelectorHint": "Mostrar esta capa en el menú de capas del mapa.",
         "fadeBasemapHint": "Atenuar el mapa base mientras esta capa está activa.",
+        "imagery": "Imágenes de satélite",
+        "imageryHint": "Dibujarla bajo el mapa satélite en lugar de como capa superpuesta.",
         "filter": "Filtro",
         "filterHint": "Una expresión de estilo. Solo se dibujan los elementos que coincidan.",
         "rawLayer": "JSON de paint y layout",
@@ -863,7 +866,8 @@
         "nameRequired": "Ponle un nombre a la capa.",
         "urlRequired": "Se necesita una URL.",
         "tilesRequired": "Añade al menos una URL de teselas.",
-        "tileTemplate": "Las URLs de teselas necesitan {z}, {x} e {y}.",
+        "tileTemplate": "Las URLs de teselas necesitan {'{z}'}, {'{x}'} e {'{y}'}.",
+        "imageryNeedsRaster": "Las imágenes de satélite deben ser una fuente ráster.",
         "sourceLayerRequired": "Las capas vectoriales necesitan una capa de origen.",
         "invalidGeoJson": "Eso no es GeoJSON válido.",
         "cornersRequired": "Una imagen necesita cuatro coordenadas de esquina.",
@@ -3259,6 +3263,14 @@
         "poiStyle": "Iconos de lugares",
         "poiStyleBadge": "Insignias de color",
         "poiStyleGlyph": "Solo iconos",
+        "imagery": {
+          "title": "Imágenes de satélite",
+          "description": "Las de arriba tienen prioridad; las de abajo rellenan los huecos",
+          "add": "Añadir",
+          "create": "Nueva fuente…",
+          "remove": "Quitar",
+          "empty": "Sin fuentes, el satélite muestra un mapa vacío"
+        },
         "descriptionMaplibre": "Estilo visual del mapa",
         "descriptionMapbox": "Mapbox usa su propio estilo estándar",
         "placeholder": "Elige un estilo"
@@ -3442,6 +3454,7 @@
         "dawarich": "Conecta tu instancia autoalojada de Dawarich — cifrada en tu dispositivo",
         "openaq": "Datos abiertos de calidad del aire de estaciones de monitoreo terrestres",
         "firms": "Detecciones de incendios activos por satélite (VIIRS/MODIS)",
+        "esri": "World Imagery para el mapa satélite",
         "quackback": "Tableros de comentarios, votaciones y hoja de ruta para el formulario de comentarios",
         "openrouter": "El modelo de lenguaje detrás de Preguntar"
       },

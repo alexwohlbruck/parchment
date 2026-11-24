@@ -3,11 +3,14 @@ import { useI18n } from 'vue-i18n'
 import { ItemRow } from '@/components/ui/item-row'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
+import PickNumber from './PickNumber.vue'
 
 export interface PickItem {
   id: string
   title: string
   detail?: string
+  /** Place category, which colours its number like the map's badge. */
+  category: string
   walkSeconds: number
 }
 
@@ -53,9 +56,7 @@ const minutes = (item: PickItem) => Math.max(1, Math.round(item.walkSeconds / 60
         @click="$emit('pick', item)"
       >
         <template #icon>
-          <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-foreground text-xs font-semibold text-background">
-            {{ i + 1 }}
-          </span>
+          <PickNumber :n="i + 1" :category="item.category" />
         </template>
         <template v-if="item.detail" #details="{ detailClass }">
           <span class="truncate text-muted-foreground" :class="detailClass">{{ item.detail }}</span>

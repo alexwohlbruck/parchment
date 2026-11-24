@@ -27,16 +27,16 @@ const warning = computed(() =>
   docks.risk.value === 'ok' ? null : t(`guidance.docks.${docks.risk.value === 'gone' ? 'gone' : 'atRisk'}.${need.value}`, { station: stationName.value }),
 )
 
+/** The basemap files bike share stations under bicycle infrastructure. */
+const STATION_CATEGORY: PlaceCategoryId = 'sport_and_leisure'
 const countLabel = (option: StationOption) =>
   t(`guidance.docks.${need.value === 'dock' ? 'docks' : 'bikes'}`, { n: option.available }, option.available)
 const items = computed<PickItem[]>(() =>
-  docks.options.value.map(option => ({ id: option.id, title: option.name, detail: countLabel(option), walkSeconds: option.walkSeconds })),
+  docks.options.value.map(option => ({ id: option.id, title: option.name, detail: countLabel(option), category: STATION_CATEGORY, walkSeconds: option.walkSeconds })),
 )
 const best = computed(() => docks.options.value[0] ?? null)
 const counting = computed(() => auto.value && guidance.preferences.autoSwitchDocks && !touched.value && !!best.value && !picking.value)
 
-/** The basemap files bike share stations under bicycle infrastructure. */
-const STATION_CATEGORY: PlaceCategoryId = 'sport_and_leisure'
 useResultMarkers(
   () => docks.options.value.map(o => ({ location: o.location, name: o.name, category: STATION_CATEGORY })),
   i => {

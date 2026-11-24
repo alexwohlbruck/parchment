@@ -25,7 +25,7 @@ function detail(option: ParkingOption) {
 }
 
 const items = computed<PickItem[]>(() =>
-  options.value.map(option => ({ id: option.id, title: option.name ?? kindLabel(option), detail: detail(option), walkSeconds: option.walkSeconds })),
+  options.value.map(option => ({ id: option.id, title: option.name ?? kindLabel(option), detail: detail(option), category: option.category, walkSeconds: option.walkSeconds })),
 )
 
 async function pick(item: PickItem | undefined) {

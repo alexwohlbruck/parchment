@@ -56,6 +56,7 @@ const activeSnapPoint = computed(() => snapPoints.value[expanded.value ? 1 : 0])
 
 <template>
   <BottomSheet
+    panel
     floating
     :class="['nav-surface', props.class]"
     :custom-snap-points="snapPoints"

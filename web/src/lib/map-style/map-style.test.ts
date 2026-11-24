@@ -1608,6 +1608,14 @@ describe('assembled styles', () => {
     expect(style.layers.filter(l => l.type === 'line')).toEqual([])
     expect(style.layers.filter(l => l.type === 'symbol').length).toBeGreaterThan(5)
     expect(ids).not.toContain('Background')
+    expect(style.sources[DETAIL_SOURCE]).toBeUndefined()
+  })
+
+  test('hybrid over a 3D mesh reads the bridge decks without drawing them', () => {
+    const style = buildSatelliteStyle({ ...opts, theme: 'dark', hybrid: true, imagery: [], deckSource: true, decks: true })
+    expect((style.sources[DETAIL_SOURCE] as any).tiles[0]).toContain('&decks=1')
+    expect(style.layers.filter(l => (l as any).source === DETAIL_SOURCE).map(l => (l as any).paint)).toEqual([{ 'circle-opacity': 0, 'circle-radius': 1 }])
+    expect(validateStyleMin(style).map(e => e.message)).toEqual([])
   })
 
   test('roads only draws grey roads and labels on black from one source', () => {

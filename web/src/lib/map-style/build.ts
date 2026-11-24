@@ -28,6 +28,7 @@ import {
   BUILDING_3D_TILES,
   PROMOTED_REFS,
   DETAIL_TILES,
+  BRIDGE_DECK_TILES,
 } from './detail-layers'
 import { monorailLayers } from './monorail-layers'
 import { combineFilters } from './combine-filters'
@@ -426,6 +427,11 @@ export function buildTileUrl(tileServerUrl: string, source = 'basemap'): string 
   return `${tileServerUrl}/${source}/{z}/{x}/{y}?v=${TILE_FORMAT}`
 }
 
+function detailTileUrl(tileServerUrl: string, source: string, decks: boolean): string {
+  const url = buildTileUrl(tileServerUrl, source)
+  return source === DETAIL_TILES ? withDeckPieces(withFixtures(withElevationFormat(url)), decks) : url
+}
+
 function origin(): string {
   return typeof window !== 'undefined' ? window.location.origin : ''
 }
@@ -806,7 +812,7 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
     sprite: `${origin()}${SPRITE_PATH}`,
     sources: {
       [SOURCE]: vectorSource(tileServerUrl),
-      ...detailSources(source => withDeckPieces(source === DETAIL_TILES ? withFixtures(withElevationFormat(buildTileUrl(tileServerUrl, source))) : buildTileUrl(tileServerUrl, source), !!decks && source === DETAIL_TILES)),
+      ...detailSources(source => detailTileUrl(tileServerUrl, source, !!decks)),
       ...(barrelmanBuildingsTiles() === BUILDING_3D_TILES
         ? {
             [BUILDINGS_SOURCE]: {
@@ -838,9 +844,14 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
  * background.
  */
 export function buildSatelliteStyle(
-  options: BasemapStyleOptions & { hybrid?: boolean; imagery: readonly ImagerySource[] },
+  options: BasemapStyleOptions & {
+    hybrid?: boolean
+    imagery: readonly ImagerySource[]
+    /** The bridge decks' tiles, read to raise names onto a 3D mesh's bridges. */
+    deckSource?: boolean
+  },
 ): StyleSpecification {
-  const { tileServerUrl, hybrid = false, mapStyle, lang, categoryColors, poiStyle, hdRoads, imagery } = options
+  const { tileServerUrl, hybrid = false, mapStyle, lang, categoryColors, poiStyle, hdRoads, imagery, decks, deckSource } = options
 
   const stack = imageryStyle(imagery)
   const sources: StyleSpecification['sources'] = { ...stack.sources }
@@ -862,6 +873,10 @@ export function buildSatelliteStyle(
         (l as any)['source-layer'] === GLOBE_NAMES,
     )
     layers.push(...overlay)
+    if (deckSource) {
+      sources[DETAIL_SOURCE] = detailSources(source => detailTileUrl(tileServerUrl, source, !!decks))[DETAIL_SOURCE]
+      layers.push(keepDetailLayer(BRIDGE_DECK_TILES))
+    }
   }
 
   return {

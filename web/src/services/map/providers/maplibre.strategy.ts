@@ -1279,7 +1279,8 @@ export class MaplibreStrategy extends MapStrategy {
    */
   private applyDecks() {
     const map = this.mapInstance
-    const active = this.objectsShown() && !!map.getTerrain?.()
+    const active = this.decksWanted() && !!map.getTerrain?.()
+    const drawn = this.objectsShown()
     const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
     // Probed rather than read off `getStyle()`, which the deck layer would otherwise serialise on every styledata.
     const routes = () => {
@@ -1289,11 +1290,11 @@ export class MaplibreStrategy extends MapStrategy {
       if (map.getSource(GUIDANCE_ROUTE_SOURCE)) ids.push(GUIDANCE_ROUTE_SOURCE)
       return ids
     }
-    if (active && !this.tunnelLayer) {
+    if (active && drawn && !this.tunnelLayer) {
       this.tunnelLayer = new TunnelLayer({ tiles: this.tileServerUrl ? buildTileUrl(this.tileServerUrl, TUNNEL_CUT_TILES) : '' }, deckPalette(flavor, this.options.mapStyle), { terrain: fineTerrain, carver: this.terrainCarver })
       shadowCasters.add(this.tunnelLayer)
       map.addLayer(this.tunnelLayer as any, firstLabelLayer(map))
-    } else if (!active && this.tunnelLayer) {
+    } else if (!(active && drawn) && this.tunnelLayer) {
       shadowCasters.delete(this.tunnelLayer)
       if (map.getLayer(this.tunnelLayer.id)) map.removeLayer(this.tunnelLayer.id)
       this.tunnelLayer = null
@@ -1304,6 +1305,7 @@ export class MaplibreStrategy extends MapStrategy {
         this.deckPalette(flavor),
       )
       this.deckLayer.setOpacity(this.surfaceOpacity())
+      this.deckLayer.setDrawn(drawn)
       this.deckLayer.onBuilt = () => {
         this.objectLayer?.refresh()
         this.applyDecks()
@@ -1318,7 +1320,7 @@ export class MaplibreStrategy extends MapStrategy {
       this.deckLayer = null
     }
     const detail = map.getSource(DETAIL_SOURCE) as { tiles?: string[]; setTiles?: (tiles: string[]) => void } | undefined
-    const tiles = detail?.tiles?.[0] && withDeckPieces(detail.tiles[0], this.map3dObjects && this.terrainOn)
+    const tiles = detail?.tiles?.[0] && withDeckPieces(detail.tiles[0], this.decksWanted() && this.terrainOn)
     if (tiles && tiles !== detail!.tiles![0]) detail!.setTiles!([tiles])
     const covered = active && !!this.deckLayer?.covered
     const labelKey = covered ? this.deckLayer!.version : null
@@ -1333,7 +1335,7 @@ export class MaplibreStrategy extends MapStrategy {
       if (covered) this.mutedBridges.add(id)
       else this.mutedBridges.delete(id)
     }
-    this.terrainCarver.set(ROOFED_DECKS, new Map([...roofCuts(this.deckLayer?.standing() ?? [])].map(([key, f]) => [key, cutCarving(f)])), { rank: 2, focus: true })
+    this.terrainCarver.set(ROOFED_DECKS, new Map([...roofCuts(drawn ? this.deckLayer?.standing() ?? [] : [])].map(([key, f]) => [key, cutCarving(f)])), { rank: 2, focus: true })
     this.terrainCarver.carveTiles()
     this.muteFlatTunnels()
     this.elevateLines()
@@ -1605,7 +1607,7 @@ export class MaplibreStrategy extends MapStrategy {
       poiStyle: this.poiStyle(),
       hdRoads: this.hdRoads(),
       categoryColors: this.categoryColors(theme),
-      decks: this.map3dObjects && this.terrainOn,
+      decks: this.decksWanted() && this.terrainOn,
     }
   }
 
@@ -1621,9 +1623,11 @@ export class MaplibreStrategy extends MapStrategy {
 
   override setSatelliteImagery(stack: readonly ImagerySource[]) {
     if (JSON.stringify(stack) === JSON.stringify(this.imagery)) return
+    const hadMesh = this.labelsOnMesh()
     this.imagery = stack
     if (this.currentBasemap === 'standard' || this.roadsOnly()) return
-    if (this.mapInstance.isStyleLoaded()) {
+    // The mesh brings the decks' source into the style with it.
+    if (this.mapInstance.isStyleLoaded() && hadMesh === this.labelsOnMesh()) {
       this.swapImagery()
       void this.applyPhotorealistic()
     } else this.reloadStyle()
@@ -1662,6 +1666,15 @@ export class MaplibreStrategy extends MapStrategy {
    */
   private objectsShown() {
     return this.map3dObjects && this.currentBasemap === 'standard'
+  }
+
+  /** Hybrid's names over Google's mesh, which raise onto its bridges from decks loaded but left undrawn. */
+  private labelsOnMesh() {
+    return this.currentBasemap === 'hybrid' && !this.roadsOnly() && !!photorealisticSource(this.imagery)
+  }
+
+  private decksWanted() {
+    return this.objectsShown() || this.labelsOnMesh()
   }
 
   /** Replace the imagery under the rest of the style, which a full reload would rebuild for nothing. */
@@ -1884,7 +1897,7 @@ export class MaplibreStrategy extends MapStrategy {
         case 'satellite':
           return buildSatelliteStyle({ ...styleOpts, hybrid: false, imagery: this.imagery })
         case 'hybrid':
-          return buildSatelliteStyle({ ...styleOpts, hybrid: true, imagery: this.imagery })
+          return buildSatelliteStyle({ ...styleOpts, hybrid: true, imagery: this.imagery, deckSource: this.labelsOnMesh() })
         default:
           return buildMapStyle(styleOpts)
       }

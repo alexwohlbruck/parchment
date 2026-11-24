@@ -6,6 +6,8 @@
 
 ### Fixed
 
+* On phones, the feedback form and other sheets opened from the account menu no longer close right after opening.
+
 ## [0.25.1] - 2026-11-23
 
 ### Fixed

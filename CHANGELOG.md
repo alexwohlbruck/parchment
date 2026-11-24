@@ -2,6 +2,14 @@
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.26.0] - 2026-11-24
+
+### Added
+
 * While driving or biking, find parking or a bike rack near your destination and get walking directions from the spot you pick.
 * Group directions by trip type from the view menu, so walk-and-transit trips stand apart from bike-and-transit ones.
 * Settings that follow your account show a cloud next to them; tap it to keep that setting on this device only.
@@ -9,6 +17,7 @@
 * Choose which imagery the satellite map uses, add your own, and order them so lower sources fill in where higher ones have no coverage.
 * Add Google's photorealistic 3D imagery to the satellite map with Premium, to see cities as 3D models you can tilt around. In hybrid with 3D terrain, street names follow its bridges.
 * A line's vehicle list shows how far each one is from you and marks the closest.
+* Inside a station, step cards follow your steps and level changes without GPS, read each step aloud and show which level it leads to.
 * The floor picker switches to the floor of the station step you're looking at, in trip details and while navigating. Tap a step to see that part of the walk on the map.
 
 ### Changed
@@ -17,13 +26,16 @@
 * Places suggested during navigation look like the map's own places, numbered to match the list.
 * The satellite map now shows sharp USGS aerial photos across the contiguous US, with Esri imagery everywhere else.
 * Satellite and hybrid maps no longer draw 3D trees, street furniture, landmarks or raised bridges over the photos, and hybrid shows street names without drawing the streets.
+* The timeline is easier to scan: each trip leads with how you got there and how far, distances follow your unit setting, and one date control replaces the two pickers.
 
 ### Fixed
 
+* A bookmarked place now shows once in search, marked as bookmarked, and opening it from search takes you to the place.
 * Bike share station checks no longer stop partway through a ride.
 * Tapping a suggested place on the map during navigation now adds it to your route instead of closing the list.
 * Transit rides in offline directions now show their line colour in the trip timeline.
 * Tapping the basemap that's already selected keeps it, instead of switching to the standard map.
+* Your timeline no longer lists a drive twice when it crosses midnight.
 * In 3D, road names and one-way arrows on bridges sit on the bridge instead of on the water or ground below.
 * Expanding the sheet while saving an offline map no longer shrinks the area you framed.
 * The list of upcoming trains during navigation no longer skips trains that only appear in live data.

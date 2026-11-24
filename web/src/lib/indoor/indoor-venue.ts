@@ -50,6 +50,11 @@ export function parseVenueLevels(levels: unknown, names: unknown): IndoorLevel[]
     .map(level => ({ level, name: named.get(level) ?? levelNumber(level) }))
 }
 
+/** The names the venue's signs give its levels, leaving out the ones only numbered. */
+export function signedLevelNames(venue: IndoorVenue): Map<number, string> {
+  return new Map(venue.levels.filter(({ level, name }) => name !== levelNumber(level)).map(({ level, name }) => [level, name]))
+}
+
 /** 0 is G and basements are B1, B2…, as most building signage numbers them. */
 function levelNumber(level: number): string {
   if (level === 0) return 'G'

@@ -21,7 +21,7 @@ describe('duration formats', () => {
   it('compact drops the hour when there is none', () => {
     expect(formatDurationCompact(300)).toBe('5m')
     expect(formatDurationCompact(7500)).toBe('2h 5m')
-    expect(formatDurationCompact(7200)).toBe('2h 0m')
+    expect(formatDurationCompact(7200)).toBe('2h')
     expect(formatDurationCompact(46)).toBe('<1m')
     expect(formatDurationCompact(0)).toBe('0m')
   })

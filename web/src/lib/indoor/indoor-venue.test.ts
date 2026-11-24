@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { basemapId, clearedBuildings, focusedVenue, openingLevel, parseVenueLevels, replacedFixtures, replacedPlaces, shownInside, unitedIds, venueLevel } from './indoor-venue'
+import { basemapId, clearedBuildings, focusedVenue, openingLevel, parseVenueLevels, replacedFixtures, replacedPlaces, shownInside, signedLevelNames, unitedIds, venueLevel } from './indoor-venue'
 
 const square = (x: number, y: number, r = 1) => ({
   type: 'Polygon',
@@ -11,6 +11,13 @@ const everywhere = square(0, 0, 100).coordinates[0]
 const venue = (id: number, geometry: any, props: Record<string, unknown> = {}) => ({
   properties: { venue: id, levels: '-1;0;1', default_level: 0, ...props },
   geometry,
+})
+
+describe('signedLevelNames', () => {
+  it('keeps only the names signs give, not the fallback numbers', () => {
+    const levels = parseVenueLevels('0;-1;-2', '-1=Mezzanine')
+    expect(signedLevelNames({ id: 1, levels, defaultLevel: 0, buildings: [] })).toEqual(new Map([[-1, 'Mezzanine']]))
+  })
 })
 
 describe('parseVenueLevels', () => {

@@ -1555,30 +1555,31 @@
     "today": "Today",
     "thisWeek": "This week",
     "thisMonth": "This month",
-    "selectDate": "Select date",
-    "customRange": "Custom range",
-    "singleDay": "Single day",
-    "startTime": "Start",
-    "endTime": "End",
     "noEvents": "No location history for this range",
     "loadFailed": "Couldn't load timeline",
-    "stop": "Stop",
     "unnamedStop": "Unnamed location",
-    "duration": "{duration}",
-    "timeRange": "{start} – {end}",
-    "modeUnknown": "Travel",
     "noIntegration": {
       "title": "Connect a location tracker",
       "description": "Configure a location history integration to view your timeline.",
       "details": "Your config is end-to-end encrypted — your credentials never leave your device unencrypted.",
       "configure": "Configure integration"
     },
+    "checkIntegration": "Check your location history integration in Settings",
+    "yesterday": "Yesterday",
+    "previous": "Previous",
+    "next": "Next",
     "stats": {
-      "totalDistance": "{distance} km",
-      "totalStops": "{n} stop | {n} stops",
-      "dailyDistance": "Daily distance"
+      "places": "Places",
+      "distance": "Distance",
+      "moving": "Moving"
     },
-    "checkIntegration": "Check your location history integration in Settings"
+    "placeCount": "{n} place | {n} places",
+    "modes": {
+      "driving": "Drove {distance}",
+      "cycling": "Cycled {distance}",
+      "walking": "Walked {distance}",
+      "transit": "Rode transit {distance}"
+    }
   },
   "friends": {
     "title": "Friends",

@@ -7,7 +7,7 @@
  * - Federation identity (keys)
  */
 
-import { SQL, eq, sql, count } from 'drizzle-orm'
+import { SQL, and, count, eq, isNull, or, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { users } from '../schema/users.schema'
 import { usersToRoles } from '../schema/users-roles.schema'
@@ -15,6 +15,7 @@ import { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { buildHandle } from './federation.service'
 import { emit } from './realtime/emit'
 import { generateId } from '../util'
+import { purgeHandle, repointHandle } from './handle-references.service'
 
 function lower(email: AnyPgColumn): SQL {
   return sql`lower(${email})`
@@ -56,27 +57,50 @@ export async function getUserHandle(userId: string): Promise<string | null> {
 }
 
 /**
+ * Aliases are compared case-insensitively for availability, so `Bob` can't
+ * be registered next to `bob` and pass for them in a friend list.
+ */
+export async function isAliasAvailable(
+  alias: string,
+  exceptUserId?: string,
+): Promise<boolean> {
+  const [existing] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(lower(users.alias), alias.toLowerCase()))
+    .limit(1)
+  return !existing || existing.id === exceptUserId
+}
+
+/**
  * Update a user's alias (username)
  */
 export async function updateUserAlias(
   userId: string,
   alias: string,
 ): Promise<{ success: boolean; error?: string }> {
-  // Check if alias is already taken
-  const existing = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.alias, alias))
-    .limit(1)
-
-  if (existing[0] && existing[0].id !== userId) {
+  if (!(await isAliasAvailable(alias, userId))) {
     return { success: false, error: 'Alias is already taken' }
   }
 
-  await db
-    .update(users)
-    .set({ alias, updatedAt: new Date() })
-    .where(eq(users.id, userId))
+  await db.transaction(async (tx) => {
+    const [current] = await tx
+      .select({ alias: users.alias })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1)
+    await tx
+      .update(users)
+      .set({ alias, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+    if (current?.alias === alias) return
+
+    const newHandle = buildHandle(alias)
+    await purgeHandle(tx, newHandle)
+    if (current?.alias) {
+      await repointHandle(tx, buildHandle(current.alias), newHandle)
+    }
+  })
 
   await emit.userProfile(
     'user:profile-updated',
@@ -87,22 +111,52 @@ export async function updateUserAlias(
   return { success: true }
 }
 
+export class KeysAlreadyRegistered extends Error {
+  constructor() {
+    super('This account already has identity keys')
+    this.name = 'KeysAlreadyRegistered'
+  }
+}
+
 /**
- * Register or update a user's public keys
+ * Register a user's public keys. Keys that are already set only change
+ * through a rotation commit or an identity reset, never by overwrite.
  */
 export async function updateUserKeys(
   userId: string,
   signingKey: string,
   encryptionKey: string,
 ): Promise<void> {
-  await db
+  const [registered] = await db
     .update(users)
     .set({
       signingKey,
       encryptionKey,
       updatedAt: new Date(),
     })
+    .where(
+      and(
+        eq(users.id, userId),
+        or(isNull(users.signingKey), isNull(users.encryptionKey)),
+      ),
+    )
+    .returning({ id: users.id })
+  if (registered) return
+
+  const [current] = await db
+    .select({
+      signingKey: users.signingKey,
+      encryptionKey: users.encryptionKey,
+    })
+    .from(users)
     .where(eq(users.id, userId))
+    .limit(1)
+  if (
+    current?.signingKey !== signingKey ||
+    current?.encryptionKey !== encryptionKey
+  ) {
+    throw new KeysAlreadyRegistered()
+  }
 }
 
 /**
@@ -138,12 +192,14 @@ export async function getUserIdentity(userId: string): Promise<{
   handle: string | null
   signingKey: string | null
   encryptionKey: string | null
+  kmVersion: number
 } | null> {
   const user = await db
     .select({
       alias: users.alias,
       signingKey: users.signingKey,
       encryptionKey: users.encryptionKey,
+      kmVersion: users.kmVersion,
     })
     .from(users)
     .where(eq(users.id, userId))
@@ -155,6 +211,7 @@ export async function getUserIdentity(userId: string): Promise<{
     handle: user[0].alias ? buildHandle(user[0].alias) : null,
     signingKey: user[0].signingKey,
     encryptionKey: user[0].encryptionKey,
+    kmVersion: user[0].kmVersion,
   }
 }
 

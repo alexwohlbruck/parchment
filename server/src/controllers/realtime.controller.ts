@@ -48,8 +48,8 @@ const httpApi = new Elysia({ prefix: '/realtime' })
  */
 httpApi.use(requireAuth).post(
   '/ticket',
-  ({ user }) => {
-    return mintTicket(user.id)
+  ({ user, session }) => {
+    return mintTicket(user.id, session.id)
   },
   {
     detail: {
@@ -103,6 +103,7 @@ const wsApi = new Elysia({ prefix: '/realtime' })
 interface WsQueryCarrier {
   _connectionId?: string
   _userId?: string
+  _sessionId?: string
 }
 
 wsApi.ws('/', {
@@ -110,13 +111,14 @@ wsApi.ws('/', {
     ticket: t.String(),
   }),
   beforeHandle({ query, set }) {
-    const userId = redeemTicket(query.ticket)
-    if (!userId) {
+    const owner = redeemTicket(query.ticket)
+    if (!owner) {
       set.status = 401
       return 'Invalid or expired ticket'
     }
     const carrier = query as unknown as WsQueryCarrier
-    carrier._userId = userId
+    carrier._userId = owner.userId
+    carrier._sessionId = owner.sessionId
     carrier._connectionId = `conn_${randomUUID()}`
   },
   open(ws) {
@@ -133,6 +135,7 @@ wsApi.ws('/', {
     }
     registerSocket(userId, {
       id: connectionId,
+      sessionId: carrier?._sessionId,
       send: (data) => ws.send(data),
       close: (code, reason) => ws.close(code, reason),
     })

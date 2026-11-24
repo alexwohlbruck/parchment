@@ -16,6 +16,7 @@ mock.module('../db', () => ({ db: dbMock.db }))
 const {
   getPersonalBlob,
   putPersonalBlob,
+  StaleKmVersion,
   deletePersonalBlob,
   listPersonalBlobTypes,
   getPersonalBlobsByTypePrefix,
@@ -68,6 +69,20 @@ describe('getPersonalBlob', () => {
 
 describe('putPersonalBlob', () => {
   const value = { encryptedBlob: 'new-cipher', nonce: 'new-nonce', kmVersion: 3 }
+
+  beforeEach(() => {
+    dbMock.setSelectRows([{ kmVersion: 3 }])
+  })
+
+  test('refuses a blob sealed under an older key version', async () => {
+    dbMock.setSelectRows([{ kmVersion: 4 }])
+
+    const error = await putPersonalBlob('user-1', 'settings', value).catch((e) => e)
+
+    expect(error).toBeInstanceOf(StaleKmVersion)
+    expect(error.current).toBe(4)
+    expect(dbMock.insertCount).toBe(0)
+  })
 
   test('writes the envelope keyed by user and type', async () => {
     await putPersonalBlob('user-1', 'settings', value)

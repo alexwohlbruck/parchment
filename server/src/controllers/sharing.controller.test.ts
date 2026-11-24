@@ -52,6 +52,15 @@ const deleteIncomingShare = mock(async (_userId: string, _shareId: string) => tr
 let canShare = { allowed: true }
 const canShareCollection = mock(async (_userId: string, _id: string) => canShare)
 
+let ownsTarget = true
+const ownsResource = mock(
+  async (_userId: string, _type: string, _id: string) => ownsTarget,
+)
+
+class DuplicateShareError extends Error {}
+class RemoteShareDeliveryError extends Error {}
+class NotFriendsError extends Error {}
+
 let localRecipient = true
 const isLocalRecipient = mock((_handle: string) => localRecipient)
 
@@ -69,7 +78,11 @@ mock.module('../services/sharing.service', () => ({
   rejectIncomingShare,
   deleteIncomingShare,
   canShareCollection,
+  ownsResource,
   isLocalRecipient,
+  DuplicateShareError,
+  RemoteShareDeliveryError,
+  NotFriendsError,
 }))
 
 mock.module('../middleware/auth.middleware', () => authMockModule())
@@ -94,6 +107,8 @@ const federationEnvelope = {
 beforeEach(() => {
   resetAuth()
   canShare = { allowed: true }
+  ownsTarget = true
+  ownsResource.mockClear()
   localRecipient = true
   getOutgoingShares.mockClear()
   getSharesForResource.mockClear()
@@ -197,13 +212,51 @@ describe('POST /sharing — collection resharing policy', () => {
     expect(createShare).not.toHaveBeenCalled()
   })
 
-  test('skips the policy check for non-collection resources', async () => {
+  test('checks ownership instead of the policy for other resources', async () => {
     const res = await req(app).post('/sharing', {
       body: { ...localShare, resourceType: 'route', resourceId: 'route-1' },
     })
 
     expect(res.status).toBe(200)
     expect(canShareCollection).not.toHaveBeenCalled()
+    expect(ownsResource).toHaveBeenCalledWith(TEST_USER.id, 'route', 'route-1')
+  })
+
+  test('404s a resource the caller does not own', async () => {
+    ownsTarget = false
+
+    const res = await req(app).post('/sharing', {
+      body: { ...localShare, resourceType: 'layer', resourceId: 'layer-1' },
+    })
+
+    expect(res.status).toBe(404)
+    expect(createShare).not.toHaveBeenCalled()
+  })
+})
+
+describe('POST /sharing — failures', () => {
+  test('409s a repeat share to the same person', async () => {
+    createShare.mockRejectedValueOnce(new DuplicateShareError())
+
+    const res = await req(app).post('/sharing', { body: localShare })
+
+    expect(res.status).toBe(409)
+  })
+
+  test('403s a share to someone who is not a friend', async () => {
+    createShare.mockRejectedValueOnce(new NotFriendsError())
+
+    const res = await req(app).post('/sharing', { body: localShare })
+
+    expect(res.status).toBe(403)
+  })
+
+  test('502s when the recipient server cannot be reached', async () => {
+    createShare.mockRejectedValueOnce(new RemoteShareDeliveryError())
+
+    const res = await req(app).post('/sharing', { body: localShare })
+
+    expect(res.status).toBe(502)
   })
 })
 

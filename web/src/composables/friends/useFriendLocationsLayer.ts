@@ -2,14 +2,12 @@
  * Friend Locations Layer Controller
  *
  * Manages the friend-locations feature globally: hydrates state when the
- * map layer becomes visible, runs the broadcast pipeline while it's on,
- * and tears both down when it's hidden. Realtime push of friends'
- * locations is handled separately by `useFriendLocations.realtime.ts` and
- * runs regardless of layer visibility, so toggling the layer back on
- * shows current state immediately.
+ * map layer becomes visible and keeps the broadcaster following the
+ * sharing settings. Realtime push of friends' locations is handled by
+ * `useFriendLocations.realtime.ts` regardless of layer visibility.
  */
 
-import { watch, computed, onUnmounted } from 'vue'
+import { watch, computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { createSharedComposable } from '@vueuse/core'
 import { useRouter } from 'vue-router'
@@ -46,53 +44,39 @@ function friendLocationsLayerComposable() {
   })
 
   let initialized = false
+  let stopWatchers: (() => void) | null = null
 
   /**
-   * Initialize the friend locations layer controller.
-   * Should be called after the user is authenticated.
+   * Start the friend-locations feature for the signed-in user. Broadcasting
+   * follows the sharing settings; the layer only controls what is drawn.
    */
   async function initialize() {
     if (initialized) return
     initialized = true
 
-    // Wait for identity to be set up
-    await identityStore.initialize()
-    
-    // Load friends data (needed for decryption key lookup)
-    await friendsStore.loadAll()
-
-    // Start services if layer is already visible and identity is ready
-    if (isLayerVisible.value && isSetupComplete.value) {
-      await startLocationServices()
+    mapEventBus.on('click:friend-marker', handleFriendMarkerClick)
+    const stopVisible = watch(isLayerVisible, (visible) => {
+      if (visible && isSetupComplete.value) void hydrate()
+    })
+    const stopSetup = watch(isSetupComplete, (complete) => {
+      if (!complete) return
+      void locationBroadcast.activate()
+      if (isLayerVisible.value) void hydrate()
+    })
+    stopWatchers = () => {
+      stopVisible()
+      stopSetup()
     }
 
-    // Listen for friend marker clicks to navigate to friend detail
-    mapEventBus.on('click:friend-marker', handleFriendMarkerClick)
-
-    // Watch for layer visibility changes
-    watch(
-      isLayerVisible,
-      async (visible) => {
-        if (visible && isSetupComplete.value) {
-          await startLocationServices()
-        } else {
-          stopLocationServices()
-        }
-      }
-    )
-
-    // Also watch for identity setup completion
-    watch(
-      isSetupComplete,
-      async (complete) => {
-        if (complete && isLayerVisible.value) {
-          await startLocationServices()
-        }
-      }
-    )
-
-    // Note: Friend location markers are now automatically managed by FriendLocationsLayer
-    // which watches both the layer visibility and friend locations data
+    try {
+      await identityStore.initialize()
+      await friendsStore.loadAll()
+    } catch (err) {
+      console.warn('[friend-locations] initial load failed', err)
+    }
+    if (!initialized || !isSetupComplete.value) return
+    void locationBroadcast.activate()
+    if (isLayerVisible.value) void hydrate()
   }
 
   function handleFriendMarkerClick({ friendHandle }: { friendHandle: string }) {
@@ -102,26 +86,16 @@ function friendLocationsLayerComposable() {
     })
   }
 
-  async function startLocationServices() {
-    // Sync friend keys before fetching locations to ensure we have latest public keys
+  async function hydrate() {
     await friendsStore.syncKeys()
-
-    // Hydrate state once when the layer turns on. After this the realtime
-    // handler in `useFriendLocations.realtime.ts` keeps it current.
     await friendLocations.fetchLocations()
-    locationBroadcast.start()
   }
 
-  function stopLocationServices() {
-    locationBroadcast.stop()
-    // Note: Markers are automatically cleared by FriendLocationsLayer when layer is hidden
-  }
-
-  /**
-   * Clean up when the app is destroyed
-   */
+  /** Tear down everything held for the signed-in user. */
   function cleanup() {
-    stopLocationServices()
+    stopWatchers?.()
+    stopWatchers = null
+    locationBroadcast.deactivate()
     friendLocations.cleanup()
     mapEventBus.off('click:friend-marker', handleFriendMarkerClick)
     initialized = false

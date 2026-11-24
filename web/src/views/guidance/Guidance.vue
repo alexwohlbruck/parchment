@@ -17,6 +17,7 @@ import { useParkingOffer } from '@/composables/guidance/useParkingOffer'
 import { useGuidanceCamera } from '@/composables/guidance/useGuidanceCamera'
 import { guidanceRouteSource, useGuidanceRouteLine } from '@/composables/guidance/useGuidanceRouteLine'
 import { useGuidanceVehicle } from '@/composables/guidance/useGuidanceVehicle'
+import { useStationStepFocus } from '@/composables/transit/useStationStepFocus'
 import { showsTrip } from '@/composables/guidance/useBackgroundGuidance'
 import { panelAfterClose } from '@/lib/guidance/guidance-layout'
 import { freeModeFor } from '@/lib/guidance/free-roam'
@@ -48,6 +49,13 @@ const alternatives = useAlternativeRoutes()
 const recovery = useMissedRecovery()
 const itinerary = useBetterItinerary(() => !!recovery.view.value)
 const vehicleSwitch = useVehicleSwitch()
+const stationStep = useStationStepFocus()
+
+watch(
+  () => guidance.stationGuide,
+  shown => shown && stationStep.focus(`${shown.target.key}:${shown.state.step}`, shown.target.walk, shown.state.step),
+  { immediate: true },
+)
 
 const panel = ref<GuidancePanelKind | null>(null)
 const openedFrom = ref<GuidancePanelKind | null>(null)

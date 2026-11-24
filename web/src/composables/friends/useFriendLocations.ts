@@ -22,6 +22,8 @@ import { createSharedComposable } from '@vueuse/core'
 import { useLocationService } from '@/services/location.service'
 import { useFriendsStore } from '@/stores/friends.store'
 import { useIdentityStore } from '@/stores/identity.store'
+import { useFriendKeyPinsStore } from '@/stores/friends/friend-key-pins.store'
+import { isNewerSample, isValidLocationData } from '@/lib/friends/friend-location'
 import {
   buildRelationshipId,
   decryptLocationFromFriendV2,
@@ -83,10 +85,13 @@ export function isLocationClearedPayload(
   return typeof o.senderHandle === 'string'
 }
 
+const KEY_RESYNC_INTERVAL_MS = 5 * 60_000
+
 function friendLocationsComposable() {
   const locationService = useLocationService()
   const friendsStore = useFriendsStore()
   const identityStore = useIdentityStore()
+  const pinsStore = useFriendKeyPinsStore()
 
   const { friends } = storeToRefs(friendsStore)
   const { encryptionPrivateKey, isSetupComplete, handle: myHandle } =
@@ -95,6 +100,18 @@ function friendLocationsComposable() {
   // Map keys are LOWERCASED handles so all reads/writes/deletes are
   // case-insensitive without callers needing to think about it.
   const friendLocations = ref<Map<string, FriendLocation>>(new Map())
+  // Arrival time of each entry, so a fetch's sweep spares newer pushes.
+  const appliedAt = new Map<string, number>()
+  let inflightFetch: Promise<FriendLocation[]> | null = null
+  let lastKeyResyncAt = 0
+
+  // A friend who reset their identity signs with keys we haven't fetched yet.
+  function resyncKeysSoon() {
+    const now = Date.now()
+    if (now - lastKeyResyncAt < KEY_RESYNC_INTERVAL_MS) return
+    lastKeyResyncAt = now
+    void friendsStore.syncKeys()
+  }
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
@@ -107,11 +124,13 @@ function friendLocationsComposable() {
    * be applied (missing keys, missing friend record, decrypt failure).
    *
    * Same code path is used by the initial fetch loop and the realtime
-   * push handler — both produce identical state.
+   * push handler — both produce identical state. A row older than the one
+   * already shown is ignored, and a friend whose keys changed since they
+   * were pinned is not trusted until the user accepts the new keys.
    */
-  function applyEncryptedLocation(
+  async function applyEncryptedLocation(
     encLoc: EncryptedLocationPayload,
-  ): FriendLocation | null {
+  ): Promise<FriendLocation | null> {
     if (!isSetupComplete.value || !encryptionPrivateKey.value) return null
     if (!encLoc.senderHandle) return null
 
@@ -134,10 +153,18 @@ function friendLocationsComposable() {
       return null
     }
 
+    const updatedAt = new Date(encLoc.updatedAt)
+    if (!isNewerSample(friendLocations.value.get(senderKey)?.updatedAt, updatedAt)) {
+      return null
+    }
+
+    const keys = await pinsStore.trustedKeys(friend)
+    if (!keys) return null
+
     try {
       // v2 wire shape: `encryptedLocation` is the full ECIES blob,
       // `nonce` carries the RFC 3339 sentAt that the AAD binds.
-      const friendSigningKey = importPublicKey(friend.friendSigningKey)
+      const friendSigningKey = importPublicKey(keys.signingKey)
       const binding: FriendShareBinding = {
         senderId: friend.friendHandle,
         recipientId: myHandle.value,
@@ -153,6 +180,14 @@ function friendLocationsComposable() {
         senderSigningPublicKey: friendSigningKey,
         binding,
       })
+      if (!isValidLocationData(locationData)) {
+        console.warn(`Ignoring out-of-range location from ${friend.friendHandle}`)
+        return null
+      }
+      // A newer row may have landed while the pin check awaited.
+      if (!isNewerSample(friendLocations.value.get(senderKey)?.updatedAt, updatedAt)) {
+        return null
+      }
 
       const friendLocation: FriendLocation = {
         friendHandle: friend.friendHandle,
@@ -160,13 +195,15 @@ function friendLocationsComposable() {
         friendName: friend.friendName || undefined,
         friendPicture: friend.friendPicture || undefined,
         location: locationData,
-        updatedAt: new Date(encLoc.updatedAt),
+        updatedAt,
         lngLat: { lat: locationData.lat, lng: locationData.lng },
       }
 
       friendLocations.value.set(senderKey, friendLocation)
+      appliedAt.set(senderKey, Date.now())
       return friendLocation
     } catch (decryptError) {
+      resyncKeysSoon()
       console.warn(
         `Failed to decrypt location for ${friend.friendHandle}:`,
         decryptError,
@@ -182,7 +219,9 @@ function friendLocationsComposable() {
    * position.
    */
   function removeLocation(senderHandle: string): void {
-    friendLocations.value.delete(senderHandle.toLowerCase())
+    const key = senderHandle.toLowerCase()
+    friendLocations.value.delete(key)
+    appliedAt.delete(key)
   }
 
   /**
@@ -191,12 +230,20 @@ function friendLocationsComposable() {
    * not in the response — covers unfriending, sharing-disable, etc.
    * that we missed while offline.
    */
-  async function fetchLocations(): Promise<FriendLocation[]> {
+  function fetchLocations(): Promise<FriendLocation[]> {
+    inflightFetch ??= runFetch().finally(() => {
+      inflightFetch = null
+    })
+    return inflightFetch
+  }
+
+  async function runFetch(): Promise<FriendLocation[]> {
     if (!isSetupComplete.value || !encryptionPrivateKey.value) {
       console.warn('Identity not set up, cannot fetch friend locations')
       return []
     }
 
+    const startedAt = Date.now()
     isLoading.value = true
     error.value = null
 
@@ -207,7 +254,7 @@ function friendLocationsComposable() {
       const decrypted: FriendLocation[] = []
       for (const encLoc of encryptedLocations ?? []) {
         if (encLoc.senderHandle) seen.add(encLoc.senderHandle.toLowerCase())
-        const applied = applyEncryptedLocation(encLoc)
+        const applied = await applyEncryptedLocation(encLoc)
         if (applied) decrypted.push(applied)
       }
 
@@ -216,7 +263,8 @@ function friendLocationsComposable() {
       // Doesn't depend on the friends store being loaded (the previous
       // implementation wiped everything when `friends.value` was empty).
       for (const key of Array.from(friendLocations.value.keys())) {
-        if (!seen.has(key)) friendLocations.value.delete(key)
+        if (seen.has(key) || (appliedAt.get(key) ?? 0) > startedAt) continue
+        removeLocation(key)
       }
 
       return decrypted
@@ -231,6 +279,7 @@ function friendLocationsComposable() {
 
   function clearLocations() {
     friendLocations.value.clear()
+    appliedAt.clear()
   }
 
   function getLocationForFriend(

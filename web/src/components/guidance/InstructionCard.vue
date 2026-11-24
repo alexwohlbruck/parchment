@@ -110,6 +110,7 @@ function previewRoute() {
         :target="guidance.stationGuide.target"
         :state="guidance.stationGuide.state"
         :now-ms="guidance.clockMs"
+        :metric="metric"
         @next="guidance.nextStationStep"
       />
       <TransitStageCard

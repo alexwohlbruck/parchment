@@ -5,7 +5,7 @@
  * All location data is end-to-end encrypted - the server only stores ciphertext.
  */
 
-import { and, eq } from 'drizzle-orm'
+import { and, eq, lt } from 'drizzle-orm'
 import { db } from '../db'
 import {
   locationSharingConfig,
@@ -17,7 +17,7 @@ import {
 } from '../schema/location.schema'
 import { friendships } from '../schema/friendships.schema'
 import { generateId } from '../util'
-import { buildHandle, sendFederationMessage } from './federation.service'
+import { buildHandle } from './federation.service'
 import { emit } from './realtime/emit'
 import { users } from '../schema/users.schema'
 import { logger } from '../lib/logger'
@@ -74,6 +74,10 @@ export async function setLocationSharingConfig(
 ): Promise<LocationSharingConfig> {
   const existing = await getLocationSharingConfigForFriend(userId, friendHandle)
 
+  if (config.enabled === false) {
+    await clearStoredLocation(userId, friendHandle)
+  }
+
   if (existing) {
     const [updated] = await db
       .update(locationSharingConfig)
@@ -125,7 +129,20 @@ export async function disableLocationSharing(
     )
     .returning()
 
-  // Also delete cached encrypted location
+  await clearStoredLocation(userId, friendHandle)
+
+  return result.length > 0
+}
+
+/**
+ * Drop the ciphertext held for one friend and tell them to remove the
+ * marker. The emit is best-effort: the row is gone either way, and the
+ * friend's next reconnect refetch converges.
+ */
+async function clearStoredLocation(
+  userId: string,
+  friendHandle: string,
+): Promise<void> {
   await db
     .delete(encryptedLocations)
     .where(
@@ -135,17 +152,12 @@ export async function disableLocationSharing(
       ),
     )
 
-  // Tell the recipient to drop the marker. Best-effort; if the lookup or
-  // emit fails the row is still gone and the next reconnect refetch will
-  // converge state.
   void publishLocationCleared(userId, friendHandle).catch((err) => {
     logger.error(
       { err, userId, friendHandle },
       'Failed to publish location:cleared realtime event',
     )
   })
-
-  return result.length > 0
 }
 
 async function publishLocationCleared(
@@ -164,6 +176,44 @@ async function publishLocationCleared(
     { senderHandle: buildHandle(sender.alias) },
     recipientHandle,
   )
+}
+
+/** How long a shared location is kept after its sharer last sent one. */
+export const LOCATION_RETENTION_MS = 24 * 60 * 60 * 1000
+const RETENTION_SWEEP_INTERVAL_MS = 60 * 60 * 1000
+
+/** Delete shared locations older than the retention window and tell recipients. */
+export async function sweepStaleLocations(now = new Date()): Promise<number> {
+  const cutoff = new Date(now.getTime() - LOCATION_RETENTION_MS)
+  const removed = await db
+    .delete(encryptedLocations)
+    .where(lt(encryptedLocations.updatedAt, cutoff))
+    .returning({
+      userId: encryptedLocations.userId,
+      forFriendHandle: encryptedLocations.forFriendHandle,
+    })
+
+  for (const row of removed) {
+    await publishLocationCleared(row.userId, row.forFriendHandle).catch((err) =>
+      logger.error({ err, userId: row.userId }, 'Failed to publish location:cleared'),
+    )
+  }
+  return removed.length
+}
+
+let retentionTimer: ReturnType<typeof setInterval> | null = null
+
+export function startLocationRetentionSweep(): void {
+  if (retentionTimer || process.env.NODE_ENV === 'test') return
+  const run = () =>
+    sweepStaleLocations()
+      .then((count) => {
+        if (count > 0) logger.info({ count }, 'Swept stale shared locations')
+      })
+      .catch((err) => logger.error({ err }, 'Shared location sweep failed'))
+  void run()
+  retentionTimer = setInterval(run, RETENTION_SWEEP_INTERVAL_MS)
+  retentionTimer.unref?.()
 }
 
 // ============================================================================
@@ -330,7 +380,7 @@ export async function getEncryptedLocationsFromFriends(
 
   if (!user?.alias) return []
 
-  const userHandle = buildHandle(user.alias).toLowerCase()
+  const userHandle = buildHandle(user.alias)
 
   const [friendHandles, results] = await Promise.all([
     // This user's accepted friendships — handles only.
@@ -357,15 +407,23 @@ export async function getEncryptedLocationsFromFriends(
       })
       .from(encryptedLocations)
       .leftJoin(users, eq(users.id, encryptedLocations.userId))
+      .innerJoin(
+        locationSharingConfig,
+        and(
+          eq(locationSharingConfig.userId, encryptedLocations.userId),
+          eq(locationSharingConfig.friendHandle, encryptedLocations.forFriendHandle),
+          eq(locationSharingConfig.enabled, true),
+        ),
+      )
       .where(eq(encryptedLocations.forFriendHandle, userHandle)),
   ])
 
-  const friendSet = new Set(friendHandles.map((f) => f.handle.toLowerCase()))
+  const friendSet = new Set(friendHandles.map((f) => f.handle))
 
   return results
     .filter((r) =>
       r.senderAlias
-        ? friendSet.has(buildHandle(r.senderAlias).toLowerCase())
+        ? friendSet.has(buildHandle(r.senderAlias))
         : false,
     )
     .map((r) => ({
@@ -380,96 +438,8 @@ export async function getEncryptedLocationsFromFriends(
 }
 
 // ============================================================================
-// Federation helpers
-// ============================================================================
-
-/**
- * Send location update to a friend's server
- */
-export async function sendLocationUpdateToFriend(
-  fromHandle: string,
-  toHandle: string,
-  encryptedLocation: string,
-  nonce: string,
-  signature: string,
-): Promise<boolean> {
-  try {
-    await sendFederationMessage(toHandle, {
-      type: 'LOCATION_UPDATE',
-      from: fromHandle,
-      to: toHandle,
-      encryptedLocation,
-      nonce,
-      timestamp: new Date().toISOString(),
-      signature,
-    })
-    return true
-  } catch (error) {
-    logger.error({ err: error, fromHandle, toHandle }, 'Failed to send location update')
-    return false
-  }
-}
-
-/**
- * Request fresh location from a friend's server
- */
-export async function requestLocationFromFriend(
-  fromHandle: string,
-  toHandle: string,
-  signature: string,
-): Promise<boolean> {
-  try {
-    await sendFederationMessage(toHandle, {
-      type: 'LOCATION_REQUEST',
-      from: fromHandle,
-      to: toHandle,
-      timestamp: new Date().toISOString(),
-      signature,
-    })
-    return true
-  } catch (error) {
-    logger.error({ err: error, fromHandle, toHandle }, 'Failed to request location')
-    return false
-  }
-}
-
-// ============================================================================
 // Federation Handlers - Called by federation.service when receiving messages
 // ============================================================================
-
-/**
- * Handle incoming location update from a remote friend
- */
-export async function handleIncomingLocationUpdate(
-  senderHandle: string,
-  recipientAlias: string,
-  encryptedLocation: string,
-  nonce: string,
-): Promise<{ success: boolean; error?: string }> {
-  const { getLocalUserIdByAlias } = await import('./user.service')
-  const { isFriend } = await import('./friends.service')
-
-  const localUserId = await getLocalUserIdByAlias(recipientAlias)
-  if (!localUserId) {
-    return { success: false, error: 'Recipient not found' }
-  }
-
-  const areFriends = await isFriend(localUserId, senderHandle)
-  if (!areFriends) {
-    return { success: false, error: 'Not a friend' }
-  }
-
-  const result = await storeEncryptedLocation(
-    localUserId,
-    senderHandle,
-    encryptedLocation,
-    nonce,
-  )
-  if (!result.stored) {
-    return { success: false, error: 'Replayed nonce' }
-  }
-  return { success: true }
-}
 
 /**
  * Handle incoming location request from a remote friend

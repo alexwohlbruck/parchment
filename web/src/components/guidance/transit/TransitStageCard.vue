@@ -13,6 +13,7 @@ import { alightText, departureText } from '@/lib/guidance/transit-stage-text'
 import AfterRide from './AfterRide.vue'
 import RealtimeIndicator from '@/components/transit/departures/RealtimeIndicator.vue'
 import BoardingHint from '@/components/transit/trip/BoardingHint.vue'
+import { waitWalkSeconds } from '@/lib/transit/station/boarding'
 
 const props = defineProps<{
   stage: TransitStage
@@ -36,6 +37,11 @@ const segment = computed(() => props.segments[props.stage.segmentIndex])
 
 const line = computed(() => segment.value?.lineName ?? '')
 const toward = computed(() => segment.value?.directionLabel || segment.value?.headsign || segment.value?.lineLongName)
+
+const waitSeconds = computed(() => {
+  const stage = props.stage, position = segment.value?.boardingPosition
+  return stage.kind === 'wait' && position ? waitWalkSeconds(position, stage.departureMs, props.nowMs) : null
+})
 
 const countdown = computed(() => {
   const stage = props.stage
@@ -89,7 +95,12 @@ const ride = computed(() => {
         <RealtimeIndicator :real-time="!!segment?.realTimeData" :delay="segment?.delay" class="shrink-0" />
         <ChevronDown class="ml-auto size-4 shrink-0 transition-transform" :class="picking && 'rotate-180'" />
       </button>
-      <BoardingHint v-if="segment?.boardingPosition" :position="segment.boardingPosition" :color="segment.lineColor" />
+      <BoardingHint
+        v-if="segment?.boardingPosition"
+        :position="segment.boardingPosition"
+        :color="segment.lineColor"
+        :wait-seconds="waitSeconds"
+      />
     </template>
 
     <template v-else-if="ride">

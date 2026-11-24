@@ -1617,7 +1617,7 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   setBasemap(basemap: Basemap) {
-    this.currentBasemap = basemap
+    this.currentBasemap = basemap ?? 'standard'
     this.reloadStyle()
   }
 

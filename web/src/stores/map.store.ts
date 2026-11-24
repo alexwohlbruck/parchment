@@ -135,6 +135,7 @@ export const useMapStore = defineStore('map', () => {
   settings.value.plantDay ??= null
   settings.value.seasons ??= true
   settings.value.satelliteImagery ??= [...DEFAULT_IMAGERY_STACK]
+  settings.value.basemap ??= 'standard'
   // A retired style id, such as the one Charlotte had while it was called Parchment.
   if (!MAP_STYLE_IDS.includes(settings.value.mapStyle)) settings.value.mapStyle = defaultSettings.mapStyle
 

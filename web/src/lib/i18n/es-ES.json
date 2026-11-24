@@ -1111,6 +1111,11 @@
         "back": "Camina hasta la parte trasera del andén"
       },
       "saves": "ahorra {duration}",
+      "for": {
+        "exit": "para salir por {name}",
+        "transfer": "para el {name}"
+      },
+      "waitWalk": "Tienes {duration}, camina hasta la parte {section} del andén",
       "insideStation": "Dentro de la estación",
       "steps": "{n} paso | {n} pasos",
       "levelUp": "Sube {n} nivel | Sube {n} niveles",
@@ -1512,6 +1517,7 @@
     "cancel": "Cancelar",
     "done": "Listo",
     "locationSharing": "Compartir ubicación",
+    "remoteLocationUnavailable": "Aún no disponible con amigos de otros servidores",
     "countOne": "{n} amigo",
     "countMany": "{n} amigos",
     "invitations": {
@@ -1558,6 +1564,7 @@
       "setupDescription": "Configura tu identidad federada para conectar con amigos y compartir datos de forma segura entre servidores de Parchment.",
       "importButton": "Importar clave de recuperación",
       "importDescription": "Tu identidad existe en este servidor, pero necesitas importar tu clave de recuperación para usarla en este dispositivo.",
+      "unavailableDescription": "No se pudo cargar tu identidad. Revisa tu conexión e inténtalo de nuevo.",
       "recoveryKey": "Clave de recuperación",
       "recoveryKeyDescription": "Ver tu clave de recuperación para respaldo",
       "viewKey": "Ver clave",
@@ -1578,7 +1585,8 @@
       "warning": {
         "keepOpen": "Mantén esta pestaña abierta hasta que termine.",
         "tapEach": "Cualquier clave de acceso que no toques antes de finalizar no funcionará para recuperación después — ten al menos una clave de acceso o tu clave de recuperación a mano.",
-        "failsSafe": "Si la rotación falla a mitad, nada cambia en el servidor."
+        "failsSafe": "Si la rotación falla a mitad, nada cambia en el servidor.",
+        "newRecoveryKey": "Recibirás una nueva clave de recuperación al final. La anterior deja de funcionar."
       },
       "action": "Rotar claves",
       "runningTitle": "Rotando claves",
@@ -1589,7 +1597,10 @@
       "failedTitle": "La rotación falló",
       "failedFallback": "La rotación falló",
       "close": "Cerrar",
-      "slotWarning": "La clave de acceso {id}… no se volvió a asegurar ({reason}). Ya no funcionará para recuperación — elimínala y agrégala de nuevo.",
+      "recoveryKeyTitle": "Guarda tu nueva clave de recuperación",
+      "recoveryKeyDescription": "Tu clave de recuperación anterior deja de funcionar al terminar. Guarda esta en un lugar seguro.",
+      "recoveryKeySaved": "Ya la guardé",
+      "slotWarning": "La clave de acceso {id}… no se pudo volver a asegurar ({reason}), así que ya no puede desbloquear tus claves. Elimínala y agrégala de nuevo.",
       "unknownReason": "desconocido",
       "progress": {
         "preparing": "Preparando…",
@@ -1600,6 +1611,7 @@
         "resealingSlot": "Toca tu clave de acceso para volver a asegurar el slot {index} de {total}",
         "committing": "Finalizando — guardando todo a la vez…",
         "storingSeed": "Actualizando este dispositivo…",
+        "confirmingRecoveryKey": "Esperando a que guardes tu nueva clave de recuperación",
         "done": "Hecho — ahora en la versión de clave {version}"
       }
     },
@@ -1677,7 +1689,16 @@
       "syncKeys": "Sincronizar claves",
       "syncingKeys": "Sincronizando claves…",
       "keysSynced": "Claves sincronizadas",
-      "syncFailed": "No se pudieron sincronizar las claves"
+      "syncFailed": "No se pudieron sincronizar las claves",
+      "keyChangedTitle": "Las claves de {name} cambiaron",
+      "keyChangedDescription": "Su teléfono, o alguien que se hace pasar por esa persona, tiene claves nuevas. No se comparte nada hasta que compares este número con el suyo.",
+      "safetyNumber": "Número de seguridad",
+      "safetyNumberDescription": "Coincide con el número del teléfono de {name} si tu conexión es segura.",
+      "trustNewKeys": "Los números coinciden",
+      "markVerified": "Marcar como verificado",
+      "verified": "Verificado",
+      "keysTrusted": "Claves de confianza",
+      "loadFailed": "No se pudo cargar este amigo"
     }
   },
   "dashboard": {
@@ -2290,6 +2311,14 @@
         "board": "Sube al {line}",
         "boardToward": "Sube al {line} hacia {headsign}",
         "boardSigned": "Sube al {line}, {direction}",
+        "boardNear": "Sube por la parte {section}",
+        "boardNearFor": "Sube por la parte {section} para {target}",
+        "waitWalk": "Tienes {duration}, camina hasta la parte {section} del andén",
+        "waitWalkFor": "Tienes {duration}, camina hasta la parte {section} del andén para {target}",
+        "target": {
+          "exit": "la salida de {name}",
+          "transfer": "el {name}"
+        },
         "alight-next": "Bájate en la próxima parada, {stop}",
         "alight-now": "Bájate en {stop}",
         "missed-vehicle": "El {line} ya salió. Toma el siguiente o busca otra ruta",
@@ -2924,7 +2953,14 @@
           "confirmDescription": "Esto borra permanentemente todos tus datos cifrados en esta cuenta — lugares guardados, colecciones, amigos y ajustes de compartición. Tu correo y claves de acceso permanecen, así que puedes seguir iniciando sesión. Esto no se puede deshacer.",
           "typePromptTitle": "Escribe RESET para confirmar",
           "typePromptLabel": "Confirmación",
-          "failedFallback": "Error al restablecer. Por favor, inténtalo de nuevo."
+          "failedFallback": "Error al restablecer. Por favor, inténtalo de nuevo.",
+          "verifyTitle": "Confirma que eres tú",
+          "verifyPasskeyDescription": "Usa tu llave de acceso para borrar tus datos cifrados",
+          "verifyEmailDescription": "Introduce el código de 8 dígitos que te enviamos por correo",
+          "usePasskey": "Usar llave de acceso",
+          "emailInstead": "Enviarme un código por correo",
+          "eraseAction": "Borrar y restablecer",
+          "verifyFailed": "No pudimos confirmar que eres tú. Inténtalo de nuevo"
         },
         "view": {
           "title": "Tu clave de recuperación",
@@ -3635,13 +3671,16 @@
     "errors": {
       "loadFailed": "No se pudieron cargar los recursos compartidos",
       "createFailed": "No se pudo compartir",
+      "notFriends": "Solo puedes compartir con tus amigos",
       "revokeFailed": "No se pudo eliminar el acceso",
       "roleChangeFailed": "No se pudo cambiar el rol",
       "publicLinkFailed": "No se pudo crear el enlace público",
       "publicLinkRevokeFailed": "No se pudo revocar el enlace público",
       "copyFailed": "Error al copiar — selecciona y copia el enlace manualmente",
       "identityRequired": "Configura tus claves de cifrado en Ajustes antes de compartir",
-      "missingFriendKey": "Las claves de este amigo aún no están sincronizadas; inténtalo en un momento"
+      "missingFriendKey": "Las claves de este amigo aún no están sincronizadas; inténtalo en un momento",
+      "remainingKeysMissing": "No se puede quitar el acceso hasta que se sincronicen las claves de los demás; inténtalo en un momento",
+      "friendKeysChanged": "Las claves de {name} cambiaron. Revísalas en su perfil antes de compartir"
     },
     "removeAction": "Quitar a {name}"
   },

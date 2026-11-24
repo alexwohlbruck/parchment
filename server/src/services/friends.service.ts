@@ -4,7 +4,7 @@
  * Handles friend relationships, invitations, and key sync.
  */
 
-import { and, eq } from 'drizzle-orm'
+import { and, eq, gt, isNull, or } from 'drizzle-orm'
 import { db } from '../db'
 import { users } from '../schema/users.schema'
 import { friendships, type Friendship } from '../schema/friendships.schema'
@@ -27,9 +27,36 @@ import { parseHandle } from '../lib/crypto'
 import { generateId } from '../util'
 import { emit } from './realtime/emit'
 import { shares, incomingShares } from '../schema/shares.schema'
+import { pendingRevocations } from '../schema/pending-revocations.schema'
 
 // Re-export for external use
 export { getUserHandle }
+
+/** The nonce and timestamp a client signed into a v2 federation envelope. */
+export interface ClientEnvelope {
+  nonce: string
+  timestamp: string
+}
+
+function buildFriendMessage(
+  messageType: FederationMessage['message_type'],
+  from: string,
+  to: string,
+  signature: string,
+  envelope: ClientEnvelope,
+): FederationMessage {
+  return {
+    protocol_version: 2,
+    message_type: messageType,
+    message_version: 1,
+    nonce: envelope.nonce,
+    timestamp: envelope.timestamp,
+    from,
+    to,
+    signature,
+    payload: {},
+  }
+}
 
 // Type for remote user info (used by federation handlers)
 export interface RemoteUserInfo {
@@ -41,6 +68,19 @@ export interface RemoteUserInfo {
   picture?: string
 }
 
+const INVITATION_TTL_MS = 30 * 24 * 60 * 60 * 1000
+
+function invitationExpiry(): Date {
+  return new Date(Date.now() + INVITATION_TTL_MS)
+}
+
+function notExpired() {
+  return or(
+    isNull(friendInvitations.expiresAt),
+    gt(friendInvitations.expiresAt, new Date()),
+  )
+}
+
 /**
  * Send a friend invitation
  */
@@ -48,6 +88,7 @@ export async function sendFriendInvitation(
   fromUserId: string,
   toHandle: string,
   signature: string,
+  envelope?: ClientEnvelope,
 ): Promise<{
   success: boolean
   invitation?: FriendInvitation
@@ -95,6 +136,7 @@ export async function sendFriendInvitation(
         eq(friendInvitations.fromHandle, fromHandle),
         eq(friendInvitations.toHandle, toHandle),
         eq(friendInvitations.status, 'pending'),
+        notExpired(),
       ),
     )
     .limit(1)
@@ -110,7 +152,6 @@ export async function sendFriendInvitation(
   }
 
   const invitationId = generateId()
-  const timestamp = new Date().toISOString()
 
   if (isLocalHandle(toHandle)) {
     // Local invitation
@@ -138,6 +179,7 @@ export async function sendFriendInvitation(
         direction: 'outgoing' as InvitationDirection,
         status: 'pending' as InvitationStatus,
         originServer: getServerDomain(),
+        expiresAt: invitationExpiry(),
         signature,
       })
       .returning()
@@ -151,6 +193,7 @@ export async function sendFriendInvitation(
       direction: 'incoming' as InvitationDirection,
       status: 'pending' as InvitationStatus,
       originServer: getServerDomain(),
+      expiresAt: invitationExpiry(),
       signature,
     })
 
@@ -164,16 +207,18 @@ export async function sendFriendInvitation(
 
     return { success: true, invitation: outgoingInvitation[0] }
   } else {
-    // Remote invitation - send via federation
-    const message: FederationMessage = {
-      type: 'FRIEND_INVITE',
-      from: fromHandle,
-      to: toHandle,
-      timestamp,
-      signature,
+    if (!envelope) {
+      return { success: false, error: 'Remote invitations need a signed envelope' }
     }
+    const message = buildFriendMessage(
+      'FRIEND_INVITE',
+      fromHandle,
+      toHandle,
+      signature,
+      envelope,
+    )
 
-    const sent = await sendFederationMessage(recipient.inbox, message)
+    const sent = await sendFederationMessage(toHandle, message)
     if (!sent) {
       return {
         success: false,
@@ -192,6 +237,7 @@ export async function sendFriendInvitation(
         direction: 'outgoing' as InvitationDirection,
         status: 'pending' as InvitationStatus,
         originServer: getServerDomain(),
+        expiresAt: invitationExpiry(),
         signature,
       })
       .returning()
@@ -216,6 +262,7 @@ export async function acceptFriendInvitation(
   userId: string,
   invitationId: string,
   signature: string,
+  envelope?: ClientEnvelope,
 ): Promise<{ success: boolean; error?: string }> {
   // Find the invitation
   const invitation = await db
@@ -227,6 +274,7 @@ export async function acceptFriendInvitation(
         eq(friendInvitations.localUserId, userId),
         eq(friendInvitations.direction, 'incoming'),
         eq(friendInvitations.status, 'pending'),
+        notExpired(),
       ),
     )
     .limit(1)
@@ -252,71 +300,69 @@ export async function acceptFriendInvitation(
     }
   }
 
-  // Delete the incoming invitation (no longer needed)
-  await db
-    .delete(friendInvitations)
-    .where(eq(friendInvitations.id, invitationId))
+  const localSenderId = isLocalHandle(inv.fromHandle)
+    ? await findLocalUserIdByHandle(inv.fromHandle)
+    : null
+  const acceptorInfo = localSenderId ? await getUserIdentity(userId) : null
 
-  // Create friendship record
-  await db.insert(friendships).values({
-    id: generateId(),
-    userId,
-    friendHandle: inv.fromHandle,
-    friendSigningKey: sender.signingKey,
-    friendEncryptionKey: sender.encryptionKey,
-    status: 'accepted',
-    establishedAt: new Date(),
-  })
+  const claimed = await db.transaction(async (tx) => {
+    const [claim] = await tx
+      .delete(friendInvitations)
+      .where(
+        and(
+          eq(friendInvitations.id, invitationId),
+          eq(friendInvitations.status, 'pending'),
+        ),
+      )
+      .returning({ id: friendInvitations.id })
+    if (!claim) return false
 
-  // If sender is local, delete their invitation and create friendship
-  if (isLocalHandle(inv.fromHandle)) {
-    const parsed = parseHandle(inv.fromHandle)
-    if (parsed) {
-      const senderUser = await db
-        .select({ id: users.id })
-        .from(users)
-        .where(eq(users.alias, parsed.alias))
-        .limit(1)
+    await deletePendingInvitationsBetween(tx, userId, myHandle, inv.fromHandle)
+    await tx
+      .insert(friendships)
+      .values({
+        id: generateId(),
+        userId,
+        friendHandle: inv.fromHandle,
+        friendSigningKey: sender.signingKey,
+        friendEncryptionKey: sender.encryptionKey,
+        status: 'accepted',
+        establishedAt: new Date(),
+      })
+      .onConflictDoNothing()
 
-      if (senderUser[0]) {
-        // Delete sender's outgoing invitation
-        await db
-          .delete(friendInvitations)
-          .where(
-            and(
-              eq(friendInvitations.fromHandle, inv.fromHandle),
-              eq(friendInvitations.toHandle, inv.toHandle),
-              eq(friendInvitations.direction, 'outgoing'),
-            ),
-          )
-
-        // Get acceptor's keys
-        const acceptorInfo = await getUserIdentity(userId)
-
-        // Create friendship for sender
-        await db.insert(friendships).values({
+    if (localSenderId) {
+      await deletePendingInvitationsBetween(
+        tx,
+        localSenderId,
+        inv.fromHandle,
+        myHandle,
+      )
+      await tx
+        .insert(friendships)
+        .values({
           id: generateId(),
-          userId: senderUser[0].id,
+          userId: localSenderId,
           friendHandle: myHandle,
           friendSigningKey: acceptorInfo?.signingKey || null,
           friendEncryptionKey: acceptorInfo?.encryptionKey || null,
           status: 'accepted',
           establishedAt: new Date(),
         })
-      }
+        .onConflictDoNothing()
     }
-  } else {
-    // Send acceptance to remote server
-    const timestamp = new Date().toISOString()
-    const message: FederationMessage = {
-      type: 'FRIEND_ACCEPT',
-      from: myHandle,
-      to: inv.fromHandle,
-      timestamp,
-      signature,
-    }
+    return true
+  })
 
-    await sendFederationMessage(sender.inbox, message)
+  if (!claimed) {
+    return { success: false, error: 'Invitation not found' }
+  }
+
+  if (!isLocalHandle(inv.fromHandle) && envelope) {
+    await sendFederationMessage(
+      inv.fromHandle,
+      buildFriendMessage('FRIEND_ACCEPT', myHandle, inv.fromHandle, signature, envelope),
+    )
   }
 
   // Tell both sides the friendship now exists. Partner may be local (we
@@ -338,6 +384,7 @@ export async function rejectFriendInvitation(
   userId: string,
   invitationId: string,
   signature?: string,
+  envelope?: ClientEnvelope,
 ): Promise<{ success: boolean; error?: string }> {
   // Find the invitation
   const invitation = await db
@@ -349,6 +396,7 @@ export async function rejectFriendInvitation(
         eq(friendInvitations.localUserId, userId),
         eq(friendInvitations.direction, 'incoming'),
         eq(friendInvitations.status, 'pending'),
+        notExpired(),
       ),
     )
     .limit(1)
@@ -375,21 +423,13 @@ export async function rejectFriendInvitation(
           eq(friendInvitations.direction, 'outgoing'),
         ),
       )
-  } else if (signature) {
-    // Send rejection to remote server
+  } else if (signature && envelope) {
     const myHandle = await getUserHandle(userId)
     if (myHandle) {
-      const sender = await resolveHandle(inv.fromHandle)
-      if (sender) {
-        const message: FederationMessage = {
-          type: 'FRIEND_REJECT',
-          from: myHandle,
-          to: inv.fromHandle,
-          timestamp: new Date().toISOString(),
-          signature,
-        }
-        await sendFederationMessage(sender.inbox, message)
-      }
+      await sendFederationMessage(
+        inv.fromHandle,
+        buildFriendMessage('FRIEND_REJECT', myHandle, inv.fromHandle, signature, envelope),
+      )
     }
   }
 
@@ -523,6 +563,7 @@ export async function getInvitations(
   const conditions = [
     eq(friendInvitations.localUserId, userId),
     eq(friendInvitations.status, 'pending'),
+    notExpired(),
   ]
 
   if (direction) {
@@ -543,14 +584,13 @@ export async function getInvitations(
  * - If the friend is remote, a signed RELATIONSHIP_REVOKE message is sent to
  *   their home server so it can drop cached keys, pins, and any queued state.
  *
- * @param revokeSignature - Client-produced Ed25519 signature over the v2
- *   revoke envelope. Required for remote revocations so the peer can verify
- *   user intent independently of the home server.
+ * @param revoke - The client-signed v2 RELATIONSHIP_REVOKE envelope. Without
+ *   it, or if delivery fails, the peer is queued in pending_revocations.
  */
 export async function removeFriend(
   userId: string,
   friendHandle: string,
-  revokeSignature?: string,
+  revoke?: ClientEnvelope & { signature: string },
 ): Promise<{ success: boolean; error?: string }> {
   const friendship = await db
     .select()
@@ -568,47 +608,47 @@ export async function removeFriend(
   }
 
   const myHandle = await getUserHandle(userId)
+  const friendUserId =
+    myHandle && isLocalHandle(friendHandle)
+      ? await findLocalUserIdByHandle(friendHandle)
+      : null
 
-  await db.delete(friendships).where(eq(friendships.id, friendship[0].id))
-
-  if (myHandle && isLocalHandle(friendHandle)) {
-    const parsed = parseHandle(friendHandle)
-    if (parsed) {
-      const friendUser = await db
-        .select({ id: users.id })
-        .from(users)
-        .where(eq(users.alias, parsed.alias))
-        .limit(1)
-
-      if (friendUser[0]) {
-        await db
-          .delete(friendships)
-          .where(
-            and(
-              eq(friendships.userId, friendUser[0].id),
-              eq(friendships.friendHandle, myHandle),
-            ),
-          )
-
-        await cleanupLocationSharingForFriend(friendUser[0].id, myHandle)
-      }
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(friendships)
+      .where(
+        and(
+          eq(friendships.userId, userId),
+          eq(friendships.friendHandle, friendHandle),
+        ),
+      )
+    if (friendUserId && myHandle) {
+      await tx
+        .delete(friendships)
+        .where(
+          and(
+            eq(friendships.userId, friendUserId),
+            eq(friendships.friendHandle, myHandle),
+          ),
+        )
     }
-  } else if (myHandle && !isLocalHandle(friendHandle) && revokeSignature) {
-    // Remote friend: propagate revocation to their home server.
-    const { generateNonce, nowIso } = await import('../lib/federation-canonical')
-    const { getProtocolVersion } = await import('../lib/server-identity')
-    const revokeMessage: FederationMessage = {
-      protocol_version: getProtocolVersion(),
-      message_type: 'RELATIONSHIP_REVOKE',
-      message_version: 1,
-      nonce: generateNonce(),
-      timestamp: nowIso(),
-      from: myHandle,
-      to: friendHandle,
-      signature: revokeSignature,
-      payload: {},
+  })
+
+  if (friendUserId && myHandle) {
+    await cleanupLocationSharingForFriend(friendUserId, myHandle)
+  } else if (myHandle && !isLocalHandle(friendHandle)) {
+    const delivered =
+      !!revoke &&
+      (await sendFederationMessage(
+        friendHandle,
+        buildFriendMessage('RELATIONSHIP_REVOKE', myHandle, friendHandle, revoke.signature, revoke),
+      ))
+    if (!delivered) {
+      await db
+        .insert(pendingRevocations)
+        .values({ id: generateId(), userId, peerHandle: friendHandle })
+        .onConflictDoNothing()
     }
-    await sendFederationMessage(friendHandle, revokeMessage)
   }
 
   await cleanupLocationSharingForFriend(userId, friendHandle)
@@ -875,6 +915,7 @@ export async function handleIncomingFriendInvite(
     direction: 'incoming',
     status: 'pending',
     originServer: parseHandle(fromHandle)?.domain || '',
+    expiresAt: invitationExpiry(),
     signature,
   })
 
@@ -892,23 +933,6 @@ export async function handleIncomingFriendAccept(
   const parsed = parseHandle(toHandle)
   if (!parsed) return { success: false, error: 'Invalid recipient handle' }
 
-  // Find the original outgoing invitation (from local user to the acceptor)
-  const invitation = await db
-    .select()
-    .from(friendInvitations)
-    .where(
-      and(
-        eq(friendInvitations.fromHandle, toHandle),
-        eq(friendInvitations.toHandle, fromHandle),
-      ),
-    )
-    .limit(1)
-
-  if (!invitation[0]) {
-    return { success: false, error: 'Original invitation not found' }
-  }
-
-  // Find local user
   const localUser = await db
     .select({ id: users.id })
     .from(users)
@@ -919,23 +943,41 @@ export async function handleIncomingFriendAccept(
     return { success: false, error: 'Local user not found' }
   }
 
-  // Delete the invitation (no longer needed)
-  await db
+  const deleted = await db
     .delete(friendInvitations)
-    .where(eq(friendInvitations.id, invitation[0].id))
+    .where(
+      and(
+        eq(friendInvitations.localUserId, localUser[0].id),
+        eq(friendInvitations.fromHandle, toHandle),
+        eq(friendInvitations.toHandle, fromHandle),
+        eq(friendInvitations.direction, 'outgoing'),
+        eq(friendInvitations.status, 'pending'),
+      ),
+    )
+    .returning({ id: friendInvitations.id })
 
-  // Create friendship record
-  await db.insert(friendships).values({
-    id: generateId(),
-    userId: localUser[0].id,
-    friendHandle: fromHandle,
-    friendSigningKey: senderInfo.signingKey,
-    friendEncryptionKey: senderInfo.encryptionKey,
-    friendName: senderInfo.name || null,
-    friendPicture: senderInfo.picture || null,
-    status: 'accepted',
-    establishedAt: new Date(),
-  })
+  if (deleted.length === 0) {
+    return { success: false, error: 'Original invitation not found' }
+  }
+
+  if (await isFriend(localUser[0].id, fromHandle)) {
+    return { success: true }
+  }
+
+  await db
+    .insert(friendships)
+    .values({
+      id: generateId(),
+      userId: localUser[0].id,
+      friendHandle: fromHandle,
+      friendSigningKey: senderInfo.signingKey,
+      friendEncryptionKey: senderInfo.encryptionKey,
+      friendName: senderInfo.name || null,
+      friendPicture: senderInfo.picture || null,
+      status: 'accepted',
+      establishedAt: new Date(),
+    })
+    .onConflictDoNothing()
 
   return { success: true }
 }
@@ -945,23 +987,68 @@ export async function handleIncomingFriendAccept(
  */
 export async function handleIncomingFriendReject(
   fromHandle: string,
+  toHandle: string,
 ): Promise<{ success: boolean; error?: string }> {
-  // Find and delete the original invitation
-  const invitation = await db
-    .select()
-    .from(friendInvitations)
-    .where(eq(friendInvitations.toHandle, fromHandle))
-    .limit(1)
+  const deleted = await db
+    .delete(friendInvitations)
+    .where(
+      and(
+        eq(friendInvitations.fromHandle, toHandle),
+        eq(friendInvitations.toHandle, fromHandle),
+        eq(friendInvitations.direction, 'outgoing'),
+        eq(friendInvitations.status, 'pending'),
+      ),
+    )
+    .returning({ id: friendInvitations.id })
 
-  if (!invitation[0]) {
+  if (deleted.length === 0) {
     return { success: false, error: 'Invitation not found' }
   }
 
-  await db
-    .delete(friendInvitations)
-    .where(eq(friendInvitations.id, invitation[0].id))
-
   return { success: true }
+}
+
+type DbOrTx = Pick<typeof db, 'delete'>
+
+/**
+ * Drop every pending invitation, in either direction, that `userId` holds
+ * between their own handle and `otherHandle`.
+ */
+async function deletePendingInvitationsBetween(
+  tx: DbOrTx,
+  userId: string,
+  ownHandle: string,
+  otherHandle: string,
+): Promise<void> {
+  await tx
+    .delete(friendInvitations)
+    .where(
+      and(
+        eq(friendInvitations.localUserId, userId),
+        eq(friendInvitations.status, 'pending'),
+        or(
+          and(
+            eq(friendInvitations.fromHandle, ownHandle),
+            eq(friendInvitations.toHandle, otherHandle),
+          ),
+          and(
+            eq(friendInvitations.fromHandle, otherHandle),
+            eq(friendInvitations.toHandle, ownHandle),
+          ),
+        ),
+      ),
+    )
+}
+
+async function findLocalUserIdByHandle(handle: string): Promise<string | null> {
+  const parsed = parseHandle(handle)
+  if (!parsed) return null
+  const [row] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.alias, parsed.alias))
+    .limit(1)
+  return row?.id ?? null
 }
 
 /**

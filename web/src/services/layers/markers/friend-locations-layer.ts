@@ -33,6 +33,7 @@ import { useFriendLocations } from '@/composables/friends/useFriendLocations'
 import {
   buildTrack,
   predict,
+  STALENESS_CAP_SEC,
   type Track,
 } from '@/lib/map/movement-interpolation'
 import {
@@ -152,6 +153,8 @@ export class FriendLocationsLayer extends BaseMarkerLayer {
           if (existing && existing.toSampleTimestamp === row.updatedAt) continue
 
           const currentRendered = existing ? predict(existing, now) : null
+          // An old sample's velocity says nothing about where they are now.
+          const isOld = now - row.updatedAt > STALENESS_CAP_SEC * 1000
           this.tracks.set(
             row.handle,
             buildTrack({
@@ -159,8 +162,8 @@ export class FriendLocationsLayer extends BaseMarkerLayer {
               previousTrack: existing ?? null,
               sample: {
                 lngLat: { lat: row.lat, lng: row.lng },
-                speed: row.speed,
-                heading: row.heading,
+                speed: isOld ? null : row.speed,
+                heading: isOld ? null : row.heading,
                 timestampMs: row.updatedAt,
               },
               now,
@@ -216,14 +219,19 @@ export class FriendLocationsLayer extends BaseMarkerLayer {
       if (this.mapAPI.hasMarker(fullId)) {
         this.mapAPI.removeMarker(fullId)
       }
-      this.mapAPI.addVueMarker(
-        fullId,
-        markerData.lngLat,
-        this.component,
-        markerData.props,
-        this.zIndex,
-        markerData.dragOptions,
-      )
+      try {
+        this.mapAPI.addVueMarker(
+          fullId,
+          markerData.lngLat,
+          this.component,
+          markerData.props,
+          this.zIndex,
+          markerData.dragOptions,
+        )
+      } catch (err) {
+        console.warn('[friend-locations] could not place marker', markerData.id, err)
+        continue
+      }
       this.currentMarkerSnapshots.set(fullId, snapshot)
       // Recreate puts the marker at the raw sample position. Drop the
       // last-rendered cache for this handle so the next scheduler

@@ -26,6 +26,7 @@ import { useCollectionsService } from '@/services/library/collections.service'
 import { sealCollectionShare } from '@/lib/identity/collection-share'
 
 import { useFriendsStore } from '@/stores/friends.store'
+import { useFriendKeyPinsStore } from '@/stores/friends/friend-key-pins.store'
 import { useIdentityStore } from '@/stores/identity.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useServerUrl, api } from '@/lib/api'
@@ -46,6 +47,7 @@ import {
   sign as signEd25519,
 } from '@/lib/identity/federation-crypto'
 import { rotateCollectionKey } from '@/lib/identity/collection-rotation'
+import { isRemoteHandle } from '@/lib/identity/handle'
 import type { Collection, ShareRole } from '@/types/library.types'
 
 /**
@@ -207,19 +209,6 @@ const publicUrl = computed(() => {
   return buildPublicLinkUrl(window.location.origin, publicToken.value)
 })
 
-/**
- * Does this handle live on a server other than our own? If yes, the share
- * will travel over federation and the client must sign an envelope so the
- * remote peer can verify the sender + payload haven't been tampered with.
- */
-function isRemoteHandle(handle: string): boolean {
-  const domain = serverDomain.value
-  if (!domain) return false
-  const [, recipientDomain] = handle.split('@')
-  if (!recipientDomain) return false
-  return recipientDomain !== domain
-}
-
 function showIdentityWarning() {
   toast.warning(t('sharing.errors.identityRequired'), {
     id: 'identity-required',
@@ -243,6 +232,13 @@ async function addShare(friendHandle: string, role: ShareRole = 'viewer') {
     toast.error(t('sharing.errors.missingFriendKey'))
     return
   }
+  const trusted = await useFriendKeyPinsStore().trustedKeys(friend)
+  if (!trusted) {
+    toast.error(t('sharing.errors.friendKeysChanged', {
+      name: friend.friendName || friendHandle.split('@')[0],
+    }))
+    return
+  }
 
   mutating.value = true
   try {
@@ -262,7 +258,7 @@ async function addShare(friendHandle: string, role: ShareRole = 'viewer') {
         keyVersion: props.collection.metadataKeyVersion ?? 1,
       },
       ownerPrivateKey: encryptionPrivateKey.value,
-      recipientPublicKey: importPublicKey(friend.friendEncryptionKey),
+      recipientPublicKey: importPublicKey(trusted.encryptionKey),
     })
 
     // Build the v2 federation envelope when the recipient is remote. The
@@ -272,7 +268,7 @@ async function addShare(friendHandle: string, role: ShareRole = 'viewer') {
     let federationSignature: string | undefined
     let federationNonce: string | undefined
     let federationTimestamp: string | undefined
-    if (isRemoteHandle(friendHandle)) {
+    if (isRemoteHandle(friendHandle, serverDomain.value)) {
       if (!signingPrivateKey.value) {
         showIdentityWarning()
         return
@@ -314,7 +310,12 @@ async function addShare(friendHandle: string, role: ShareRole = 'viewer') {
     emit('changed')
   } catch (err) {
     console.error('Failed to create share', err)
-    toast.error(t('sharing.errors.createFailed'), { cause: err })
+    const notFriends =
+      (err as { response?: { status?: number } })?.response?.status === 403
+    toast.error(
+      t(notFriends ? 'sharing.errors.notFriends' : 'sharing.errors.createFailed'),
+      { cause: err },
+    )
   } finally {
     mutating.value = false
   }
@@ -363,20 +364,19 @@ async function onRemove(row: AccessRow) {
       const { data: pointsResp } = await api.get(
         `/library/collections/${props.collection.id}/encrypted-points`,
       )
-      const remainingShares = activeShares.value
-        .filter(s => s.id !== row.shareId)
-        .map(s => {
-          const friend = friends.value.find(
-            f => f.friendHandle === s.recipientHandle,
-          )
-          if (!friend?.friendEncryptionKey) return null
-          return {
-            id: s.id,
-            recipientHandle: s.recipientHandle,
-            recipientEncryptionKey: friend.friendEncryptionKey,
-          }
-        })
-        .filter((x): x is NonNullable<typeof x> => x !== null)
+      const remaining = activeShares.value.filter(s => s.id !== row.shareId)
+      const remainingShares = remaining.flatMap(s => {
+        const key = friends.value.find(
+          f => f.friendHandle === s.recipientHandle,
+        )?.friendEncryptionKey
+        return key
+          ? [{ id: s.id, recipientHandle: s.recipientHandle, recipientEncryptionKey: key }]
+          : []
+      })
+      if (remainingShares.length !== remaining.length) {
+        toast.error(t('sharing.errors.remainingKeysMissing'))
+        return
+      }
 
       await rotateCollectionKey({
         collection: props.collection,

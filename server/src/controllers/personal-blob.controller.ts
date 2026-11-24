@@ -4,12 +4,14 @@ import { PermissionId } from '../types/auth.types'
 import {
   getPersonalBlob,
   putPersonalBlob,
+  StaleKmVersion,
   deletePersonalBlob,
   listPersonalBlobTypes,
 } from '../services/personal-blob.service'
 import { i18nPlugin } from '../lib/i18n/plugin'
 import { publish } from '../services/realtime/event-bus.service'
 import { INTEGRATION_CONFIG_BLOB_PREFIX } from '../services/integration.service'
+import { BLOB, KEY_VERSION, NONCE } from '../lib/payload-limits'
 
 // A blob write under integration-config:* IS an integration edit (user-e2ee
 // configs live here, not in the integrations table) — notify the user's
@@ -79,24 +81,35 @@ app.use(permissions(PermissionId.LIBRARY_WRITE)).put(
     if (!ALLOWED_TYPE_PATTERN.test(type)) {
       return status(400, { message: t('errors.personalBlob.invalidType') })
     }
-    await putPersonalBlob(user.id, type, {
-      encryptedBlob: body.encryptedBlob,
-      nonce: body.nonce ?? '',
-      kmVersion: body.kmVersion ?? 1,
-    })
+    try {
+      await putPersonalBlob(user.id, type, {
+        encryptedBlob: body.encryptedBlob,
+        nonce: body.nonce ?? '',
+        kmVersion: body.kmVersion ?? 1,
+      })
+    } catch (err) {
+      if (err instanceof StaleKmVersion) {
+        return status(409, { message: err.message, kmVersion: err.current })
+      }
+      throw err
+    }
     emitIfIntegrationConfig(user.id, type)
     return { success: true }
   },
   {
     params: t.Object({ type: t.String() }),
     body: t.Object({
-      encryptedBlob: t.String(),
-      nonce: t.Optional(t.String()),
-      kmVersion: t.Optional(t.Number()),
+      encryptedBlob: BLOB,
+      nonce: t.Optional(NONCE),
+      kmVersion: t.Optional(KEY_VERSION),
     }),
     detail: {
       tags: ['PersonalBlob'],
-      description: 'Upsert a client-encrypted personal blob by type',
+      description:
+        'Upsert a client-encrypted personal blob by type. `kmVersion` is the ' +
+        'master-key version the blob was sealed under (default 1); 409 when ' +
+        "it isn't the account's current version, so a device holding a " +
+        'rotated-out seed cannot overwrite data sealed under the new one.',
     },
   },
 )

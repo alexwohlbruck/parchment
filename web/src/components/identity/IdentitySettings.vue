@@ -34,9 +34,11 @@ const {
   alias,
   domain,
   isSetupComplete,
+  needsSetup,
   needsImport,
   isLoading,
   isStale,
+  identityUnavailable,
   rotateKeysRequestCounter,
 } = storeToRefs(identityStore)
 
@@ -165,6 +167,13 @@ function handleSetupComplete() {
       </div>
     </SettingsSection>
 
+    <SettingsSection
+      v-else-if="identityUnavailable && !identity"
+      id="identity"
+      :title="t('friends.identity.title')"
+      :description="t('friends.identity.unavailableDescription')"
+    />
+
     <!-- Needs Import (has server keys but no local) -->
     <SettingsSection
       v-else-if="needsImport"
@@ -188,7 +197,7 @@ function handleSetupComplete() {
 
     <!-- Needs Setup -->
     <SettingsSection
-      v-else-if="!isSetupComplete"
+      v-else-if="needsSetup"
       id="identity"
       :title="t('friends.identity.title')"
       :description="t('friends.identity.description')"

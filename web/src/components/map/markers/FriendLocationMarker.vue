@@ -24,6 +24,8 @@ import { MARKER_LIVE_PLATE_SIZE } from '@/lib/map-marker'
 import { categoryMarkerPaint } from '@/services/place/place-colors'
 import { useAccentMarkerPaint } from '@/composables/map/useAccentMarkerPaint'
 import { useThemeStore } from '@/stores/theme.store'
+import { useLocationClock } from '@/composables/friends/useLocationClock'
+import { isLocationStale } from '@/lib/friends/friend-location'
 
 interface Props {
   friendHandle: string
@@ -42,6 +44,7 @@ const props = defineProps<Props>()
 const { t } = useI18n()
 const themeStore = useThemeStore()
 const accentPaint = useAccentMarkerPaint()
+const now = useLocationClock()
 
 function handleClick() {
   mapEventBus.emit('click:friend-marker', { friendHandle: props.friendHandle })
@@ -57,13 +60,12 @@ const initials = computed(() => {
   return displayName.value.slice(0, 2).toUpperCase()
 })
 
-const timeAgo = computed(() => formatTimeAgo(props.updatedAt, t))
+const timeAgo = computed(() => {
+  void now.value
+  return formatTimeAgo(props.updatedAt, t)
+})
 
-// A location is worth trusting for about as long as it takes to walk out of
-// its own accuracy radius; five minutes is where the friends UI draws it.
-const isStale = computed(
-  () => Date.now() - props.updatedAt.getTime() > 5 * 60 * 1000,
-)
+const isStale = computed(() => isLocationStale(props.updatedAt, now.value.getTime()))
 
 const paint = computed(() =>
   isStale.value

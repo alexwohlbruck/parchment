@@ -33,6 +33,9 @@ let socket: WebSocket | null = null
 let desiredConnected = false
 let reconnectAttempts = 0
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let opening = false
+// Bumped by disconnect so a ticket mint still in flight can tell it is stale.
+let generation = 0
 /**
  * Set to true after the first successful `open`. Used to decide whether
  * the next `open` is a first-connect (no catchup needed) or a reconnect
@@ -92,9 +95,11 @@ onReconnected(() => {
 })
 
 async function openSocket(): Promise<void> {
-  if (!desiredConnected) return
+  if (!desiredConnected || opening) return
   if (socket && socket.readyState !== WebSocket.CLOSED) return
 
+  const myGeneration = generation
+  opening = true
   state.value = 'connecting'
   let ticket: string
   try {
@@ -103,10 +108,14 @@ async function openSocket(): Promise<void> {
     // Ticket mint failure is usually an auth problem (session expired).
     // Don't hammer the server — back off like a normal WS failure.
     console.warn('[realtime] ticket mint failed, will retry', err)
+    if (myGeneration !== generation) return
+    opening = false
     state.value = 'closed'
     scheduleReconnect()
     return
   }
+  if (myGeneration !== generation) return
+  opening = false
 
   const serverUrl = useServerUrl().value
   const url = buildWsUrl(serverUrl, ticket)
@@ -114,6 +123,7 @@ async function openSocket(): Promise<void> {
   socket = ws
 
   ws.addEventListener('open', () => {
+    if (socket !== ws) return
     state.value = 'open'
     reconnectAttempts = 0
     const isReconnect = haveConnectedBefore
@@ -127,6 +137,7 @@ async function openSocket(): Promise<void> {
   })
 
   ws.addEventListener('message', (ev) => {
+    if (socket !== ws) return
     if (typeof ev.data !== 'string') return
     let parsed: { event?: string; payload?: unknown }
     try {
@@ -140,6 +151,7 @@ async function openSocket(): Promise<void> {
   })
 
   ws.addEventListener('close', () => {
+    if (socket !== ws) return
     state.value = 'closed'
     socket = null
     scheduleReconnect()
@@ -168,6 +180,8 @@ export function connect(): void {
  */
 export function disconnect(): void {
   desiredConnected = false
+  generation += 1
+  opening = false
   if (reconnectTimer) {
     clearTimeout(reconnectTimer)
     reconnectTimer = null

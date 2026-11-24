@@ -57,26 +57,6 @@ export function buildClientSignableV2(env: SignableEnvelopeV2): string {
 }
 
 /**
- * Backwards-compat helper: build a v1 signable. Kept only to verify any legacy
- * messages still in flight before v2 fully rolls out. Do NOT use for new writes.
- *
- * IMPORTANT: matches the original `buildSignableMessage` contract exactly —
- * payload keys are sorted alphabetically, then `type` is placed FIRST (not
- * sorted among the payload keys). Changing this order would invalidate every
- * v1 signature produced by the original clients.
- */
-export function buildLegacySignableV1(
-  type: string,
-  payload: Record<string, unknown>,
-): string {
-  const sortedPayload = sortObjectKeys(payload) as Record<string, unknown>
-  return JSON.stringify({
-    type,
-    ...sortedPayload,
-  })
-}
-
-/**
  * Canonical JSON serializer used for body hashing in the server-to-server
  * wrapper signature. Both sender and receiver must serialize the message with
  * the SAME function so the `body_hash` binding is byte-stable regardless of

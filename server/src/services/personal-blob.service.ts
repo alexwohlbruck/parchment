@@ -9,6 +9,7 @@
 import { and, eq, like } from 'drizzle-orm'
 import { db } from '../db'
 import { encryptedUserBlobs } from '../schema/personal-blobs.schema'
+import { users } from '../schema/users.schema'
 
 export interface PersonalBlobValue {
   encryptedBlob: string
@@ -40,34 +41,54 @@ export async function getPersonalBlob(
   }
 }
 
+/** The blob was sealed under a key version the account has moved past. */
+export class StaleKmVersion extends Error {
+  constructor(readonly current: number) {
+    super('Your keys changed on another device. Unlock them here before saving.')
+    this.name = 'StaleKmVersion'
+  }
+}
+
 /**
  * Replace the stored blob atomically. Each PUT fully overwrites — the
  * client is responsible for merging + capping entries before uploading.
+ * The share lock on the user row orders this against a rotation commit,
+ * so a write sealed under the old seed can't land after the rotation.
  */
 export async function putPersonalBlob(
   userId: string,
   blobType: string,
   value: { encryptedBlob: string; nonce: string; kmVersion: number },
 ): Promise<void> {
-  await db
-    .insert(encryptedUserBlobs)
-    .values({
-      userId,
-      blobType,
-      encryptedBlob: value.encryptedBlob,
-      nonce: value.nonce,
-      kmVersion: value.kmVersion,
-      updatedAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: [encryptedUserBlobs.userId, encryptedUserBlobs.blobType],
-      set: {
+  await db.transaction(async (tx) => {
+    const [user] = await tx
+      .select({ kmVersion: users.kmVersion })
+      .from(users)
+      .where(eq(users.id, userId))
+      .for('share')
+    if (!user) throw new Error('User not found')
+    if (user.kmVersion !== value.kmVersion) throw new StaleKmVersion(user.kmVersion)
+
+    await tx
+      .insert(encryptedUserBlobs)
+      .values({
+        userId,
+        blobType,
         encryptedBlob: value.encryptedBlob,
         nonce: value.nonce,
         kmVersion: value.kmVersion,
         updatedAt: new Date(),
-      },
-    })
+      })
+      .onConflictDoUpdate({
+        target: [encryptedUserBlobs.userId, encryptedUserBlobs.blobType],
+        set: {
+          encryptedBlob: value.encryptedBlob,
+          nonce: value.nonce,
+          kmVersion: value.kmVersion,
+          updatedAt: new Date(),
+        },
+      })
+  })
 }
 
 export async function deletePersonalBlob(

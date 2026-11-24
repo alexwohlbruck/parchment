@@ -17,9 +17,14 @@ import { MoreVertical, UserMinus, MapPin, RefreshCwIcon } from 'lucide-vue-next'
 import { AppRoute } from '@/router'
 import type { Friendship } from '@/services/friends.service'
 import type { FriendLocation } from '@/composables/friends/useFriendLocations'
+import { useLocationClock } from '@/composables/friends/useLocationClock'
+import { isLocationStale } from '@/lib/friends/friend-location'
+import { handleDomain, isRemoteHandle } from '@/lib/identity/handle'
+import { useIdentityStore } from '@/stores/identity.store'
 
 const router = useRouter()
 const { t } = useI18n()
+const now = useLocationClock()
 
 interface LocationConfig {
   enabled: boolean
@@ -33,6 +38,13 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+
+const identityStore = useIdentityStore()
+const sharingUnavailable = computed(
+  () =>
+    !props.locationConfig?.enabled &&
+    isRemoteHandle(props.friend.friendHandle, handleDomain(identityStore.handle ?? '')),
+)
 
 const emit = defineEmits<{
   remove: [friend: Friendship]
@@ -72,7 +84,7 @@ const hasLocation = computed(() => !!props.friendLocation)
 const locationTimeAgo = computed(() => {
   if (!props.friendLocation) return null
   const seconds = Math.floor(
-    (Date.now() - props.friendLocation.updatedAt.getTime()) / 1000,
+    (now.value.getTime() - props.friendLocation.updatedAt.getTime()) / 1000,
   )
 
   if (seconds < 60) return t('friends.map.justNow')
@@ -85,12 +97,11 @@ const locationTimeAgo = computed(() => {
   return props.friendLocation.updatedAt.toLocaleDateString()
 })
 
-const isLocationFresh = computed(() => {
-  if (!props.friendLocation) return false
-  // Consider fresh if updated within last 5 minutes
-  const fiveMinutes = 5 * 60 * 1000
-  return Date.now() - props.friendLocation.updatedAt.getTime() < fiveMinutes
-})
+const isLocationFresh = computed(
+  () =>
+    !!props.friendLocation &&
+    !isLocationStale(props.friendLocation.updatedAt, now.value.getTime()),
+)
 
 function openFriendDetail() {
   router.push({
@@ -174,7 +185,13 @@ function openFriendDetail() {
         }}</span>
       </div>
 
-      <div class="flex items-center gap-2">
+      <span
+        v-if="sharingUnavailable"
+        class="text-xs text-muted-foreground text-right"
+      >
+        {{ t('friends.remoteLocationUnavailable') }}
+      </span>
+      <div v-else class="flex items-center gap-2">
         <Switch
           :model-value="locationConfig?.enabled ?? false"
           @update:model-value="(v: boolean) => emit('toggleLocation', friend.friendHandle, v)"

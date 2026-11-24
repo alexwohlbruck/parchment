@@ -2643,7 +2643,7 @@
         "tags": [
           "DeviceTransfer"
         ],
-        "description": "Cancel a device-transfer session",
+        "description": "Cancel a device-transfer session. Empties it rather than deleting it, so it still counts toward the hourly limit.",
         "responses": {
           "200": {}
         }
@@ -7550,7 +7550,7 @@
         "tags": [
           "Federation"
         ],
-        "description": "Receive federation messages from other servers",
+        "description": "Receive a v2 federation message from another server. The request must carry a valid server signature, the `from` handle must live on the sending server, and the transport nonce must equal the message nonce so each user-signed message is accepted once.",
         "requestBody": {
           "required": true,
           "content": {
@@ -7559,6 +7559,7 @@
                 "type": "object",
                 "properties": {
                   "protocol_version": {
+                    "minimum": 2,
                     "type": "number"
                   },
                   "message_type": {
@@ -7568,21 +7569,23 @@
                     "type": "number"
                   },
                   "nonce": {
-                    "type": "string"
-                  },
-                  "type": {
+                    "maxLength": 64,
                     "type": "string"
                   },
                   "from": {
+                    "maxLength": 320,
                     "type": "string"
                   },
                   "to": {
+                    "maxLength": 320,
                     "type": "string"
                   },
                   "timestamp": {
+                    "maxLength": 40,
                     "type": "string"
                   },
                   "signature": {
+                    "maxLength": 256,
                     "type": "string"
                   },
                   "payload": {
@@ -7593,10 +7596,15 @@
                   }
                 },
                 "required": [
+                  "protocol_version",
+                  "message_type",
+                  "message_version",
+                  "nonce",
                   "from",
                   "to",
                   "timestamp",
-                  "signature"
+                  "signature",
+                  "payload"
                 ]
               }
             },
@@ -7605,6 +7613,7 @@
                 "type": "object",
                 "properties": {
                   "protocol_version": {
+                    "minimum": 2,
                     "type": "number"
                   },
                   "message_type": {
@@ -7614,21 +7623,23 @@
                     "type": "number"
                   },
                   "nonce": {
-                    "type": "string"
-                  },
-                  "type": {
+                    "maxLength": 64,
                     "type": "string"
                   },
                   "from": {
+                    "maxLength": 320,
                     "type": "string"
                   },
                   "to": {
+                    "maxLength": 320,
                     "type": "string"
                   },
                   "timestamp": {
+                    "maxLength": 40,
                     "type": "string"
                   },
                   "signature": {
+                    "maxLength": 256,
                     "type": "string"
                   },
                   "payload": {
@@ -7639,10 +7650,15 @@
                   }
                 },
                 "required": [
+                  "protocol_version",
+                  "message_type",
+                  "message_version",
+                  "nonce",
                   "from",
                   "to",
                   "timestamp",
-                  "signature"
+                  "signature",
+                  "payload"
                 ]
               }
             },
@@ -7651,6 +7667,7 @@
                 "type": "object",
                 "properties": {
                   "protocol_version": {
+                    "minimum": 2,
                     "type": "number"
                   },
                   "message_type": {
@@ -7660,21 +7677,23 @@
                     "type": "number"
                   },
                   "nonce": {
-                    "type": "string"
-                  },
-                  "type": {
+                    "maxLength": 64,
                     "type": "string"
                   },
                   "from": {
+                    "maxLength": 320,
                     "type": "string"
                   },
                   "to": {
+                    "maxLength": 320,
                     "type": "string"
                   },
                   "timestamp": {
+                    "maxLength": 40,
                     "type": "string"
                   },
                   "signature": {
+                    "maxLength": 256,
                     "type": "string"
                   },
                   "payload": {
@@ -7685,10 +7704,15 @@
                   }
                 },
                 "required": [
+                  "protocol_version",
+                  "message_type",
+                  "message_version",
+                  "nonce",
                   "from",
                   "to",
                   "timestamp",
-                  "signature"
+                  "signature",
+                  "payload"
                 ]
               }
             }
@@ -8081,7 +8105,7 @@
         "tags": [
           "Friends"
         ],
-        "description": "Send a friend invitation to a user (local or remote)",
+        "description": "Send a friend invitation to a user (local or remote). Remote invitations need the nonce and timestamp the client signed into its v2 FRIEND_INVITE envelope.",
         "requestBody": {
           "required": true,
           "content": {
@@ -8090,9 +8114,22 @@
                 "type": "object",
                 "properties": {
                   "handle": {
+                    "maxLength": 320,
                     "type": "string"
                   },
                   "signature": {
+                    "maxLength": 256,
+                    "description": "Ed25519 signature over the v2 federation envelope",
+                    "type": "string"
+                  },
+                  "nonce": {
+                    "maxLength": 64,
+                    "description": "Envelope nonce the client signed",
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "maxLength": 40,
+                    "description": "Envelope timestamp the client signed",
                     "type": "string"
                   }
                 },
@@ -8107,9 +8144,22 @@
                 "type": "object",
                 "properties": {
                   "handle": {
+                    "maxLength": 320,
                     "type": "string"
                   },
                   "signature": {
+                    "maxLength": 256,
+                    "description": "Ed25519 signature over the v2 federation envelope",
+                    "type": "string"
+                  },
+                  "nonce": {
+                    "maxLength": 64,
+                    "description": "Envelope nonce the client signed",
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "maxLength": 40,
+                    "description": "Envelope timestamp the client signed",
                     "type": "string"
                   }
                 },
@@ -8124,9 +8174,22 @@
                 "type": "object",
                 "properties": {
                   "handle": {
+                    "maxLength": 320,
                     "type": "string"
                   },
                   "signature": {
+                    "maxLength": 256,
+                    "description": "Ed25519 signature over the v2 federation envelope",
+                    "type": "string"
+                  },
+                  "nonce": {
+                    "maxLength": 64,
+                    "description": "Envelope nonce the client signed",
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "maxLength": 40,
+                    "description": "Envelope timestamp the client signed",
                     "type": "string"
                   }
                 },
@@ -8159,7 +8222,7 @@
         "tags": [
           "Friends"
         ],
-        "description": "Accept a pending friend invitation",
+        "description": "Accept a pending friend invitation. For a remote sender, the signed v2 FRIEND_ACCEPT envelope is forwarded to their server.",
         "requestBody": {
           "required": true,
           "content": {
@@ -8168,6 +8231,18 @@
                 "type": "object",
                 "properties": {
                   "signature": {
+                    "maxLength": 256,
+                    "description": "Ed25519 signature over the v2 federation envelope",
+                    "type": "string"
+                  },
+                  "nonce": {
+                    "maxLength": 64,
+                    "description": "Envelope nonce the client signed",
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "maxLength": 40,
+                    "description": "Envelope timestamp the client signed",
                     "type": "string"
                   }
                 },
@@ -8181,6 +8256,18 @@
                 "type": "object",
                 "properties": {
                   "signature": {
+                    "maxLength": 256,
+                    "description": "Ed25519 signature over the v2 federation envelope",
+                    "type": "string"
+                  },
+                  "nonce": {
+                    "maxLength": 64,
+                    "description": "Envelope nonce the client signed",
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "maxLength": 40,
+                    "description": "Envelope timestamp the client signed",
                     "type": "string"
                   }
                 },
@@ -8194,6 +8281,18 @@
                 "type": "object",
                 "properties": {
                   "signature": {
+                    "maxLength": 256,
+                    "description": "Ed25519 signature over the v2 federation envelope",
+                    "type": "string"
+                  },
+                  "nonce": {
+                    "maxLength": 64,
+                    "description": "Envelope nonce the client signed",
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "maxLength": 40,
+                    "description": "Envelope timestamp the client signed",
                     "type": "string"
                   }
                 },
@@ -8225,7 +8324,7 @@
         "tags": [
           "Friends"
         ],
-        "description": "Reject a pending friend invitation",
+        "description": "Reject a pending friend invitation. For a remote sender, a signed v2 FRIEND_REJECT envelope is forwarded when provided.",
         "requestBody": {
           "required": true,
           "content": {
@@ -8234,6 +8333,18 @@
                 "type": "object",
                 "properties": {
                   "signature": {
+                    "maxLength": 256,
+                    "description": "Ed25519 signature over the v2 federation envelope",
+                    "type": "string"
+                  },
+                  "nonce": {
+                    "maxLength": 64,
+                    "description": "Envelope nonce the client signed",
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "maxLength": 40,
+                    "description": "Envelope timestamp the client signed",
                     "type": "string"
                   }
                 }
@@ -8244,6 +8355,18 @@
                 "type": "object",
                 "properties": {
                   "signature": {
+                    "maxLength": 256,
+                    "description": "Ed25519 signature over the v2 federation envelope",
+                    "type": "string"
+                  },
+                  "nonce": {
+                    "maxLength": 64,
+                    "description": "Envelope nonce the client signed",
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "maxLength": 40,
+                    "description": "Envelope timestamp the client signed",
                     "type": "string"
                   }
                 }
@@ -8254,6 +8377,18 @@
                 "type": "object",
                 "properties": {
                   "signature": {
+                    "maxLength": 256,
+                    "description": "Ed25519 signature over the v2 federation envelope",
+                    "type": "string"
+                  },
+                  "nonce": {
+                    "maxLength": 64,
+                    "description": "Envelope nonce the client signed",
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "maxLength": 40,
+                    "description": "Envelope timestamp the client signed",
                     "type": "string"
                   }
                 }
@@ -8301,10 +8436,29 @@
           },
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 256
             },
             "in": "query",
             "name": "revoke_signature",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "in": "query",
+            "name": "revoke_nonce",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "in": "query",
+            "name": "revoke_timestamp",
             "required": false
           }
         ],
@@ -8312,7 +8466,7 @@
         "tags": [
           "Friends"
         ],
-        "description": "Remove a friend",
+        "description": "Remove a friend. For a remote friend, pass the signed v2 RELATIONSHIP_REVOKE envelope; without it, or if delivery fails, the revocation is queued for retry.",
         "responses": {
           "200": {}
         }
@@ -8323,7 +8477,8 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 960
             },
             "in": "path",
             "name": "handle",
@@ -8472,6 +8627,49 @@
             }
           },
           "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              },
+              "multipart/form-data": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
             "content": {
               "application/json": {
                 "schema": {
@@ -10685,10 +10883,24 @@
                     ]
                   },
                   "metadataEncrypted": {
+                    "maxLength": 65536,
                     "type": "string"
                   },
                   "metadataKeyVersion": {
-                    "type": "number"
+                    "minimum": 1,
+                    "maximum": 2147483647,
+                    "anyOf": [
+                      {
+                        "format": "integer",
+                        "default": 0,
+                        "type": "string"
+                      },
+                      {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                      }
+                    ]
                   },
                   "isPublic": {
                     "type": "boolean"
@@ -10737,10 +10949,24 @@
                     ]
                   },
                   "metadataEncrypted": {
+                    "maxLength": 65536,
                     "type": "string"
                   },
                   "metadataKeyVersion": {
-                    "type": "number"
+                    "minimum": 1,
+                    "maximum": 2147483647,
+                    "anyOf": [
+                      {
+                        "format": "integer",
+                        "default": 0,
+                        "type": "string"
+                      },
+                      {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                      }
+                    ]
                   },
                   "isPublic": {
                     "type": "boolean"
@@ -10789,10 +11015,24 @@
                     ]
                   },
                   "metadataEncrypted": {
+                    "maxLength": 65536,
                     "type": "string"
                   },
                   "metadataKeyVersion": {
-                    "type": "number"
+                    "minimum": 1,
+                    "maximum": 2147483647,
+                    "anyOf": [
+                      {
+                        "format": "integer",
+                        "default": 0,
+                        "type": "string"
+                      },
+                      {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                      }
+                    ]
                   },
                   "isPublic": {
                     "type": "boolean"
@@ -10889,10 +11129,8 @@
                     "type": "string"
                   },
                   "metadataEncrypted": {
+                    "maxLength": 65536,
                     "type": "string"
-                  },
-                  "metadataKeyVersion": {
-                    "type": "number"
                   },
                   "isPublic": {
                     "type": "boolean"
@@ -10929,10 +11167,8 @@
                     "type": "string"
                   },
                   "metadataEncrypted": {
+                    "maxLength": 65536,
                     "type": "string"
-                  },
-                  "metadataKeyVersion": {
-                    "type": "number"
                   },
                   "isPublic": {
                     "type": "boolean"
@@ -10969,10 +11205,8 @@
                     "type": "string"
                   },
                   "metadataEncrypted": {
+                    "maxLength": 65536,
                     "type": "string"
-                  },
-                  "metadataKeyVersion": {
-                    "type": "number"
                   },
                   "isPublic": {
                     "type": "boolean"
@@ -11088,6 +11322,7 @@
                     ]
                   },
                   "newMetadataEncrypted": {
+                    "maxLength": 65536,
                     "type": "string"
                   },
                   "metadata": {
@@ -11120,12 +11355,26 @@
                     }
                   },
                   "newMetadataKeyVersion": {
-                    "type": "number"
+                    "minimum": 1,
+                    "maximum": 2147483647,
+                    "anyOf": [
+                      {
+                        "format": "integer",
+                        "default": 0,
+                        "type": "string"
+                      },
+                      {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                      }
+                    ]
                   },
                   "expectedUpdatedAt": {
                     "type": "string"
                   },
                   "newEncryptedPoints": {
+                    "maxItems": 10000,
                     "type": "array",
                     "items": {
                       "type": "object",
@@ -11134,9 +11383,11 @@
                           "type": "string"
                         },
                         "encryptedData": {
+                          "maxLength": 65536,
                           "type": "string"
                         },
                         "nonce": {
+                          "maxLength": 256,
                           "type": "string"
                         }
                       },
@@ -11147,6 +11398,7 @@
                     }
                   },
                   "newBookmarks": {
+                    "maxItems": 10000,
                     "type": "array",
                     "items": {
                       "type": "object",
@@ -11221,17 +11473,21 @@
                     }
                   },
                   "updatedShareEnvelopes": {
+                    "maxItems": 10000,
                     "type": "array",
                     "items": {
                       "type": "object",
                       "properties": {
                         "recipientHandle": {
+                          "maxLength": 320,
                           "type": "string"
                         },
                         "encryptedData": {
+                          "maxLength": 65536,
                           "type": "string"
                         },
                         "nonce": {
+                          "maxLength": 256,
                           "type": "string"
                         }
                       },
@@ -11267,6 +11523,7 @@
                     ]
                   },
                   "newMetadataEncrypted": {
+                    "maxLength": 65536,
                     "type": "string"
                   },
                   "metadata": {
@@ -11299,12 +11556,26 @@
                     }
                   },
                   "newMetadataKeyVersion": {
-                    "type": "number"
+                    "minimum": 1,
+                    "maximum": 2147483647,
+                    "anyOf": [
+                      {
+                        "format": "integer",
+                        "default": 0,
+                        "type": "string"
+                      },
+                      {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                      }
+                    ]
                   },
                   "expectedUpdatedAt": {
                     "type": "string"
                   },
                   "newEncryptedPoints": {
+                    "maxItems": 10000,
                     "type": "array",
                     "items": {
                       "type": "object",
@@ -11313,9 +11584,11 @@
                           "type": "string"
                         },
                         "encryptedData": {
+                          "maxLength": 65536,
                           "type": "string"
                         },
                         "nonce": {
+                          "maxLength": 256,
                           "type": "string"
                         }
                       },
@@ -11326,6 +11599,7 @@
                     }
                   },
                   "newBookmarks": {
+                    "maxItems": 10000,
                     "type": "array",
                     "items": {
                       "type": "object",
@@ -11400,17 +11674,21 @@
                     }
                   },
                   "updatedShareEnvelopes": {
+                    "maxItems": 10000,
                     "type": "array",
                     "items": {
                       "type": "object",
                       "properties": {
                         "recipientHandle": {
+                          "maxLength": 320,
                           "type": "string"
                         },
                         "encryptedData": {
+                          "maxLength": 65536,
                           "type": "string"
                         },
                         "nonce": {
+                          "maxLength": 256,
                           "type": "string"
                         }
                       },
@@ -11446,6 +11724,7 @@
                     ]
                   },
                   "newMetadataEncrypted": {
+                    "maxLength": 65536,
                     "type": "string"
                   },
                   "metadata": {
@@ -11478,12 +11757,26 @@
                     }
                   },
                   "newMetadataKeyVersion": {
-                    "type": "number"
+                    "minimum": 1,
+                    "maximum": 2147483647,
+                    "anyOf": [
+                      {
+                        "format": "integer",
+                        "default": 0,
+                        "type": "string"
+                      },
+                      {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                      }
+                    ]
                   },
                   "expectedUpdatedAt": {
                     "type": "string"
                   },
                   "newEncryptedPoints": {
+                    "maxItems": 10000,
                     "type": "array",
                     "items": {
                       "type": "object",
@@ -11492,9 +11785,11 @@
                           "type": "string"
                         },
                         "encryptedData": {
+                          "maxLength": 65536,
                           "type": "string"
                         },
                         "nonce": {
+                          "maxLength": 256,
                           "type": "string"
                         }
                       },
@@ -11505,6 +11800,7 @@
                     }
                   },
                   "newBookmarks": {
+                    "maxItems": 10000,
                     "type": "array",
                     "items": {
                       "type": "object",
@@ -11579,17 +11875,21 @@
                     }
                   },
                   "updatedShareEnvelopes": {
+                    "maxItems": 10000,
                     "type": "array",
                     "items": {
                       "type": "object",
                       "properties": {
                         "recipientHandle": {
+                          "maxLength": 320,
                           "type": "string"
                         },
                         "encryptedData": {
+                          "maxLength": 65536,
                           "type": "string"
                         },
                         "nonce": {
+                          "maxLength": 256,
                           "type": "string"
                         }
                       },
@@ -11632,6 +11932,7 @@
           "Library"
         ],
         "summary": "Rotate the collection key: re-encrypt content, rewrap remaining shares, drop revoked",
+        "description": "The bundle must carry every stored point by id and an envelope for every recipient not being revoked; otherwise nothing changes and the response is 409.",
         "requestBody": {
           "required": true,
           "content": {
@@ -11640,12 +11941,27 @@
                 "type": "object",
                 "properties": {
                   "newMetadataEncrypted": {
+                    "maxLength": 65536,
                     "type": "string"
                   },
                   "newMetadataKeyVersion": {
-                    "type": "number"
+                    "minimum": 1,
+                    "maximum": 2147483647,
+                    "anyOf": [
+                      {
+                        "format": "integer",
+                        "default": 0,
+                        "type": "string"
+                      },
+                      {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                      }
+                    ]
                   },
                   "newEncryptedPoints": {
+                    "maxItems": 10000,
                     "type": "array",
                     "items": {
                       "type": "object",
@@ -11654,30 +11970,37 @@
                           "type": "string"
                         },
                         "encryptedData": {
+                          "maxLength": 65536,
                           "type": "string"
                         },
                         "nonce": {
+                          "maxLength": 256,
                           "type": "string"
                         }
                       },
                       "required": [
+                        "id",
                         "encryptedData",
                         "nonce"
                       ]
                     }
                   },
                   "updatedShareEnvelopes": {
+                    "maxItems": 10000,
                     "type": "array",
                     "items": {
                       "type": "object",
                       "properties": {
                         "recipientHandle": {
+                          "maxLength": 320,
                           "type": "string"
                         },
                         "encryptedData": {
+                          "maxLength": 65536,
                           "type": "string"
                         },
                         "nonce": {
+                          "maxLength": 256,
                           "type": "string"
                         }
                       },
@@ -11689,8 +12012,10 @@
                     }
                   },
                   "revokeRecipientHandles": {
+                    "maxItems": 10000,
                     "type": "array",
                     "items": {
+                      "maxLength": 320,
                       "type": "string"
                     }
                   }
@@ -11709,12 +12034,27 @@
                 "type": "object",
                 "properties": {
                   "newMetadataEncrypted": {
+                    "maxLength": 65536,
                     "type": "string"
                   },
                   "newMetadataKeyVersion": {
-                    "type": "number"
+                    "minimum": 1,
+                    "maximum": 2147483647,
+                    "anyOf": [
+                      {
+                        "format": "integer",
+                        "default": 0,
+                        "type": "string"
+                      },
+                      {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                      }
+                    ]
                   },
                   "newEncryptedPoints": {
+                    "maxItems": 10000,
                     "type": "array",
                     "items": {
                       "type": "object",
@@ -11723,30 +12063,37 @@
                           "type": "string"
                         },
                         "encryptedData": {
+                          "maxLength": 65536,
                           "type": "string"
                         },
                         "nonce": {
+                          "maxLength": 256,
                           "type": "string"
                         }
                       },
                       "required": [
+                        "id",
                         "encryptedData",
                         "nonce"
                       ]
                     }
                   },
                   "updatedShareEnvelopes": {
+                    "maxItems": 10000,
                     "type": "array",
                     "items": {
                       "type": "object",
                       "properties": {
                         "recipientHandle": {
+                          "maxLength": 320,
                           "type": "string"
                         },
                         "encryptedData": {
+                          "maxLength": 65536,
                           "type": "string"
                         },
                         "nonce": {
+                          "maxLength": 256,
                           "type": "string"
                         }
                       },
@@ -11758,8 +12105,10 @@
                     }
                   },
                   "revokeRecipientHandles": {
+                    "maxItems": 10000,
                     "type": "array",
                     "items": {
+                      "maxLength": 320,
                       "type": "string"
                     }
                   }
@@ -11778,12 +12127,27 @@
                 "type": "object",
                 "properties": {
                   "newMetadataEncrypted": {
+                    "maxLength": 65536,
                     "type": "string"
                   },
                   "newMetadataKeyVersion": {
-                    "type": "number"
+                    "minimum": 1,
+                    "maximum": 2147483647,
+                    "anyOf": [
+                      {
+                        "format": "integer",
+                        "default": 0,
+                        "type": "string"
+                      },
+                      {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                      }
+                    ]
                   },
                   "newEncryptedPoints": {
+                    "maxItems": 10000,
                     "type": "array",
                     "items": {
                       "type": "object",
@@ -11792,30 +12156,37 @@
                           "type": "string"
                         },
                         "encryptedData": {
+                          "maxLength": 65536,
                           "type": "string"
                         },
                         "nonce": {
+                          "maxLength": 256,
                           "type": "string"
                         }
                       },
                       "required": [
+                        "id",
                         "encryptedData",
                         "nonce"
                       ]
                     }
                   },
                   "updatedShareEnvelopes": {
+                    "maxItems": 10000,
                     "type": "array",
                     "items": {
                       "type": "object",
                       "properties": {
                         "recipientHandle": {
+                          "maxLength": 320,
                           "type": "string"
                         },
                         "encryptedData": {
+                          "maxLength": 65536,
                           "type": "string"
                         },
                         "nonce": {
+                          "maxLength": 256,
                           "type": "string"
                         }
                       },
@@ -11827,8 +12198,10 @@
                     }
                   },
                   "revokeRecipientHandles": {
+                    "maxItems": 10000,
                     "type": "array",
                     "items": {
+                      "maxLength": 320,
                       "type": "string"
                     }
                   }
@@ -11942,9 +12315,11 @@
                     "type": "string"
                   },
                   "encryptedData": {
+                    "maxLength": 65536,
                     "type": "string"
                   },
                   "nonce": {
+                    "maxLength": 256,
                     "type": "string"
                   }
                 },
@@ -11964,9 +12339,11 @@
                     "type": "string"
                   },
                   "encryptedData": {
+                    "maxLength": 65536,
                     "type": "string"
                   },
                   "nonce": {
+                    "maxLength": 256,
                     "type": "string"
                   }
                 },
@@ -11986,9 +12363,11 @@
                     "type": "string"
                   },
                   "encryptedData": {
+                    "maxLength": 65536,
                     "type": "string"
                   },
                   "nonce": {
+                    "maxLength": 256,
                     "type": "string"
                   }
                 },
@@ -12038,9 +12417,11 @@
                 "type": "object",
                 "properties": {
                   "encryptedData": {
+                    "maxLength": 65536,
                     "type": "string"
                   },
                   "nonce": {
+                    "maxLength": 256,
                     "type": "string"
                   }
                 },
@@ -12055,9 +12436,11 @@
                 "type": "object",
                 "properties": {
                   "encryptedData": {
+                    "maxLength": 65536,
                     "type": "string"
                   },
                   "nonce": {
+                    "maxLength": 256,
                     "type": "string"
                   }
                 },
@@ -12072,9 +12455,11 @@
                 "type": "object",
                 "properties": {
                   "encryptedData": {
+                    "maxLength": 65536,
                     "type": "string"
                   },
                   "nonce": {
+                    "maxLength": 256,
                     "type": "string"
                   }
                 },
@@ -14653,6 +15038,7 @@
           "Location"
         ],
         "summary": "Set location sharing configuration for a friend",
+        "description": "The handle must be an accepted friend on this server; sharing with friends on other servers is refused with 400. Turning sharing off also deletes the location held for that friend and clears their marker.",
         "requestBody": {
           "required": true,
           "content": {
@@ -14661,6 +15047,7 @@
                 "type": "object",
                 "properties": {
                   "friendHandle": {
+                    "maxLength": 320,
                     "type": "string"
                   },
                   "enabled": {
@@ -14677,6 +15064,7 @@
                 "type": "object",
                 "properties": {
                   "friendHandle": {
+                    "maxLength": 320,
                     "type": "string"
                   },
                   "enabled": {
@@ -14693,6 +15081,7 @@
                 "type": "object",
                 "properties": {
                   "friendHandle": {
+                    "maxLength": 320,
                     "type": "string"
                   },
                   "enabled": {
@@ -14749,17 +15138,21 @@
                 "type": "object",
                 "properties": {
                   "locations": {
+                    "maxItems": 200,
                     "type": "array",
                     "items": {
                       "type": "object",
                       "properties": {
                         "forFriendHandle": {
+                          "maxLength": 320,
                           "type": "string"
                         },
                         "encryptedLocation": {
+                          "maxLength": 16384,
                           "type": "string"
                         },
                         "nonce": {
+                          "maxLength": 64,
                           "type": "string"
                         }
                       },
@@ -14781,17 +15174,21 @@
                 "type": "object",
                 "properties": {
                   "locations": {
+                    "maxItems": 200,
                     "type": "array",
                     "items": {
                       "type": "object",
                       "properties": {
                         "forFriendHandle": {
+                          "maxLength": 320,
                           "type": "string"
                         },
                         "encryptedLocation": {
+                          "maxLength": 16384,
                           "type": "string"
                         },
                         "nonce": {
+                          "maxLength": 64,
                           "type": "string"
                         }
                       },
@@ -14813,17 +15210,21 @@
                 "type": "object",
                 "properties": {
                   "locations": {
+                    "maxItems": 200,
                     "type": "array",
                     "items": {
                       "type": "object",
                       "properties": {
                         "forFriendHandle": {
+                          "maxLength": 320,
                           "type": "string"
                         },
                         "encryptedLocation": {
+                          "maxLength": 16384,
                           "type": "string"
                         },
                         "nonce": {
+                          "maxLength": 64,
                           "type": "string"
                         }
                       },
@@ -16396,7 +16797,7 @@
         "tags": [
           "PersonalBlob"
         ],
-        "description": "Upsert a client-encrypted personal blob by type",
+        "description": "Upsert a client-encrypted personal blob by type. `kmVersion` is the master-key version the blob was sealed under (default 1); 409 when it isn't the account's current version, so a device holding a rotated-out seed cannot overwrite data sealed under the new one.",
         "requestBody": {
           "required": true,
           "content": {
@@ -16405,13 +16806,28 @@
                 "type": "object",
                 "properties": {
                   "encryptedBlob": {
+                    "maxLength": 1048576,
                     "type": "string"
                   },
                   "nonce": {
+                    "maxLength": 256,
                     "type": "string"
                   },
                   "kmVersion": {
-                    "type": "number"
+                    "minimum": 1,
+                    "maximum": 2147483647,
+                    "anyOf": [
+                      {
+                        "format": "integer",
+                        "default": 0,
+                        "type": "string"
+                      },
+                      {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -16424,13 +16840,28 @@
                 "type": "object",
                 "properties": {
                   "encryptedBlob": {
+                    "maxLength": 1048576,
                     "type": "string"
                   },
                   "nonce": {
+                    "maxLength": 256,
                     "type": "string"
                   },
                   "kmVersion": {
-                    "type": "number"
+                    "minimum": 1,
+                    "maximum": 2147483647,
+                    "anyOf": [
+                      {
+                        "format": "integer",
+                        "default": 0,
+                        "type": "string"
+                      },
+                      {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -16443,13 +16874,28 @@
                 "type": "object",
                 "properties": {
                   "encryptedBlob": {
+                    "maxLength": 1048576,
                     "type": "string"
                   },
                   "nonce": {
+                    "maxLength": 256,
                     "type": "string"
                   },
                   "kmVersion": {
-                    "type": "number"
+                    "minimum": 1,
+                    "maximum": 2147483647,
+                    "anyOf": [
+                      {
+                        "format": "integer",
+                        "default": 0,
+                        "type": "string"
+                      },
+                      {
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "type": "integer"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -18333,7 +18779,9 @@
           },
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
             },
             "in": "path",
             "name": "resourceId",
@@ -18358,6 +18806,7 @@
           "Sharing"
         ],
         "summary": "Share a resource with a friend",
+        "description": "Collections may be shared by their owner, or by an editor when the resharing policy allows it; other resource types only by their owner. The recipient must be an accepted friend (403 otherwise). Returns 409 when the resource is already shared with the recipient, and 502 when a cross-server share could not be delivered (nothing is stored).",
         "requestBody": {
           "required": true,
           "content": {
@@ -18366,6 +18815,7 @@
                 "type": "object",
                 "properties": {
                   "recipientHandle": {
+                    "maxLength": 320,
                     "type": "string"
                   },
                   "resourceType": {
@@ -18389,12 +18839,16 @@
                     ]
                   },
                   "resourceId": {
+                    "minLength": 1,
+                    "maxLength": 128,
                     "type": "string"
                   },
                   "encryptedData": {
+                    "maxLength": 65536,
                     "type": "string"
                   },
                   "nonce": {
+                    "maxLength": 256,
                     "type": "string"
                   },
                   "role": {
@@ -18410,12 +18864,15 @@
                     ]
                   },
                   "federationSignature": {
+                    "maxLength": 256,
                     "type": "string"
                   },
                   "federationNonce": {
+                    "maxLength": 256,
                     "type": "string"
                   },
                   "federationTimestamp": {
+                    "maxLength": 64,
                     "type": "string"
                   }
                 },
@@ -18431,6 +18888,7 @@
                 "type": "object",
                 "properties": {
                   "recipientHandle": {
+                    "maxLength": 320,
                     "type": "string"
                   },
                   "resourceType": {
@@ -18454,12 +18912,16 @@
                     ]
                   },
                   "resourceId": {
+                    "minLength": 1,
+                    "maxLength": 128,
                     "type": "string"
                   },
                   "encryptedData": {
+                    "maxLength": 65536,
                     "type": "string"
                   },
                   "nonce": {
+                    "maxLength": 256,
                     "type": "string"
                   },
                   "role": {
@@ -18475,12 +18937,15 @@
                     ]
                   },
                   "federationSignature": {
+                    "maxLength": 256,
                     "type": "string"
                   },
                   "federationNonce": {
+                    "maxLength": 256,
                     "type": "string"
                   },
                   "federationTimestamp": {
+                    "maxLength": 64,
                     "type": "string"
                   }
                 },
@@ -18496,6 +18961,7 @@
                 "type": "object",
                 "properties": {
                   "recipientHandle": {
+                    "maxLength": 320,
                     "type": "string"
                   },
                   "resourceType": {
@@ -18519,12 +18985,16 @@
                     ]
                   },
                   "resourceId": {
+                    "minLength": 1,
+                    "maxLength": 128,
                     "type": "string"
                   },
                   "encryptedData": {
+                    "maxLength": 65536,
                     "type": "string"
                   },
                   "nonce": {
+                    "maxLength": 256,
                     "type": "string"
                   },
                   "role": {
@@ -18540,12 +19010,15 @@
                     ]
                   },
                   "federationSignature": {
+                    "maxLength": 256,
                     "type": "string"
                   },
                   "federationNonce": {
+                    "maxLength": 256,
                     "type": "string"
                   },
                   "federationTimestamp": {
+                    "maxLength": 64,
                     "type": "string"
                   }
                 },
@@ -18601,6 +19074,7 @@
                 "type": "object",
                 "properties": {
                   "recipientHandle": {
+                    "maxLength": 320,
                     "type": "string"
                   },
                   "resourceType": {
@@ -18624,12 +19098,16 @@
                     ]
                   },
                   "resourceId": {
+                    "minLength": 1,
+                    "maxLength": 128,
                     "type": "string"
                   },
                   "encryptedData": {
+                    "maxLength": 65536,
                     "type": "string"
                   },
                   "nonce": {
+                    "maxLength": 256,
                     "type": "string"
                   }
                 },
@@ -18647,6 +19125,7 @@
                 "type": "object",
                 "properties": {
                   "recipientHandle": {
+                    "maxLength": 320,
                     "type": "string"
                   },
                   "resourceType": {
@@ -18670,12 +19149,16 @@
                     ]
                   },
                   "resourceId": {
+                    "minLength": 1,
+                    "maxLength": 128,
                     "type": "string"
                   },
                   "encryptedData": {
+                    "maxLength": 65536,
                     "type": "string"
                   },
                   "nonce": {
+                    "maxLength": 256,
                     "type": "string"
                   }
                 },
@@ -18693,6 +19176,7 @@
                 "type": "object",
                 "properties": {
                   "recipientHandle": {
+                    "maxLength": 320,
                     "type": "string"
                   },
                   "resourceType": {
@@ -18716,12 +19200,16 @@
                     ]
                   },
                   "resourceId": {
+                    "minLength": 1,
+                    "maxLength": 128,
                     "type": "string"
                   },
                   "encryptedData": {
+                    "maxLength": 65536,
                     "type": "string"
                   },
                   "nonce": {
+                    "maxLength": 256,
                     "type": "string"
                   }
                 },
@@ -19982,6 +20470,58 @@
         }
       }
     },
+    "/users/me/identity/reset/step-up": {
+      "post": {
+        "parameters": [],
+        "operationId": "postUsersMeIdentityResetStep-up",
+        "tags": [
+          "Users",
+          "Federation"
+        ],
+        "description": "Start the re-authentication an identity reset requires. Returns passkey assertion options when the user has a passkey, otherwise emails a one-time code. Pass `method: \"email\"` to force the code. Shares a limit of 10 a user every 15 minutes with the reset itself.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "method": {
+                    "const": "email",
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "method": {
+                    "const": "email",
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "method": {
+                    "const": "email",
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {}
+        }
+      }
+    },
     "/users/me/identity/reset": {
       "post": {
         "parameters": [],
@@ -19990,7 +20530,7 @@
           "Users",
           "Federation"
         ],
-        "description": "Last-resort: wipe all of this user's encrypted data and clear the federation identity so they can re-run identity setup. Session + passkeys survive; everything encrypted under the old seed is gone. Irreversible.",
+        "description": "Last-resort: wipe all of this user's encrypted data and clear the federation identity so they can re-run identity setup. Requires a fresh step-up from `/me/identity/reset/step-up`: the passkey assertion as `passkey`, or the emailed code as `code`. Session + passkeys survive; everything encrypted under the old seed is gone. Irreversible.",
         "requestBody": {
           "required": true,
           "content": {
@@ -20001,7 +20541,12 @@
                   "confirm": {
                     "const": "erase-all-my-data",
                     "type": "string"
-                  }
+                  },
+                  "code": {
+                    "maxLength": 16,
+                    "type": "string"
+                  },
+                  "passkey": {}
                 },
                 "required": [
                   "confirm"
@@ -20015,7 +20560,12 @@
                   "confirm": {
                     "const": "erase-all-my-data",
                     "type": "string"
-                  }
+                  },
+                  "code": {
+                    "maxLength": 16,
+                    "type": "string"
+                  },
+                  "passkey": {}
                 },
                 "required": [
                   "confirm"
@@ -20029,7 +20579,12 @@
                   "confirm": {
                     "const": "erase-all-my-data",
                     "type": "string"
-                  }
+                  },
+                  "code": {
+                    "maxLength": 16,
+                    "type": "string"
+                  },
+                  "passkey": {}
                 },
                 "required": [
                   "confirm"
@@ -20222,7 +20777,7 @@
           "Users",
           "Federation"
         ],
-        "description": "Get current user federation identity (handle, keys)",
+        "description": "Get current user federation identity (handle, keys, and the master-key version those keys belong to)",
         "responses": {
           "200": {}
         }
@@ -20317,7 +20872,7 @@
           "Users",
           "Federation"
         ],
-        "description": "Register or update federation public keys",
+        "description": "Register federation public keys. Succeeds when the account has none yet or already holds exactly these; 409 when different keys are registered (those change only via rotation commit or identity reset).",
         "requestBody": {
           "required": true,
           "content": {
@@ -20529,7 +21084,7 @@
           "Users",
           "KmRotation"
         ],
-        "description": "Atomic rotation commit. Applies new public keys, re-encrypted blobs, re-encrypted collection envelopes, and re-sealed slots in a single transaction gated by a CAS on kmVersion. 409 on conflict — nothing is written.",
+        "description": "Atomic rotation commit. Applies new public keys and every record re-encrypted under the new seed (blobs, collections and points, routes, canvases, share envelopes both ways, friend pins, passkey slots) in one transaction gated by a CAS on kmVersion. Slots not re-sealed are deleted. 409 when another device rotated first; 422 when a seed-derived record is missing, a private collection is shared with another server, or neither a slot nor a confirmed recovery key would unlock the new keys. Nothing is written on error.",
         "requestBody": {
           "required": true,
           "content": {
@@ -20599,6 +21154,112 @@
                       ]
                     }
                   },
+                  "routes": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "metadataEncrypted": {
+                          "type": "string"
+                        },
+                        "bodyEncrypted": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id"
+                      ]
+                    }
+                  },
+                  "canvases": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "metadataEncrypted": {
+                          "type": "string"
+                        },
+                        "bodyEncrypted": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id"
+                      ]
+                    }
+                  },
+                  "shares": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "encryptedData": {
+                          "type": "string"
+                        },
+                        "nonce": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "encryptedData",
+                        "nonce"
+                      ]
+                    }
+                  },
+                  "incomingShares": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "encryptedData": {
+                          "type": "string"
+                        },
+                        "nonce": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "encryptedData",
+                        "nonce"
+                      ]
+                    }
+                  },
+                  "friendPins": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "friendHandle": {
+                          "type": "string"
+                        },
+                        "encryptedPin": {
+                          "type": "string"
+                        },
+                        "nonce": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "friendHandle",
+                        "encryptedPin",
+                        "nonce"
+                      ]
+                    }
+                  },
                   "slots": {
                     "type": "array",
                     "items": {
@@ -20623,6 +21284,9 @@
                         "slotSignature"
                       ]
                     }
+                  },
+                  "recoveryKeyConfirmed": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -20698,6 +21362,112 @@
                       ]
                     }
                   },
+                  "routes": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "metadataEncrypted": {
+                          "type": "string"
+                        },
+                        "bodyEncrypted": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id"
+                      ]
+                    }
+                  },
+                  "canvases": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "metadataEncrypted": {
+                          "type": "string"
+                        },
+                        "bodyEncrypted": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id"
+                      ]
+                    }
+                  },
+                  "shares": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "encryptedData": {
+                          "type": "string"
+                        },
+                        "nonce": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "encryptedData",
+                        "nonce"
+                      ]
+                    }
+                  },
+                  "incomingShares": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "encryptedData": {
+                          "type": "string"
+                        },
+                        "nonce": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "encryptedData",
+                        "nonce"
+                      ]
+                    }
+                  },
+                  "friendPins": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "friendHandle": {
+                          "type": "string"
+                        },
+                        "encryptedPin": {
+                          "type": "string"
+                        },
+                        "nonce": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "friendHandle",
+                        "encryptedPin",
+                        "nonce"
+                      ]
+                    }
+                  },
                   "slots": {
                     "type": "array",
                     "items": {
@@ -20722,6 +21492,9 @@
                         "slotSignature"
                       ]
                     }
+                  },
+                  "recoveryKeyConfirmed": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -20797,6 +21570,112 @@
                       ]
                     }
                   },
+                  "routes": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "metadataEncrypted": {
+                          "type": "string"
+                        },
+                        "bodyEncrypted": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id"
+                      ]
+                    }
+                  },
+                  "canvases": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "metadataEncrypted": {
+                          "type": "string"
+                        },
+                        "bodyEncrypted": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id"
+                      ]
+                    }
+                  },
+                  "shares": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "encryptedData": {
+                          "type": "string"
+                        },
+                        "nonce": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "encryptedData",
+                        "nonce"
+                      ]
+                    }
+                  },
+                  "incomingShares": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "encryptedData": {
+                          "type": "string"
+                        },
+                        "nonce": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "encryptedData",
+                        "nonce"
+                      ]
+                    }
+                  },
+                  "friendPins": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "friendHandle": {
+                          "type": "string"
+                        },
+                        "encryptedPin": {
+                          "type": "string"
+                        },
+                        "nonce": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "friendHandle",
+                        "encryptedPin",
+                        "nonce"
+                      ]
+                    }
+                  },
                   "slots": {
                     "type": "array",
                     "items": {
@@ -20821,6 +21700,9 @@
                         "slotSignature"
                       ]
                     }
+                  },
+                  "recoveryKeyConfirmed": {
+                    "type": "boolean"
                   }
                 },
                 "required": [

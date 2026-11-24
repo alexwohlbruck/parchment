@@ -17,6 +17,15 @@ import type { Handoff } from './handoff'
 import { cardinal, type Cardinal } from './turn-around'
 import { borderCrossings, type BorderCrossing } from './instructions/borders'
 import { targetRoad } from './instructions/rich-instruction'
+import type { BoardingTarget } from '@/lib/transit/station/boarding'
+import type { BoardingPosition } from '@server/types/station-guidance.types'
+
+/** Where to stand for the ride being waited for, and the time to walk there first. */
+export interface BoardingCue {
+  section: BoardingPosition['section']
+  target: BoardingTarget | null
+  waitSeconds: number | null
+}
 
 export type AnnouncementPhase = 'prepare' | 'approach' | 'now' | 'continue'
 
@@ -38,7 +47,7 @@ export type Announcement =
   | { kind: 'reroute' }
   | { kind: 'turn-around'; heading: Cardinal; road: string | null }
   | { kind: 'dock-switch'; station: string }
-  | { kind: 'transit'; event: TransitEvent; line: string; headsign?: string; direction?: string; stop: string }
+  | { kind: 'transit'; event: TransitEvent; line: string; headsign?: string; direction?: string; stop: string; boarding?: BoardingCue }
   /** Entering another country, state or province; `region` is its name. */
   | { kind: 'border'; region: string }
   /** `vehicle` names the mode, as in "Which train are you on?". */

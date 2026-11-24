@@ -31,7 +31,6 @@ ed.hashes.sha512 = (...m) => sha512(ed.etc.concatBytes(...m))
 
 import {
   buildServerSignableWrapper,
-  buildLegacySignableV1,
   buildClientSignableV2,
   canonicalJsonStringify,
   generateNonce,
@@ -274,24 +273,23 @@ async function sendFriendInvite(opts: SendOpts = {}): Promise<{
   const timestamp = opts.overrideTimestamp ?? nowIso()
   const nonce = opts.overrideNonce ?? generateNonce()
 
-  // Alice signs the v1 FRIEND_INVITE envelope.
-  const clientSignable = buildLegacySignableV1('FRIEND_INVITE', {
+  const envelope = {
+    protocol_version: 2,
+    message_type: 'FRIEND_INVITE',
+    message_version: 1,
     from: ALICE_HANDLE,
     to: BOB_HANDLE,
+    nonce,
     timestamp,
-  })
+    payload: {},
+  }
+  const clientSignable = buildClientSignableV2(envelope)
   let clientSig = await sign(clientSignable, ALICE_SEED)
   if (opts.tamperClientSig) {
     clientSig = await sign(clientSignable + 'tamper', ALICE_SEED)
   }
 
-  const message = {
-    type: 'FRIEND_INVITE',
-    from: ALICE_HANDLE,
-    to: BOB_HANDLE,
-    timestamp,
-    signature: clientSig,
-  }
+  const message = { ...envelope, signature: clientSig }
 
   const bodyJson = canonicalJsonStringify(message)
 
@@ -493,7 +491,7 @@ describe('federation two-server integration', () => {
     const bodyJson = canonicalJsonStringify(message)
 
     // Server A wraps it in the transport-level signed envelope.
-    const transportNonce = generateNonce()
+    const transportNonce = envelopeNonce
     const wrapperSignable = buildServerSignableWrapper({
       method: 'POST',
       path: '/federation/inbox',
@@ -536,6 +534,56 @@ describe('federation two-server integration', () => {
     expect(incoming).toBeTruthy()
     expect(incoming.role).toBe('editor')
     expect(incoming.senderHandle).toBe(ALICE_HANDLE)
+  })
+
+  test('REALTIME_EVENT rides the server signature alone', async () => {
+    const timestamp = nowIso()
+    const nonce = generateNonce()
+    const message = {
+      protocol_version: 2,
+      message_type: 'REALTIME_EVENT',
+      message_version: 1,
+      from: ALICE_HANDLE,
+      to: BOB_HANDLE,
+      nonce,
+      timestamp,
+      signature: '',
+      payload: {
+        eventType: 'collection:updated',
+        eventPayload: { id: generateId() },
+        recipientAliases: [BOB_ALIAS],
+      },
+    }
+    const bodyJson = canonicalJsonStringify(message)
+    const serverSig = await sign(
+      buildServerSignableWrapper({
+        method: 'POST',
+        path: '/federation/inbox',
+        body_hash: hashBody(bodyJson),
+        nonce,
+        timestamp,
+        peer_server_id: B_HOST,
+        sender_server_id: A_HOST,
+        protocol_version: 2,
+      }),
+      SERVER_A_SEED,
+    )
+    const post = () =>
+      axios.post(`${B_ORIGIN}/federation/inbox`, bodyJson, {
+        timeout: 5000,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Parchment-Server-Id': A_HOST,
+          'X-Parchment-Protocol-Version': '2',
+          'X-Parchment-Nonce': nonce,
+          'X-Parchment-Timestamp': timestamp,
+          'X-Parchment-Server-Signature': serverSig,
+        },
+        validateStatus: () => true,
+      })
+
+    expect((await post()).status).toBe(202)
+    expect((await post()).status).toBe(401)
   })
 
   test('tampered RESOURCE_SHARE role (after signing) is rejected', async () => {
@@ -583,7 +631,7 @@ describe('federation two-server integration', () => {
     }
     const bodyJson = canonicalJsonStringify(tamperedMessage)
 
-    const transportNonce = generateNonce()
+    const transportNonce = envelopeNonce
     const wrapperSignable = buildServerSignableWrapper({
       method: 'POST',
       path: '/federation/inbox',

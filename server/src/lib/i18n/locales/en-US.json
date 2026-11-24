@@ -113,11 +113,16 @@
       "brandSearchFailed": "Failed to execute brand search"
     },
     "friends": {
-      "invalidHandle": "Invalid handle format. Use alias@domain"
+      "invalidHandle": "Invalid handle format. Use alias@domain",
+      "remoteLocationUnsupported": "Location sharing isn't available with friends on other servers yet"
     },
     "sharing": {
+      "alreadyShared": "Already shared with this person",
+      "remoteDeliveryFailed": "Couldn't reach this person's server; nothing was shared",
+      "resourceNotFound": "Not found",
       "collectionNotPermitted": "Not permitted to share this collection",
-      "federationEnvelopeRequired": "Cross-server shares require federationSignature + federationNonce + federationTimestamp"
+      "federationEnvelopeRequired": "Cross-server shares require federationSignature + federationNonce + federationTimestamp",
+      "notFriends": "You can only share with friends"
     },
     "library": {
       "collectionNotFound": "Collection not found",
@@ -180,6 +185,7 @@
       "impersonationNotAllowed": "Impersonation is not available in production",
       "cannotImpersonateSelf": "Cannot impersonate yourself",
       "eraseConfirmationRequired": "Confirmation required. Pass `{ \"confirm\": \"erase-all-my-data\" }`.",
+      "stepUpFailed": "Couldn't confirm it's you. Try again.",
       "invalidAlias": "Invalid alias. Use 3-30 alphanumeric characters or underscores.",
       "noPendingRevocation": "No pending revocation"
     },

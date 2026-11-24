@@ -137,6 +137,15 @@ describe('resolvePeerServer — manifest', () => {
     expect(peer.serverId).toBe('peer.test')
   })
 
+  test('never pins a manifest that claims another domain', async () => {
+    http.get.mockResolvedValueOnce({ data: manifest({ server_id: 'victim.test' }) })
+
+    await expect(resolvePeerServer('peer.test')).rejects.toThrow(
+      'published a manifest for victim.test',
+    )
+    expect(dbMock.insertCount).toBe(0)
+  })
+
   test('rejects a malformed manifest', async () => {
     http.get.mockResolvedValueOnce({ data: { server_id: 'peer.test' } })
 
@@ -378,7 +387,7 @@ describe('verifyInboundRequest — signature', () => {
 
     expect(
       await verifyInboundRequest({ ...inbound, headers: authHeaders() }),
-    ).toEqual({ senderServerId: 'peer.test', protocolVersion: 2 })
+    ).toEqual({ senderServerId: 'peer.test', protocolVersion: 2, nonce: 'nonce-1' })
   })
 
   test('verifies against the peer’s pinned public key', async () => {
@@ -395,7 +404,8 @@ describe('verifyInboundRequest — signature', () => {
 
     await expect(
       verifyInboundRequest({ ...inbound, headers: authHeaders() }),
-    ).rejects.toThrow('does not match peer manifest')
+    ).rejects.toThrow('published a manifest for other.test')
+    expect(dbMock.insertCount).toBe(0)
   })
 
   test('rejects an invalid signature', async () => {

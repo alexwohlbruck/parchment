@@ -2423,7 +2423,8 @@
         "next": "Next",
         "done": "Done",
         "stepOf": "{n}/{total}",
-        "advancesIn": "next in {duration}"
+        "advancesIn": "next in {duration}",
+        "left": "{distance} to go"
       },
       "anotherRoute": "Another route",
       "nextLine": "Next {line}"

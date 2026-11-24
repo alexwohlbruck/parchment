@@ -90,6 +90,21 @@ export function stationStepText(steps: GuidanceStep[], i: number, spot: Platform
   return aimed ? t(`directions.station.platformWalk.${spot}`) : steps[i].instruction
 }
 
+export type PluralTFn = (key: string, named: Record<string, unknown>, plural: number) => string
+
+/** "Up 1 level", "Down 2 levels"; null on one level. */
+export function levelChangeText(change: number | null, t: PluralTFn): string | null {
+  if (!change) return null
+  const n = Math.abs(change)
+  return t(change > 0 ? 'directions.station.levelUp' : 'directions.station.levelDown', { n }, n)
+}
+
+/** The level a step leads to as the station's signs name it, else how many levels it climbs; null on one level. */
+export function stepLevelLabel(step: GuidanceStep, levelNames: ReadonlyMap<number, string>, t: PluralTFn): string | null {
+  const named = step.toLevel != null ? levelNames.get(step.toLevel) : undefined
+  return named ?? levelChangeText(step.levelChange, t)
+}
+
 /** Walking segments between two rides whose line the station walk draws instead. */
 export function replacedTransferWalks(segments: GuidedSegment[]): Set<number> {
   const replaced = new Set<number>()

@@ -17,9 +17,12 @@ import { MoreVertical, UserMinus, MapPin, RefreshCwIcon } from 'lucide-vue-next'
 import { AppRoute } from '@/router'
 import type { Friendship } from '@/services/friends.service'
 import type { FriendLocation } from '@/composables/friends/useFriendLocations'
+import { useLocationClock } from '@/composables/friends/useLocationClock'
+import { isLocationStale } from '@/lib/friends/friend-location'
 
 const router = useRouter()
 const { t } = useI18n()
+const now = useLocationClock()
 
 interface LocationConfig {
   enabled: boolean
@@ -72,7 +75,7 @@ const hasLocation = computed(() => !!props.friendLocation)
 const locationTimeAgo = computed(() => {
   if (!props.friendLocation) return null
   const seconds = Math.floor(
-    (Date.now() - props.friendLocation.updatedAt.getTime()) / 1000,
+    (now.value.getTime() - props.friendLocation.updatedAt.getTime()) / 1000,
   )
 
   if (seconds < 60) return t('friends.map.justNow')
@@ -85,12 +88,11 @@ const locationTimeAgo = computed(() => {
   return props.friendLocation.updatedAt.toLocaleDateString()
 })
 
-const isLocationFresh = computed(() => {
-  if (!props.friendLocation) return false
-  // Consider fresh if updated within last 5 minutes
-  const fiveMinutes = 5 * 60 * 1000
-  return Date.now() - props.friendLocation.updatedAt.getTime() < fiveMinutes
-})
+const isLocationFresh = computed(
+  () =>
+    !!props.friendLocation &&
+    !isLocationStale(props.friendLocation.updatedAt, now.value.getTime()),
+)
 
 function openFriendDetail() {
   router.push({

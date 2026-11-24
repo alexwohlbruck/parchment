@@ -4,6 +4,7 @@
 
 * Inside a station, step cards follow your steps and level changes without GPS, read each step aloud and show which level it leads to.
 * Where to board now names the exit or line it lines you up with, and navigation says it aloud. With minutes to spare on the platform, it tells you to walk there first.
+* The floor picker switches to the floor of the station step you're looking at, in trip details and while navigating. Tap a step to see that part of the walk on the map.
 
 ### Changed
 

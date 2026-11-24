@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { basemapId, clearedBuildings, focusedVenue, openingLevel, parseVenueLevels, replacedFixtures, replacedPlaces, shownInside, signedLevelNames, unitedIds } from './indoor-venue'
+import { basemapId, clearedBuildings, focusedVenue, openingLevel, parseVenueLevels, replacedFixtures, replacedPlaces, shownInside, signedLevelNames, unitedIds, venueLevel } from './indoor-venue'
 
 const square = (x: number, y: number, r = 1) => ({
   type: 'Polygon',
@@ -74,6 +74,24 @@ describe('openingLevel', () => {
   it('opens a station that is all underground on its outside', () => {
     const station = focusedVenue([venue(1, square(0, 0), { levels: '-2;-1', default_level: -1 })], [0, 0], everywhere)!
     expect(openingLevel(station)).toBeNull()
+  })
+})
+
+describe('venueLevel', () => {
+  const station = focusedVenue([venue(1, square(0, 0), { levels: '-2;-1', default_level: -1 })], [0, 0], everywhere)!
+  const step = { key: 'transfer:2:1', level: -2 }
+
+  it("shows the floor of the step in focus", () => {
+    expect(venueLevel(station, new Map([[1, -1]]), step, false)).toBe(-2)
+  })
+
+  it('keeps a floor the rider picked after the step came into focus', () => {
+    expect(venueLevel(station, new Map([[1, -1]]), step, true)).toBe(-1)
+  })
+
+  it('ignores a floor the venue does not have', () => {
+    expect(venueLevel(station, new Map(), { key: 'a', level: 3 }, false)).toBeNull()
+    expect(venueLevel(station, new Map(), { key: 'a', level: null }, false)).toBeNull()
   })
 })
 

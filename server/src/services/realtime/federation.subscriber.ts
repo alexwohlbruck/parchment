@@ -13,15 +13,9 @@
  * Fire-and-forget: a peer being unreachable doesn't fail the sender's
  * mutation. The recipient's next REST fetch will converge state.
  *
- * Known trade-offs (v1):
- *   - No retry queue. Events lost to transient network failures stay
- *     lost until the user's client refetches. Documented in the plan.
- *   - No per-message signing. The S2S wrapper auth (server signs the
- *     HTTP request) is sufficient to bind the event to a trusted peer,
- *     but the PAYLOAD isn't individually signed by the originating user.
- *     An attacker with control of a peer could spoof events from any of
- *     their users. Upgrade path: sign the payload with the originating
- *     user's Ed25519 key, same v2 pattern as RESOURCE_SHARE.
+ * Events are authenticated by the S2S server signature, which the peer's
+ * inbox binds to the `from` handle's domain. Location events stay local:
+ * cross-server location sharing isn't supported.
  */
 
 import type {
@@ -35,6 +29,7 @@ import {
   type FederationMessage,
 } from '../federation.service'
 import { parseHandle } from '../../lib/crypto'
+import { generateNonce } from '../../lib/federation-canonical'
 import { db } from '../../db'
 import { logger } from '../../lib/logger'
 import { eq } from 'drizzle-orm'
@@ -79,6 +74,7 @@ export const federationSubscriber: EventSubscriber = {
   name: 'federation',
   async deliver(event: RealtimeEvent, recipients: Recipients): Promise<void> {
     if (recipients.remoteHandles.length === 0) return
+    if (event.event.startsWith('location:')) return
 
     const senderHandle = await resolveSenderHandle(recipients.localUserIds)
     if (!senderHandle) {
@@ -95,7 +91,10 @@ export const federationSubscriber: EventSubscriber = {
     const byPeer = groupByPeer(recipients.remoteHandles)
     for (const [peerHost, aliases] of byPeer) {
       const message: FederationMessage = {
-        type: 'REALTIME_EVENT',
+        protocol_version: 2,
+        message_type: 'REALTIME_EVENT',
+        message_version: 1,
+        nonce: generateNonce(),
         from: senderHandle,
         // `to` is required by the envelope but a REALTIME_EVENT is
         // multi-cast to multiple aliases on the peer — we set it to the

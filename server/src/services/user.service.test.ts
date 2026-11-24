@@ -32,6 +32,7 @@ const {
   getUserHandle,
   updateUserAlias,
   updateUserKeys,
+  KeysAlreadyRegistered,
   updateUserDisplayProfile,
   getUserIdentity,
   getLocalUserIdByAlias,
@@ -97,6 +98,27 @@ describe('getUserHandle', () => {
 })
 
 describe('updateUserAlias', () => {
+  test('moves rows that name the old handle onto the new one', async () => {
+    dbMock.queueSelect([])
+    dbMock.queueSelect([{ alias: 'oldname' }])
+
+    await updateUserAlias('user-1', 'alice')
+
+    expect(dbMock.updated).toContainEqual({ friendHandle: expect.stringMatching(/^alice@/) })
+    expect(dbMock.updated).toContainEqual({ senderHandle: expect.stringMatching(/^alice@/) })
+    expect(dbMock.deleteCount).toBeGreaterThan(0)
+  })
+
+  test('leaves references alone when the alias is unchanged', async () => {
+    dbMock.queueSelect([{ id: 'user-1' }])
+    dbMock.queueSelect([{ alias: 'alice' }])
+
+    await updateUserAlias('user-1', 'alice')
+
+    expect(dbMock.updateCount).toBe(1)
+    expect(dbMock.deleteCount).toBe(0)
+  })
+
   test('accepts a free alias and writes it', async () => {
     dbMock.queueSelect([])
 
@@ -142,14 +164,31 @@ describe('updateUserAlias', () => {
 })
 
 describe('updateUserKeys', () => {
-  test('stores both keys with a timestamp', async () => {
+  test('registers keys on an account that has none', async () => {
+    dbMock.queueReturning([{ id: 'user-1' }])
     await updateUserKeys('user-1', 'sig', 'enc')
 
     expect(dbMock.updated[0]).toMatchObject({
       signingKey: 'sig',
       encryptionKey: 'enc',
     })
-    expect((dbMock.updated[0] as any).updatedAt).toBeInstanceOf(Date)
+    expect(dbMock.selectCount).toBe(0)
+  })
+
+  test('accepts re-registering the same keys', async () => {
+    dbMock.queueReturning([])
+    dbMock.queueSelect([{ signingKey: 'sig', encryptionKey: 'enc' }])
+
+    await expect(updateUserKeys('user-1', 'sig', 'enc')).resolves.toBeUndefined()
+  })
+
+  test('refuses to overwrite different registered keys', async () => {
+    dbMock.queueReturning([])
+    dbMock.queueSelect([{ signingKey: 'old-sig', encryptionKey: 'old-enc' }])
+
+    await expect(updateUserKeys('user-1', 'sig', 'enc')).rejects.toBeInstanceOf(
+      KeysAlreadyRegistered,
+    )
   })
 })
 
@@ -189,15 +228,16 @@ describe('updateUserDisplayProfile', () => {
 })
 
 describe('getUserIdentity', () => {
-  test('returns the handle and public keys', async () => {
+  test('returns the handle, public keys and their key version', async () => {
     dbMock.queueSelect([
-      { alias: 'alice', signingKey: 'sig', encryptionKey: 'enc' },
+      { alias: 'alice', signingKey: 'sig', encryptionKey: 'enc', kmVersion: 2 },
     ])
 
     expect(await getUserIdentity('user-1')).toEqual({
       handle: 'alice@parchment.test',
       signingKey: 'sig',
       encryptionKey: 'enc',
+      kmVersion: 2,
     })
   })
 

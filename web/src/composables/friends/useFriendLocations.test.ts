@@ -28,6 +28,18 @@ const mockHandle = ref<string | null>('alice@home.server')
 vi.mock('@/stores/friends.store', () => ({
   useFriendsStore: () => ({
     friends: mockFriends,
+    syncKeys: vi.fn().mockResolvedValue(false),
+  }),
+}))
+
+const mockPinTrusted = ref(true)
+
+vi.mock('@/stores/friends/friend-key-pins.store', () => ({
+  useFriendKeyPinsStore: () => ({
+    trustedKeys: async (friend: any) =>
+      mockPinTrusted.value
+        ? { signingKey: friend.friendSigningKey, encryptionKey: friend.friendEncryptionKey }
+        : null,
   }),
 }))
 
@@ -118,6 +130,7 @@ describe('useFriendLocations', () => {
     mockFriends.value = []
     mockEncryptionPrivateKey.value = null
     mockIsSetupComplete.value = false
+    mockPinTrusted.value = true
     mockGetFriendLocations.mockReset()
   })
 
@@ -404,7 +417,7 @@ describe('useFriendLocations', () => {
       })
 
       const { applyEncryptedLocation, locations } = useFriendLocations()
-      const applied = applyEncryptedLocation(payload)
+      const applied = await applyEncryptedLocation(payload)
 
       expect(applied).not.toBeNull()
       expect(applied?.friendHandle).toBe('bob@other.server')
@@ -426,7 +439,7 @@ describe('useFriendLocations', () => {
       })
 
       const { applyEncryptedLocation, locations } = useFriendLocations()
-      expect(applyEncryptedLocation(payload)).toBeNull()
+      expect(await applyEncryptedLocation(payload)).toBeNull()
       expect(locations.value).toHaveLength(0)
     })
 
@@ -443,7 +456,77 @@ describe('useFriendLocations', () => {
       })
 
       const { applyEncryptedLocation } = useFriendLocations()
-      expect(applyEncryptedLocation(payload)).toBeNull()
+      expect(await applyEncryptedLocation(payload)).toBeNull()
+    })
+  })
+
+  describe('applyEncryptedLocation safeguards', () => {
+    function withBob() {
+      mockIsSetupComplete.value = true
+      mockEncryptionPrivateKey.value = aliceKeys.encryption.privateKey
+      mockFriends.value = [
+        {
+          friendHandle: 'bob@other.server',
+          friendEncryptionKey: exportPublicKey(bobKeys.encryption.publicKey),
+          friendSigningKey: exportPublicKey(bobKeys.signing.publicKey),
+        },
+      ]
+    }
+
+    function fromBob(location: LocationData) {
+      return v2LocationFixture({
+        senderKeys: bobKeys,
+        senderHandle: 'bob@other.server',
+        recipientKeys: aliceKeys,
+        recipientHandle: 'alice@home.server',
+        location,
+      })
+    }
+
+    test('an older row never replaces a newer one', async () => {
+      withBob()
+      const { applyEncryptedLocation, getLocationForFriend } = useFriendLocations()
+      const newer = await fromBob({ lat: 2, lng: 2, timestamp: Date.now() })
+      const older = {
+        ...(await fromBob({ lat: 1, lng: 1, timestamp: Date.now() })),
+        updatedAt: new Date(Date.parse(newer.updatedAt) - 60_000).toISOString(),
+      }
+
+      await applyEncryptedLocation(newer)
+      expect(await applyEncryptedLocation(older)).toBeNull()
+      expect(getLocationForFriend('bob@other.server')?.location.lat).toBe(2)
+    })
+
+    test('out-of-range coordinates are dropped', async () => {
+      withBob()
+      const { applyEncryptedLocation, locations } = useFriendLocations()
+      const bad = await fromBob({ lat: 91, lng: 0, timestamp: Date.now() })
+      expect(await applyEncryptedLocation(bad)).toBeNull()
+      expect(locations.value).toHaveLength(0)
+    })
+
+    test('a friend whose keys changed is not trusted', async () => {
+      withBob()
+      mockPinTrusted.value = false
+      const { applyEncryptedLocation } = useFriendLocations()
+      const payload = await fromBob({ lat: 1, lng: 1, timestamp: Date.now() })
+      expect(await applyEncryptedLocation(payload)).toBeNull()
+    })
+
+    test('a fetch does not sweep a push that landed while it was in flight', async () => {
+      withBob()
+      const { applyEncryptedLocation, fetchLocations, getLocationForFriend } =
+        useFriendLocations()
+      let release!: (rows: unknown[]) => void
+      mockGetFriendLocations.mockReturnValue(new Promise((r) => (release = r)))
+
+      const pending = fetchLocations()
+      await new Promise((r) => setTimeout(r, 5))
+      await applyEncryptedLocation(await fromBob({ lat: 3, lng: 3, timestamp: Date.now() }))
+      release([])
+      await pending
+
+      expect(getLocationForFriend('bob@other.server')).toBeDefined()
     })
   })
 

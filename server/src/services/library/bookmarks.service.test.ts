@@ -3,10 +3,12 @@
  *
  * `updateBookmark` carries the subtlety. It deliberately splits two cases:
  *
- *   - changing bookmark FIELDS is owner-only (the `userId` filter enforces it);
+ *   - changing bookmark FIELDS is for the author, while they can still write
+ *     every collection holding it;
  *   - changing `collectionIds` edits pivot rows, so a collection owner or
  *     editor may re-link a bookmark someone else created, but only within the
- *     collections they can write, and never deletes a bookmark they don't own.
+ *     collections they can write and the owners they reach it through, and
+ *     never deletes a bookmark they don't own.
  *
  * The orphan path is the other trap: when the last collection link is removed
  * the bookmark row is deleted inline using the PRE-delete collection set,
@@ -171,6 +173,8 @@ describe('createBookmark', () => {
 describe('updateBookmark — ownership split', () => {
   test('a field change is scoped to the owner', async () => {
     dbMock.setReturningRows([bookmark])
+    dbMock.queueSelect([bookmark])
+    dbMock.queueSelect([]) // current links
     dbMock.queueSelect([]) // post-update collection read
 
     const result = await updateBookmark('bm-1', 'user-1', { name: 'Renamed' })
@@ -182,16 +186,29 @@ describe('updateBookmark — ownership split', () => {
     expect(dbMock.updated[0]).toMatchObject({ name: 'Renamed' })
   })
 
-  test('a field change on someone else’s bookmark returns null', async () => {
-    dbMock.setReturningRows([])
+  test('a field change on someone else’s bookmark is refused', async () => {
+    dbMock.queueSelect([bookmark])
+    dbMock.queueSelect([])
 
-    expect(await updateBookmark('bm-1', 'other', { name: 'x' })).toBeNull()
+    expect(await updateBookmark('bm-1', 'other', { name: 'x' })).toBeUndefined()
+    expect(dbMock.updateCount).toBe(0)
+  })
+
+  test('an author who lost write access to a holding collection cannot edit it', async () => {
+    dbMock.queueSelect([bookmark])
+    dbMock.queueSelect([{ collectionId: 'theirs' }])
+    writableCollectionIds.mockImplementation(async () => [])
+
+    expect(await updateBookmark('bm-1', 'user-1', { name: 'x' })).toBeUndefined()
+    expect(dbMock.updateCount).toBe(0)
   })
 
   test('a collection-only change skips the owner-filtered update', async () => {
     // Alice must be able to unlink a bookmark Bob created in her collection.
     dbMock.queueSelect([bookmark]) // unfiltered lookup
     dbMock.queueSelect([{ collectionId: 'col-1' }]) // current links
+    dbMock.queueSelect([{ userId: 'alice' }]) // owners of writable links
+    dbMock.queueSelect([{ userId: 'alice' }]) // owners of additions
     dbMock.queueSelect([{ collectionId: 'col-2' }]) // post-update links
 
     const result = await updateBookmark('bm-1', 'not-the-owner', {
@@ -204,16 +221,18 @@ describe('updateBookmark — ownership split', () => {
     expect(dbMock.updated.some((u: any) => 'name' in u)).toBe(false)
   })
 
-  test('a collection-only change on a missing bookmark returns null', async () => {
+  test('a collection-only change on a missing bookmark is refused', async () => {
     dbMock.queueSelect([])
 
     expect(
       await updateBookmark('missing', 'user-1', { collectionIds: [] }),
-    ).toBeNull()
+    ).toBeUndefined()
   })
 
   test('converts lat/lng into geometry', async () => {
     dbMock.setReturningRows([bookmark])
+    dbMock.queueSelect([bookmark])
+    dbMock.queueSelect([])
     dbMock.queueSelect([])
 
     await updateBookmark('bm-1', 'user-1', { lat: 1, lng: 2 } as any)
@@ -223,6 +242,8 @@ describe('updateBookmark — ownership split', () => {
 
   test('never lets a caller rewrite id, userId or externalIds', async () => {
     dbMock.setReturningRows([bookmark])
+    dbMock.queueSelect([bookmark])
+    dbMock.queueSelect([])
     dbMock.queueSelect([])
 
     await updateBookmark('bm-1', 'user-1', {
@@ -243,6 +264,8 @@ describe('updateBookmark — ownership split', () => {
     // creation, and have no picker. A stale or hand-rolled client must not be
     // able to change them after the fact.
     dbMock.setReturningRows([bookmark])
+    dbMock.queueSelect([bookmark])
+    dbMock.queueSelect([])
     dbMock.queueSelect([])
 
     await updateBookmark('bm-1', 'user-1', {
@@ -313,6 +336,8 @@ describe('updateBookmark — collection membership diff', () => {
 
   test('leaves membership alone when collectionIds is omitted', async () => {
     dbMock.setReturningRows([bookmark])
+    dbMock.queueSelect([bookmark])
+    dbMock.queueSelect([{ collectionId: 'col-1' }])
     dbMock.queueSelect([{ collectionId: 'col-1' }])
 
     await updateBookmark('bm-1', 'user-1', { name: 'Renamed' })
@@ -323,6 +348,8 @@ describe('updateBookmark — collection membership diff', () => {
 
   test('emits the updated bookmark with its post-update collections', async () => {
     dbMock.setReturningRows([bookmark])
+    dbMock.queueSelect([bookmark])
+    dbMock.queueSelect([{ collectionId: 'col-1' }])
     dbMock.queueSelect([{ collectionId: 'col-1' }])
 
     await updateBookmark('bm-1', 'user-1', { name: 'Renamed' })
@@ -394,6 +421,21 @@ describe('updateBookmark — membership access', () => {
     expect(result).toBeUndefined()
     expect(dbMock.insertCount).toBe(0)
     expect(dbMock.deleteCount).toBe(0)
+  })
+
+  test('refuses an editor linking it into another owner’s collection', async () => {
+    dbMock.queueSelect([othersBookmark])
+    dbMock.queueSelect([{ collectionId: 'shared' }])
+    dbMock.queueSelect([{ userId: 'owner' }])
+    dbMock.queueSelect([{ userId: 'editor' }])
+    writableCollectionIds.mockImplementation(async () => ['shared'])
+
+    const result = await updateBookmark('bm-1', 'editor', {
+      collectionIds: ['shared', 'editors-own'],
+    })
+
+    expect(result).toBeUndefined()
+    expect(dbMock.insertCount).toBe(0)
   })
 
   test('only unlinks collections the caller can write', async () => {

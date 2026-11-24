@@ -5,7 +5,7 @@ import BottomSheet from '@/components/sheet/BottomSheet.vue'
 import GuidanceNotices from './GuidanceNotices.vue'
 import GuidanceSummary from './GuidanceSummary.vue'
 import GuidancePanel from './panels/GuidancePanel.vue'
-import { useGuidanceContext, type GuidancePanelKind } from './context'
+import { MAP_PANELS, useGuidanceContext, type GuidancePanelKind } from './context'
 
 /** `ceiling` is the y the open sheet stops short of, below the instruction card. */
 const props = defineProps<{ ceiling: number; class?: string }>()
@@ -41,11 +41,14 @@ function onSnapIndex(index: number) {
 
 // The open sheet fits its content, stopping short of the instruction card.
 const SHEET_TOP_GAP = 20
+/** A panel marking places on the map leaves at least the rest of the screen for them. */
+const MAP_PANEL_SHARE = 0.6
 const { height: windowHeight } = useWindowSize()
 const { bottom: safeBottom } = useScreenSafeArea()
 const { height: contentHeight } = useElementSize(content, undefined, { box: 'border-box' })
 const snapPoints = computed(() => {
-  const room = windowHeight.value - props.ceiling - SHEET_TOP_GAP - (parseFloat(safeBottom.value) || 0)
+  const below = windowHeight.value - props.ceiling - SHEET_TOP_GAP - (parseFloat(safeBottom.value) || 0)
+  const room = MAP_PANELS.has(shown.value) ? Math.min(below, windowHeight.value * MAP_PANEL_SHARE) : below
   return ['120px', `${Math.round(Math.max(160, Math.min(contentHeight.value, room)))}px`]
 })
 const activeSnapPoint = computed(() => snapPoints.value[expanded.value ? 1 : 0])
@@ -53,6 +56,7 @@ const activeSnapPoint = computed(() => snapPoints.value[expanded.value ? 1 : 0])
 
 <template>
   <BottomSheet
+    panel
     floating
     :class="['nav-surface', props.class]"
     :custom-snap-points="snapPoints"
@@ -65,7 +69,7 @@ const activeSnapPoint = computed(() => snapPoints.value[expanded.value ? 1 : 0])
     @update:active-snap-point-index="onSnapIndex"
   >
     <template #above>
-      <div class="transition-opacity duration-200" :class="{ 'pointer-events-none opacity-0': expanded }">
+      <div class="transition-opacity duration-200" :class="{ 'pointer-events-none opacity-0 [&_*]:pointer-events-none': expanded }">
         <slot name="above" />
         <GuidanceNotices class="pb-2 empty:hidden" />
       </div>

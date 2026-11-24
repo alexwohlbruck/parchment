@@ -449,6 +449,7 @@ defineExpose({
     <template v-if="isMobileScreen">
       <bottom-sheet
         parent-id="map"
+        panel
         :open="bottomSheetOpen"
         @update:open="onOpenChange"
         :custom-snap-points="MOBILE_SNAP_POINTS"
@@ -456,6 +457,7 @@ defineExpose({
         :active-snap-point="bottomSheetActiveSnapPoint"
         @update:active-snap-point-index="onBottomSheetSnapIndexChange"
         :dismissable="sheetMeta?.dismissable !== false"
+        :max-obstructing-snap-index="sheetMeta?.maxObstructingSnapIndex"
         show-drag-handle
         dynamic-peek
         adjust-map-padding

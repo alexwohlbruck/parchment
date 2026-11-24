@@ -1,4 +1,6 @@
+import type { FloorRequest } from '@/lib/indoor/indoor-venue'
 import type { MapRenderBudget } from '@/lib/power/power-saver'
+import type { ImagerySource } from '@/lib/imagery/imagery-stack'
 import { type CameraOptions } from 'maplibre-gl'
 import { SELECTED_MARKER_COLOR } from '@/lib/map-marker'
 import {
@@ -212,6 +214,8 @@ export class MapStrategy {
   setMapTheme(theme: MapTheme) {}
   setMapColorTheme(theme: MapColorTheme) {}
   setBasemap(basemap: Basemap) {}
+  /** The sources satellite and hybrid draw, top first. MapLibre only. */
+  setSatelliteImagery(stack: readonly ImagerySource[]) {}
   setMapStyle(styleId: MapStyleId) {}
   setHdRoads(value: boolean) {}
   /** Extreme battery saver's black, roads-only basemap. MapLibre only. */
@@ -221,6 +225,8 @@ export class MapStrategy {
   setIndoorMaps(value: boolean) {}
   /** Show another floor of the venue in focus. MapLibre only; Mapbox brings its own picker. */
   setIndoorLevel(level: number | null) {}
+  /** Show a guided step's floor until the rider picks another. MapLibre only. */
+  requestIndoorLevel(request: FloorRequest | null) {}
   setMapLanguage(locale: string): boolean {
     return false // Default: no reinitialization needed
   }

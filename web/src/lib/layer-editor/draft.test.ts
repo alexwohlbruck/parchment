@@ -4,13 +4,14 @@ import {
   layerToDraft,
   draftToConfiguration,
   draftToSourceSpec,
+  draftToLayerFields,
   validateDraft,
   withGeneratedIds,
   slugify,
   parseGeoJson,
 } from './draft'
 import { inferLayerKind } from './style-spec-catalogue'
-import { MapEngine, type Layer } from '@/types/map.types'
+import { LayerType, MapEngine, type Layer } from '@/types/map.types'
 
 /**
  * The draft is the only thing standing between a form and a style layer, so
@@ -161,6 +162,24 @@ describe('validateDraft', () => {
     expect(validateDraft(validRaster())).toEqual([])
   })
 
+  it('reads a {zoom} placeholder as {z}', () => {
+    const draft = validRaster()
+    draft.source.tiles = ['https://api.nearmap.com/tiles/v3/Vert/{zoom}/{x}/{y}.img']
+    expect(validateDraft(draft)).toEqual([])
+    expect(draftToSourceSpec(draft.source).tiles).toEqual(['https://api.nearmap.com/tiles/v3/Vert/{z}/{x}/{y}.img'])
+  })
+
+  it('accepts a tile-bounds export URL', () => {
+    const draft = validRaster()
+    draft.source.tiles = ['https://wms/export?bbox={bbox-epsg-3857}&f=image']
+    expect(validateDraft(draft)).toEqual([])
+  })
+
+  it('only lets a raster source be satellite imagery', () => {
+    const draft = { ...createLayerDraft('vector'), type: LayerType.IMAGERY }
+    expect(validateDraft(draft).map(i => i.message)).toContain('imageryNeedsRaster')
+  })
+
   it('requires a name', () => {
     const draft = validRaster()
     draft.name = '   '
@@ -298,5 +317,12 @@ describe('inferLayerKind', () => {
     expect(inferLayerKind(collection())).toBeNull()
     expect(inferLayerKind(null)).toBeNull()
     expect(inferLayerKind({ nonsense: true })).toBeNull()
+  })
+})
+
+describe('draftToLayerFields', () => {
+  it('keeps imagery out of the layer menu', () => {
+    const draft = { ...createLayerDraft('raster'), type: LayerType.IMAGERY, showInLayerSelector: true }
+    expect(draftToLayerFields(draft)).toMatchObject({ type: LayerType.IMAGERY, showInLayerSelector: false })
   })
 })

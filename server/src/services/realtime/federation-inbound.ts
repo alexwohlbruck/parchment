@@ -27,12 +27,43 @@ import { friendships } from '../../schema/friendships.schema'
 import { publish } from './event-bus.service'
 import { logger } from '../../lib/logger'
 
+const PEER_EVENT_TYPES = new Set([
+  'friendship:created',
+  'friendship:removed',
+  'friend-invitation:created',
+  'friend-invitation:cancelled',
+  'friend-invitation:rejected',
+  'share:created',
+  'share:revoked',
+  'share:role-updated',
+  'share:envelope-updated',
+  'collection:updated',
+  'collection:deleted',
+  'collection:rotated',
+  'collection:scheme-changed',
+  'encrypted-point:created',
+  'encrypted-point:updated',
+  'encrypted-point:deleted',
+  'user:profile-updated',
+])
+
+const MAX_RECIPIENTS = 200
+
 export async function handleIncomingRealtimeEvent(
   senderHandle: string,
   eventType: string,
   eventPayload: unknown,
   recipientAliases: string[],
 ): Promise<{ success: boolean; error?: string }> {
+  if (!PEER_EVENT_TYPES.has(eventType)) {
+    return { success: false, error: `Unsupported realtime event: ${eventType}` }
+  }
+  if (
+    recipientAliases.length > MAX_RECIPIENTS ||
+    !recipientAliases.every((alias) => typeof alias === 'string')
+  ) {
+    return { success: false, error: 'Invalid recipients' }
+  }
   if (recipientAliases.length === 0) return { success: true }
 
   // Resolve aliases → userIds. Missing users (alias doesn't exist here)

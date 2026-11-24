@@ -61,6 +61,7 @@ import {
 } from '../lib/directions/departure-profile'
 import { expectedMissPenaltySec } from '../lib/directions/connection-risk'
 import { waypointLocation } from '../lib/directions/street-hint'
+import { isPublicParking } from '../lib/directions/parking-access'
 
 type WalkEndpoint = Pick<Waypoint, 'location' | 'address'>
 
@@ -1306,14 +1307,6 @@ export class TripService {
   /** Maximum parking results to evaluate. */
   private static readonly PARKING_MAX_CANDIDATES = 3
   /**
-   * OSM access values that mean the public can't just park there. Excluded
-   * by default; the includePrivateParking preference opts back in.
-   */
-  private static readonly INACCESSIBLE_PARKING_ACCESS = new Set([
-    'private', 'no', 'permit', 'permit_holders', 'residents', 'resident',
-    'employees', 'staff', 'military', 'agricultural', 'forestry', 'delivery',
-  ])
-  /**
    * Max gap (m) allowed between where the drive ends and where the walk
    * begins. A larger gap means GraphHopper snapped them to opposite sides of
    * a barrier (rail tracks, a highway) — the lot isn't actually walkable to
@@ -1901,14 +1894,7 @@ export class TripService {
         if (!p.geometry?.value?.center?.lat || !p.geometry?.value?.center?.lng) {
           return false
         }
-        // Car parking: drop lots the public can't use, unless opted in.
-        if (category === 'amenity/parking' && !includePrivate) {
-          const access = p.tags?.['access']
-          if (access && TripService.INACCESSIBLE_PARKING_ACCESS.has(access)) {
-            return false
-          }
-        }
-        return true
+        return category !== 'amenity/parking' || includePrivate || isPublicParking(p.tags)
       })
     } catch (error) {
       logError(`Parking search (${category}) failed`, error)

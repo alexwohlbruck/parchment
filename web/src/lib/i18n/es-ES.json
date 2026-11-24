@@ -207,6 +207,7 @@
       "search": {
         "name": "Buscar lugares",
         "description": "Buscar lugares, negocios y servicios",
+        "bookmarked": "Guardado",
         "arguments": {
           "places": {
             "name": "Lugares"
@@ -747,6 +748,7 @@
     },
     "editor": {
       "newTitle": "Nueva capa",
+      "newImageryTitle": "Nueva fuente de imágenes",
       "editTitle": "Editar capa",
       "namePlaceholder": "Nombre de la capa",
       "layerType": "Dibujar como",
@@ -831,6 +833,8 @@
       "options": {
         "showInSelectorHint": "Mostrar esta capa en el menú de capas del mapa.",
         "fadeBasemapHint": "Atenuar el mapa base mientras esta capa está activa.",
+        "imagery": "Imágenes de satélite",
+        "imageryHint": "Dibujarla bajo el mapa satélite en lugar de como capa superpuesta.",
         "filter": "Filtro",
         "filterHint": "Una expresión de estilo. Solo se dibujan los elementos que coincidan.",
         "rawLayer": "JSON de paint y layout",
@@ -863,7 +867,8 @@
         "nameRequired": "Ponle un nombre a la capa.",
         "urlRequired": "Se necesita una URL.",
         "tilesRequired": "Añade al menos una URL de teselas.",
-        "tileTemplate": "Las URLs de teselas necesitan {z}, {x} e {y}.",
+        "tileTemplate": "Las URLs de teselas necesitan {'{z}'}, {'{x}'} e {'{y}'}.",
+        "imageryNeedsRaster": "Las imágenes de satélite deben ser una fuente ráster.",
         "sourceLayerRequired": "Las capas vectoriales necesitan una capa de origen.",
         "invalidGeoJson": "Eso no es GeoJSON válido.",
         "cornersRequired": "Una imagen necesita cuatro coordenadas de esquina.",
@@ -1077,6 +1082,12 @@
       }
     },
     "refresh": "Actualizar",
+    "view": {
+      "title": "Vista",
+      "timeline": "Cronología",
+      "list": "Lista",
+      "group": "Agrupar por tipo de viaje"
+    },
     "station": {
       "transfer": {
         "crossPlatform": "Mismo andén",
@@ -1100,6 +1111,11 @@
         "back": "Camina hasta la parte trasera del andén"
       },
       "saves": "ahorra {duration}",
+      "for": {
+        "exit": "para salir por {name}",
+        "transfer": "para el {name}"
+      },
+      "waitWalk": "Tienes {duration}, camina hasta la parte {section} del andén",
       "insideStation": "Dentro de la estación",
       "steps": "{n} paso | {n} pasos",
       "levelUp": "Sube {n} nivel | Sube {n} niveles",
@@ -1465,30 +1481,31 @@
     "today": "Hoy",
     "thisWeek": "Esta semana",
     "thisMonth": "Este mes",
-    "selectDate": "Seleccionar fecha",
-    "customRange": "Rango personalizado",
-    "singleDay": "Un día",
-    "startTime": "Inicio",
-    "endTime": "Fin",
     "noEvents": "No hay historial de ubicación para este rango",
     "loadFailed": "No se pudo cargar la cronología",
-    "stop": "Parada",
     "unnamedStop": "Ubicación sin nombre",
-    "duration": "{duration}",
-    "timeRange": "{start} – {end}",
-    "modeUnknown": "Viaje",
     "noIntegration": {
       "title": "Conecta un rastreador de ubicación",
       "description": "Configura una integración de historial de ubicación para ver tu cronología.",
       "details": "Tu configuración está cifrada de extremo a extremo — tus credenciales nunca salen de tu dispositivo sin cifrar.",
       "configure": "Configurar integración"
     },
+    "checkIntegration": "Revisa tu integración de historial de ubicaciones en Ajustes",
+    "yesterday": "Ayer",
+    "previous": "Anterior",
+    "next": "Siguiente",
     "stats": {
-      "totalDistance": "{distance} km",
-      "totalStops": "{n} parada | {n} paradas",
-      "dailyDistance": "Distancia diaria"
+      "places": "Lugares",
+      "distance": "Distancia",
+      "moving": "En movimiento"
     },
-    "checkIntegration": "Revisa tu integración de historial de ubicaciones en Ajustes"
+    "placeCount": "{n} lugar | {n} lugares",
+    "modes": {
+      "driving": "Condujiste {distance}",
+      "cycling": "Pedaleaste {distance}",
+      "walking": "Caminaste {distance}",
+      "transit": "Viajaste en transporte {distance}"
+    }
   },
   "friends": {
     "title": "Amigos",
@@ -1500,6 +1517,7 @@
     "cancel": "Cancelar",
     "done": "Listo",
     "locationSharing": "Compartir ubicación",
+    "remoteLocationUnavailable": "Aún no disponible con amigos de otros servidores",
     "countOne": "{n} amigo",
     "countMany": "{n} amigos",
     "invitations": {
@@ -1546,6 +1564,7 @@
       "setupDescription": "Configura tu identidad federada para conectar con amigos y compartir datos de forma segura entre servidores de Parchment.",
       "importButton": "Importar clave de recuperación",
       "importDescription": "Tu identidad existe en este servidor, pero necesitas importar tu clave de recuperación para usarla en este dispositivo.",
+      "unavailableDescription": "No se pudo cargar tu identidad. Revisa tu conexión e inténtalo de nuevo.",
       "recoveryKey": "Clave de recuperación",
       "recoveryKeyDescription": "Ver tu clave de recuperación para respaldo",
       "viewKey": "Ver clave",
@@ -1566,7 +1585,8 @@
       "warning": {
         "keepOpen": "Mantén esta pestaña abierta hasta que termine.",
         "tapEach": "Cualquier clave de acceso que no toques antes de finalizar no funcionará para recuperación después — ten al menos una clave de acceso o tu clave de recuperación a mano.",
-        "failsSafe": "Si la rotación falla a mitad, nada cambia en el servidor."
+        "failsSafe": "Si la rotación falla a mitad, nada cambia en el servidor.",
+        "newRecoveryKey": "Recibirás una nueva clave de recuperación al final. La anterior deja de funcionar."
       },
       "action": "Rotar claves",
       "runningTitle": "Rotando claves",
@@ -1577,7 +1597,10 @@
       "failedTitle": "La rotación falló",
       "failedFallback": "La rotación falló",
       "close": "Cerrar",
-      "slotWarning": "La clave de acceso {id}… no se volvió a asegurar ({reason}). Ya no funcionará para recuperación — elimínala y agrégala de nuevo.",
+      "recoveryKeyTitle": "Guarda tu nueva clave de recuperación",
+      "recoveryKeyDescription": "Tu clave de recuperación anterior deja de funcionar al terminar. Guarda esta en un lugar seguro.",
+      "recoveryKeySaved": "Ya la guardé",
+      "slotWarning": "La clave de acceso {id}… no se pudo volver a asegurar ({reason}), así que ya no puede desbloquear tus claves. Elimínala y agrégala de nuevo.",
       "unknownReason": "desconocido",
       "progress": {
         "preparing": "Preparando…",
@@ -1588,6 +1611,7 @@
         "resealingSlot": "Toca tu clave de acceso para volver a asegurar el slot {index} de {total}",
         "committing": "Finalizando — guardando todo a la vez…",
         "storingSeed": "Actualizando este dispositivo…",
+        "confirmingRecoveryKey": "Esperando a que guardes tu nueva clave de recuperación",
         "done": "Hecho — ahora en la versión de clave {version}"
       }
     },
@@ -1665,7 +1689,16 @@
       "syncKeys": "Sincronizar claves",
       "syncingKeys": "Sincronizando claves…",
       "keysSynced": "Claves sincronizadas",
-      "syncFailed": "No se pudieron sincronizar las claves"
+      "syncFailed": "No se pudieron sincronizar las claves",
+      "keyChangedTitle": "Las claves de {name} cambiaron",
+      "keyChangedDescription": "Su teléfono, o alguien que se hace pasar por esa persona, tiene claves nuevas. No se comparte nada hasta que compares este número con el suyo.",
+      "safetyNumber": "Número de seguridad",
+      "safetyNumberDescription": "Coincide con el número del teléfono de {name} si tu conexión es segura.",
+      "trustNewKeys": "Los números coinciden",
+      "markVerified": "Marcar como verificado",
+      "verified": "Verificado",
+      "keysTrusted": "Claves de confianza",
+      "loadFailed": "No se pudo cargar este amigo"
     }
   },
   "dashboard": {
@@ -1806,7 +1839,9 @@
       "show": "Mostrar opciones del viaje",
       "hide": "Ocultar opciones del viaje",
       "destination": "Destino",
-      "alongTheWay": "En el camino"
+      "alongTheWay": "En el camino",
+      "parking": "Buscar estacionamiento",
+      "docks": "Otras estaciones"
     },
     "arrival": {
       "destination": "Tu destino",
@@ -2276,6 +2311,14 @@
         "board": "Sube al {line}",
         "boardToward": "Sube al {line} hacia {headsign}",
         "boardSigned": "Sube al {line}, {direction}",
+        "boardNear": "Sube por la parte {section}",
+        "boardNearFor": "Sube por la parte {section} para {target}",
+        "waitWalk": "Tienes {duration}, camina hasta la parte {section} del andén",
+        "waitWalkFor": "Tienes {duration}, camina hasta la parte {section} del andén para {target}",
+        "target": {
+          "exit": "la salida de {name}",
+          "transfer": "el {name}"
+        },
         "alight-next": "Bájate en la próxima parada, {stop}",
         "alight-now": "Bájate en {stop}",
         "missed-vehicle": "El {line} ya salió. Toma el siguiente o busca otra ruta",
@@ -2337,7 +2380,8 @@
         "next": "Siguiente",
         "done": "Listo",
         "stepOf": "{n}/{total}",
-        "advancesIn": "siguiente en {duration}"
+        "advancesIn": "siguiente en {duration}",
+        "left": "faltan {distance}"
       }
     },
     "ahead": {
@@ -2376,7 +2420,17 @@
       "keep": "Mantener",
       "voice": {
         "switched": "Cambiando a {station}"
-      }
+      },
+      "pick": {
+        "dock": "Dónde dejarla",
+        "bike": "Dónde recogerla"
+      },
+      "none": {
+        "dock": "No hay anclajes libres cerca",
+        "bike": "No hay bicis cerca"
+      },
+      "goTo": "Ir a {station}",
+      "failed": "No se pudo calcular la ruta a esa estación"
     },
     "alternatives": {
       "faster": "{duration} más rápido",
@@ -2472,6 +2526,37 @@
         "pickup": "Pickup",
         "bike": "Bici"
       }
+    },
+    "parking": {
+      "find": "Buscar",
+      "dismiss": "Ahora no",
+      "paid": "De pago",
+      "free": "Gratis",
+      "unavailable": "La búsqueda de estacionamiento no está disponible ahora",
+      "failed": "No se pudo trazar la ruta a ese estacionamiento",
+      "kinds": {
+        "garage": "Garaje",
+        "underground": "Garaje subterráneo",
+        "street": "En la calle",
+        "lot": "Estacionamiento",
+        "rack": "Aparcabicis",
+        "lockers": "Taquillas para bicis",
+        "shelter": "Aparcabicis cubierto"
+      },
+      "car": {
+        "near": "Estacionamiento cerca de {place}",
+        "nearby": "Estacionamiento cerca de tu destino",
+        "empty": "No hay estacionamiento público cerca"
+      },
+      "bike": {
+        "near": "Aparcabicis cerca de {place}",
+        "nearby": "Aparcabicis cerca de tu destino",
+        "empty": "No hay aparcabicis cerca"
+      }
+    },
+    "pick": {
+      "minutes": "{n} min",
+      "walk": "a pie"
     }
   },
   "attribution": {
@@ -2868,7 +2953,14 @@
           "confirmDescription": "Esto borra permanentemente todos tus datos cifrados en esta cuenta — lugares guardados, colecciones, amigos y ajustes de compartición. Tu correo y claves de acceso permanecen, así que puedes seguir iniciando sesión. Esto no se puede deshacer.",
           "typePromptTitle": "Escribe RESET para confirmar",
           "typePromptLabel": "Confirmación",
-          "failedFallback": "Error al restablecer. Por favor, inténtalo de nuevo."
+          "failedFallback": "Error al restablecer. Por favor, inténtalo de nuevo.",
+          "verifyTitle": "Confirma que eres tú",
+          "verifyPasskeyDescription": "Usa tu llave de acceso para borrar tus datos cifrados",
+          "verifyEmailDescription": "Introduce el código de 8 dígitos que te enviamos por correo",
+          "usePasskey": "Usar llave de acceso",
+          "emailInstead": "Enviarme un código por correo",
+          "eraseAction": "Borrar y restablecer",
+          "verifyFailed": "No pudimos confirmar que eres tú. Inténtalo de nuevo"
         },
         "view": {
           "title": "Tu clave de recuperación",
@@ -3210,6 +3302,14 @@
         "poiStyle": "Iconos de lugares",
         "poiStyleBadge": "Insignias de color",
         "poiStyleGlyph": "Solo iconos",
+        "imagery": {
+          "title": "Imágenes de satélite",
+          "description": "Las de arriba tienen prioridad; las de abajo rellenan los huecos",
+          "add": "Añadir",
+          "create": "Nueva fuente…",
+          "remove": "Quitar",
+          "empty": "Sin fuentes, el satélite muestra un mapa vacío"
+        },
         "descriptionMaplibre": "Estilo visual del mapa",
         "descriptionMapbox": "Mapbox usa su propio estilo estándar",
         "placeholder": "Elige un estilo"
@@ -3393,6 +3493,7 @@
         "dawarich": "Conecta tu instancia autoalojada de Dawarich — cifrada en tu dispositivo",
         "openaq": "Datos abiertos de calidad del aire de estaciones de monitoreo terrestres",
         "firms": "Detecciones de incendios activos por satélite (VIIRS/MODIS)",
+        "esri": "World Imagery para el mapa satélite",
         "quackback": "Tableros de comentarios, votaciones y hoja de ruta para el formulario de comentarios",
         "openrouter": "El modelo de lenguaje detrás de Preguntar"
       },
@@ -3494,6 +3595,11 @@
       "usage": {
         "title": "Este mes"
       }
+    },
+    "sync": {
+      "title": "Dónde se guarda este ajuste",
+      "synced": "Todos tus dispositivos",
+      "deviceOnly": "Solo este dispositivo"
     }
   },
   "notes": {
@@ -3565,13 +3671,16 @@
     "errors": {
       "loadFailed": "No se pudieron cargar los recursos compartidos",
       "createFailed": "No se pudo compartir",
+      "notFriends": "Solo puedes compartir con tus amigos",
       "revokeFailed": "No se pudo eliminar el acceso",
       "roleChangeFailed": "No se pudo cambiar el rol",
       "publicLinkFailed": "No se pudo crear el enlace público",
       "publicLinkRevokeFailed": "No se pudo revocar el enlace público",
       "copyFailed": "Error al copiar — selecciona y copia el enlace manualmente",
       "identityRequired": "Configura tus claves de cifrado en Ajustes antes de compartir",
-      "missingFriendKey": "Las claves de este amigo aún no están sincronizadas; inténtalo en un momento"
+      "missingFriendKey": "Las claves de este amigo aún no están sincronizadas; inténtalo en un momento",
+      "remainingKeysMissing": "No se puede quitar el acceso hasta que se sincronicen las claves de los demás; inténtalo en un momento",
+      "friendKeysChanged": "Las claves de {name} cambiaron. Revísalas en su perfil antes de compartir"
     },
     "removeAction": "Quitar a {name}"
   },

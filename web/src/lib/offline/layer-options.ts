@@ -26,10 +26,17 @@ export interface StyleSourceSpec {
   bounds?: number[]
 }
 
+/** Our proxies to the same providers. */
+const NO_BULK_PROXIES = /\/proxy\/(esri|google)\//
+
 function allowsBulk(template: string): boolean {
   try {
     const url = new URL(template)
-    return /^https?:$/.test(url.protocol) && !NO_BULK_HOSTS.test(url.hostname)
+    return (
+      /^https?:$/.test(url.protocol) &&
+      !NO_BULK_HOSTS.test(url.hostname) &&
+      !NO_BULK_PROXIES.test(url.pathname)
+    )
   } catch {
     return false
   }

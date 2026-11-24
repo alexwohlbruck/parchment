@@ -53,7 +53,7 @@ describe('styles', () => {
   })
 
   test('hybrid keeps the globe names over the imagery, but none of its fills', () => {
-    const style = buildSatelliteStyle({ ...options, hybrid: true }) as any
+    const style = buildSatelliteStyle({ ...options, hybrid: true, imagery: [] }) as any
     const globe = style.layers.filter((l: any) => l.source === GLOBE_SOURCE)
     expect(globe.length).toBeGreaterThan(0)
     expect(globe.every((l: any) => l.type === 'symbol' && l['source-layer'] === GLOBE_NAMES)).toBe(true)

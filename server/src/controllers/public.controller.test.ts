@@ -84,6 +84,17 @@ describe('GET /public/collections/:token', () => {
     expect(res.body.bookmarks).toEqual([{ id: 'bm-1' }])
   })
 
+  test('does not reveal who added each place', async () => {
+    getPublicCollectionByToken.mockImplementationOnce(async () => ({
+      collection: collectionRow,
+      bookmarks: [{ id: 'bm-1', userId: 'contributor' }],
+    }))
+
+    const res = await req(app).get('/public/collections/tok-1')
+
+    expect(res.body.bookmarks).toEqual([{ id: 'bm-1' }])
+  })
+
   test('exposes exactly the allowlisted collection fields', async () => {
     const res = await req(app).get('/public/collections/tok-1')
 

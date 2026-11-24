@@ -256,7 +256,7 @@ describe('GET /device-transfer/:id', () => {
       sealedSeed: 'sealed',
       senderSignature: 'sig',
     })
-    expect(dbMock.updated[0]).toEqual({ consumed: true })
+    expect(dbMock.updated[0]).toEqual({ consumed: true, sealedSeed: null, senderSignature: null })
   })
 
   test('425s while the sender has not uploaded yet, so the receiver polls', async () => {
@@ -314,12 +314,17 @@ describe('GET /device-transfer/:id', () => {
 })
 
 describe('DELETE /device-transfer/:id', () => {
-  test('cancels the session', async () => {
+  test('empties the session but keeps it counting toward the hourly limit', async () => {
     const res = await req(app).delete('/device-transfer/session-1')
 
     expect(res.status).toBe(200)
     expect(res.body).toEqual({ success: true })
-    expect(dbMock.deleteCount).toBe(1)
+    expect(dbMock.deleteCount).toBe(0)
+    expect(dbMock.updated[0]).toMatchObject({
+      consumed: true,
+      sealedSeed: null,
+      senderSignature: null,
+    })
   })
 
   test('reports success even when nothing matched', async () => {
@@ -330,10 +335,11 @@ describe('DELETE /device-transfer/:id', () => {
 })
 
 describe('POST /device-transfer/sweep', () => {
-  test('deletes expired sessions', async () => {
+  test('empties expired sessions and deletes only rows past the rate window', async () => {
     const res = await req(app).post('/device-transfer/sweep')
 
     expect(res.status).toBe(200)
+    expect(dbMock.updated[0]).toEqual({ sealedSeed: null, senderSignature: null })
     expect(dbMock.deleteCount).toBe(1)
   })
 

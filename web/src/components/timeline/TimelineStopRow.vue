@@ -2,58 +2,48 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import dayjs from 'dayjs'
-import duration from 'dayjs/plugin/duration'
-import localizedFormat from 'dayjs/plugin/localizedFormat'
 import type { LocationHistoryStop } from '@server/types/location-history.types'
-
-dayjs.extend(duration)
-dayjs.extend(localizedFormat)
+import { formatDurationCompact } from '@/lib/time-format'
 
 const props = defineProps<{
   stop: LocationHistoryStop
-  isLast?: boolean
+  /** YYYY-MM-DD of the day this row is listed under. */
+  day: string
 }>()
 
 const emit = defineEmits<{
-  (e: 'select', stop: LocationHistoryStop): void
+  select: [stop: LocationHistoryStop]
 }>()
 
 const { t } = useI18n()
 
-const timeLabel = computed(() =>
-  dayjs(props.stop.startTime).format('h:mm A'),
-)
-
-const durationLabel = computed(() => {
-  const totalMin = Math.max(1, Math.round(props.stop.duration / 60))
-  if (totalMin < 60) return `${totalMin}m`
-  const hours = Math.floor(totalMin / 60)
-  const min = totalMin % 60
-  return min === 0 ? `${hours}h` : `${hours}h ${min}m`
+const timeRange = computed(() => {
+  const start = dayjs(props.stop.startTime)
+  const startFormat = start.format('YYYY-MM-DD') === props.day ? 'h:mm A' : 'ddd h:mm A'
+  return `${start.format(startFormat)} – ${dayjs(props.stop.endTime).format('h:mm A')}`
 })
 
 const displayName = computed(
   () => props.stop.name?.trim() || t('timeline.unnamedStop'),
 )
-
-const category = computed(() => props.stop.category ?? null)
 </script>
 
 <template>
-  <div
-    class="tl-event group cursor-pointer"
-    :class="{ 'is-last': isLast }"
-    data-kind="place"
-    @click="emit('select', stop)"
-  >
-    <div class="time">{{ timeLabel }}</div>
-    <div class="title">{{ displayName }}</div>
-    <div class="meta">
-      <span>{{ durationLabel }}</span>
-      <template v-if="category">
-        <span class="dot" />
-        <span>{{ category }}</span>
-      </template>
-    </div>
-  </div>
+  <li class="relative pl-6">
+    <span class="absolute left-0 top-2 flex size-5 items-center justify-center" aria-hidden="true">
+      <span class="size-2.5 rounded-full bg-primary ring-4 ring-background" />
+    </span>
+    <button
+      type="button"
+      class="w-full text-left px-2 py-2 rounded-md hover:bg-muted/70 transition-colors"
+      @click="emit('select', stop)"
+    >
+      <div class="text-sm font-medium text-foreground leading-snug truncate">
+        {{ displayName }}
+      </div>
+      <div class="text-xs text-muted-foreground tabular-nums mt-0.5">
+        {{ timeRange }} · {{ formatDurationCompact(stop.duration) }}
+      </div>
+    </button>
+  </li>
 </template>

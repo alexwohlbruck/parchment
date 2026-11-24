@@ -20,6 +20,7 @@ vi.mock('vue-i18n', () => ({
 vi.mock('@/lib/directions/travel-mode-icons', () => ({
   getSegmentIcon: () => ({ template: '<i class="seg-icon" />' }),
   getModeIcon: () => ({ template: '<i class="mode-icon" />' }),
+  getTripTypeIcon: () => ({ template: '<i class="mode-icon" />' }),
 }))
 vi.mock('@/lib/directions/travel-mode-colors', () => ({
   getTravelModeCssClass: (m: string) => `mode-${m}`,

@@ -1,6 +1,9 @@
 import { api } from '@/lib/api'
 import type { LngLat } from '@/types/map.types'
 import type { DockNeed } from '@/lib/guidance/dock-watch'
+import type { DockAlternative } from '@server/lib/dock-alternatives'
+
+export type { DockAlternative }
 
 export interface StationStatus {
   stationId: string
@@ -9,13 +12,6 @@ export interface StationStatus {
   docks: number
 }
 
-export interface DockAlternative {
-  stationId: string
-  name: string
-  location: LngLat
-  available: number
-  fromOriginal: number
-}
 
 const STATION_RADIUS_METERS = 60
 

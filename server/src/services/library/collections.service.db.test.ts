@@ -23,6 +23,7 @@ import {
   bookmarksCollections,
 } from '../../schema/library.schema'
 import { shares, incomingShares } from '../../schema/shares.schema'
+import { friendships } from '../../schema/friendships.schema'
 import { generateId } from '../../util'
 import { buildHandle } from '../federation.service'
 import * as sharingService from '../sharing.service'
@@ -178,6 +179,15 @@ async function shareWith(
   collectionId: string,
   role: 'viewer' | 'editor',
 ) {
+  await db
+    .insert(friendships)
+    .values({
+      id: generateId(),
+      userId: ownerId,
+      friendHandle: recipientHandle,
+      status: 'accepted',
+    })
+    .onConflictDoNothing()
   return await sharingService.createShare({
     userId: ownerId,
     recipientHandle,

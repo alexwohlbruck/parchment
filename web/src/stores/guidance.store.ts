@@ -12,7 +12,8 @@ import { segmentAt, smoothedBearingAt } from '@/lib/guidance/nav-route'
 import { cardinal, TurnAroundWatch, type Cardinal } from '@/lib/guidance/turn-around'
 import { travellerHeading } from '@/lib/directions/start-motion'
 import { useOrientationService } from '@/services/orientation.service'
-import { adoptItinerary, rerouteOrigin, spliceReroute, splitAtStop, type AddedStop } from '@/lib/guidance/reroute'
+import { adoptItinerary, parkAndWalk, rerouteOrigin, spliceReroute, splitAtStop, type AddedStop } from '@/lib/guidance/reroute'
+import { PARKING, parkingDestination } from '@/lib/guidance/parking'
 import { switchStation, type StationSwitch } from '@/lib/guidance/dock-watch'
 import { joinPlan, type JoinPlan } from '@/lib/guidance/start-eligibility'
 import type { LanePlan } from '@/lib/guidance/lanes'
@@ -45,6 +46,7 @@ import { getRouteTypeKey } from '@/lib/transit/transit'
 import { nextRunAfter, type LineRun } from '@/services/transit/transit-departures.service'
 import { guidanceClock } from '@/services/guidance/guidance-clock'
 import { announcementText } from '@/lib/guidance/phrases'
+import { boardingTarget, waitWalkSeconds } from '@/lib/transit/station/boarding'
 import { travelModeAt } from '@/lib/guidance/guidance-display'
 import { speak, releaseSpeech, unlockSpeech, stopSpeech } from '@/services/speech/speech.service'
 import { navigationSpeechRate, speechDuration } from '@/lib/guidance/speech-rate'
@@ -73,15 +75,10 @@ import {
   type FreeMode,
 } from '@/lib/guidance/free-roam'
 import { DEFAULT_VEHICLE_PREFERENCES, vehicleChoice, type PuckMode, type VehicleChoice } from '@/lib/guidance/vehicle-indicator'
-import {
-  advanceGuide,
-  autoAdvance,
-  startGuide,
-  stationGuideTarget,
-  type StationGuideState,
-  type StationGuideTarget,
-} from '@/lib/guidance/station-guide'
-import type { GuidedSegment } from '@/lib/transit/station/station-walks'
+import { stationGuideTarget, type StationGuideTarget } from '@/lib/guidance/station-guide'
+import { advanceProgress, startProgress, updateProgress, type StationProgress, type StationReading } from '@/lib/guidance/station-progress'
+import { DEFAULT_STRIDE } from '@/lib/guidance/pedometer'
+import { stationStepText, type GuidedSegment } from '@/lib/transit/station/station-walks'
 
 // The typed `i18n.global.t` overloads exceed TS's instantiation depth here.
 const translate = (i18n.global as any).t as (key: string, named?: Record<string, unknown>) => string
@@ -95,6 +92,8 @@ const HORIZON_RETRY_MS = 10_000
 const ODOMETER_MIN_SPEED = 0.5
 /** No fix for this long: the traveller can't be seen, as underground. */
 const OUT_OF_SIGHT_MS = 30_000
+/** Motion older than this, seconds, is no longer the rider's. */
+const MOTION_FRESH_SEC = 2
 /** A destination this close to the saved home is home. */
 const HOME_RADIUS_METERS = 75
 
@@ -159,8 +158,10 @@ export const useGuidanceStore = defineStore('guidance', () => {
   let slowSec = 0
   const transit = shallowRef<TransitStage | null>(null)
   /** Step-by-step through a station, where GPS can't follow. */
-  const stationGuide = shallowRef<{ target: StationGuideTarget; state: StationGuideState } | null>(null)
+  const stationGuide = shallowRef<{ target: StationGuideTarget; state: StationProgress } | null>(null)
   let finishedGuides = new Set<string>()
+  /** Wall-clock second the station guide last counted steps to. */
+  let stationStepsTo: number | null = null
   let rides: (RideStop[] | null)[] = []
   /** Transit events already spoken, keyed by segment and event. */
   let spokenTransit = new Set<string>()
@@ -394,7 +395,11 @@ export const useGuidanceStore = defineStore('guidance', () => {
     spokenTransit.add(key)
     const segment = segments.value[stage.segmentIndex]
     const stop = stage.kind === 'riding' || stage.kind === 'missed-stop' ? stage.alight : stage.stop
-    announce({ kind: 'transit', event, line: segment?.lineName ?? '', headsign: segment?.headsign, direction: segment?.directionLabel, stop }, puck.s)
+    const position = segment?.boardingPosition
+    const boarding = stage.kind === 'wait' && position
+      ? { section: position.section, target: boardingTarget(position), waitSeconds: waitWalkSeconds(position, stage.departureMs, nowMs) }
+      : undefined
+    announce({ kind: 'transit', event, line: segment?.lineName ?? '', headsign: segment?.headsign, direction: segment?.directionLabel, stop, boarding }, puck.s)
     if (event === 'alight-now' || event.startsWith('missed')) void hapticImpact('heavy')
   }
 
@@ -407,16 +412,44 @@ export const useGuidanceStore = defineStore('guidance', () => {
       return
     }
     const nowMs = guidanceClock.now()
-    const state = shown?.target.key === target.key ? autoAdvance(shown.state, target, nowMs) : startGuide(target, nowMs)
-    if (state !== shown?.state) stationGuide.value = { target, state }
+    const current = shown?.target.key === target.key ? shown.state : null
+    if (!current) stationStepsTo = null
+    const state = updateProgress(current ?? startProgress(target, nowMs), target, stationReading(nowMs))
+    showStationStep(target, state, puck.s)
+  }
+
+  /** What the motion sensors and barometer have sensed since the last reading. */
+  function stationReading(nowMs: number): StationReading {
+    const t = Date.now() / 1000
+    const from = stationStepsTo ?? t
+    stationStepsTo = t
+    const diagnostics = guidanceEngine.diagnostics
+    const sensing = diagnostics?.motionAt != null && t - diagnostics.motionAt <= MOTION_FRESH_SEC
+    const pressure = diagnostics?.pressure && t - diagnostics.pressure.t <= MOTION_FRESH_SEC ? diagnostics.pressure.hPa : null
+    return {
+      nowMs,
+      steps: sensing ? guidanceEngine.stepsBetween(from, t) : null,
+      stride: diagnostics?.stride ?? DEFAULT_STRIDE,
+      still: sensing ? diagnostics.sensorStill : null,
+      pressure,
+    }
+  }
+
+  /** Shows the station step reached, reading it aloud when it is a new one. */
+  function showStationStep(target: StationGuideTarget, state: StationProgress, s: number) {
+    const shown = stationGuide.value
+    if (shown?.target.key !== target.key || shown.state.step !== state.step) {
+      announce({ kind: 'station-step', text: stationStepText(target.walk.steps, state.step, target.spot, translate) }, s)
+    }
+    stationGuide.value = { target, state }
   }
 
   /** The rider has done the station step shown. */
   function nextStationStep() {
     const shown = stationGuide.value
     if (!shown) return
-    const state = advanceGuide(shown.state, shown.target, guidanceClock.now())
-    if (state) stationGuide.value = { ...shown, state }
+    const state = advanceProgress(shown.state, shown.target, guidanceClock.now())
+    if (state) showStationStep(shown.target, state, progress.value?.puck.s ?? 0)
     else {
       finishedGuides.add(shown.target.key)
       stationGuide.value = null
@@ -860,6 +893,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     lastStage = null
     stationGuide.value = null
     finishedGuides = new Set()
+    stationStepsTo = null
     furthestS = 0
     leaveRide()
     turnAroundWatch = new TurnAroundWatch()
@@ -899,6 +933,23 @@ export const useGuidanceStore = defineStore('guidance', () => {
     continuation.value = [...split.continuation, ...(continuation.value ?? [])]
     guidanceEngine.setRoute(follow(split.leg))
     passedSegments.value = passed
+    return true
+  }
+
+  /** Ends the current drive at `lot` and walks the rest of the way. */
+  async function parkAt(lot: AddedStop): Promise<boolean> {
+    const navRoute = route.value
+    const puck = guidanceEngine.sample()
+    if (!navRoute || !puck) return false
+    const index = segmentAt(navRoute, puck.s)?.index ?? 0
+    const target = parkingDestination(segments.value, index)
+    if (!target) return false
+    const [toLot, walk] = await Promise.all([
+      requestReroute({ position: rerouteOrigin(puck.position, puck.bearing, puck.speed), heading: puck.bearing, speed: puck.speed, destination: lot.location, mode: PARKING[target.vehicle].rideMode }),
+      requestReroute({ position: lot.location, heading: null, destination: target.location, mode: 'walking' }),
+    ])
+    if (!toLot || !walk || route.value !== navRoute) return false
+    reshape(parkAndWalk(segments.value, index, toLot, walk, lot), index)
     return true
   }
 
@@ -995,6 +1046,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     askWhichVehicle,
     clockMs,
     addStop,
+    parkAt,
     switchDock,
     lanePlans,
     setLanePlan,

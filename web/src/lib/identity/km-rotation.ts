@@ -7,23 +7,20 @@
  *      (In-memory — not uploaded yet.)
  *   3. Re-encrypt every collection's metadata envelope, and every private
  *      collection's points, under the NEW per-collection key. (In-memory.)
- *   4. Re-seal K_m into every existing passkey-PRF slot. One biometric
- *      tap per slot, each scoped to that slot's credentialId (server
- *      restricts `allowCredentials` so the user can't accidentally tap
- *      the wrong passkey).
- *   5. Single atomic POST to `/users/me/km-version/commit` with the
- *      full post-rotation state + expectedCurrent (CAS). Server
- *      applies everything inside one DB transaction — on conflict
- *      (409) NOTHING is written. No partial state possible.
- *   6. On success, replace the locally-stored seed.
+ *   4. Re-encrypt every route and canvas (metadata and private bodies).
+ *   5. Re-seal share envelopes, both the user's own private collections
+ *      shared with others and collections shared with the user, since
+ *      both are bound to the old encryption key.
+ *   6. Re-seal K_m into every existing passkey-PRF slot. One biometric
+ *      tap per slot, each scoped to that slot's credentialId.
+ *   7. Show the new recovery key and wait for the user to confirm it.
+ *   8. Single atomic POST to `/users/me/km-version/commit` with the
+ *      full post-rotation state + expectedCurrent (CAS). The server
+ *      refuses a commit that misses any seed-derived record.
+ *   9. On success, replace the locally-stored seed.
  *
- * The atomic commit replaces the previous sequential-PUT approach that
- * could leave the server holding the loser's public keys + mixed data
- * if the CAS lost the race.
- *
- * Out of scope for this pass: per-canvas metadata. Canvas UI isn't wired
- * yet, so there's nothing for users to lose when we skip canvas re-
- * encryption here. Wire it in alongside the canvas feature.
+ * Anything that won't decrypt under the old seed aborts the rotation:
+ * once the old seed is gone, a skipped record is lost for good.
  */
 
 import { api } from '@/lib/api'
@@ -31,7 +28,10 @@ import {
   generateSeed,
   deriveAllKeys,
   derivePersonalKey,
+  deriveCollectionKey,
   exportPublicKey,
+  exportRecoveryKey,
+  importPublicKey,
   PERSONAL_KEY_CONTEXT,
   type DerivedKeys,
 } from '@/lib/identity/federation-crypto'
@@ -45,13 +45,26 @@ import {
   decryptCollectionMetadata,
   encryptCollectionPoint,
   decryptCollectionPoint,
+  encryptRouteMetadata,
+  decryptRouteMetadata,
+  encryptRouteBody,
+  decryptRouteBody,
+  encryptCanvasMetadata,
+  decryptCanvasMetadata,
+  encryptCanvasBody,
+  decryptCanvasBody,
 } from '@/lib/identity/library-crypto'
+import {
+  openCollectionShare,
+  sealCollectionShare,
+} from '@/lib/identity/collection-share'
 import {
   buildWrappedKmSlot,
   type WrappedKmSlot,
 } from '@/lib/identity/passkey-prf'
 import { extractPrfOutputFromAssertion } from '@/lib/identity/passkey-prf-support'
 import { storeSeed } from '@/lib/identity/key-storage'
+import { keepPinsAcrossSeedChange } from '@/lib/identity/key-pinning'
 
 interface BlobListEntry {
   blobType: string
@@ -72,6 +85,38 @@ interface ServerCollection {
   metadataKeyVersion: number
 }
 
+interface ServerSealedRecord {
+  id: string
+  metadataEncrypted?: string | null
+  bodyEncrypted?: string | null
+}
+
+interface ServerOutgoingShare {
+  id: string
+  recipientHandle: string
+  recipientUserId: string | null
+  resourceType: string
+  resourceId: string
+  status: string
+}
+
+interface ServerIncomingShare {
+  id: string
+  senderHandle: string
+  resourceType: string
+  encryptedData: string
+  nonce: string
+  status: string
+}
+
+interface PreparedEnvelope {
+  id: string
+  encryptedData: string
+  nonce: string
+}
+
+const LIVE_SHARE_STATUSES = new Set(['pending', 'accepted'])
+
 /**
  * Lifecycle events for the UI to render a progress indicator.
  */
@@ -91,6 +136,7 @@ export type RotationPhase =
       index: number
       total: number
     }
+  | { kind: 'confirming-recovery-key' }
   | { kind: 'committing' }
   | { kind: 'storing-seed' }
   | { kind: 'done'; newKmVersion: number }
@@ -102,6 +148,21 @@ export class RotationConflictError extends Error {
         'device picks up the latest keys, then try again if still needed.',
     )
     this.name = 'RotationConflictError'
+  }
+}
+
+/** Something can't be carried over to the new keys, so nothing was changed. */
+export class RotationAbortedError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'RotationAbortedError'
+  }
+}
+
+export class RotationCancelledError extends Error {
+  constructor() {
+    super('Rotation cancelled. Your keys were not changed.')
+    this.name = 'RotationCancelledError'
   }
 }
 
@@ -117,6 +178,10 @@ interface RotateParams {
    * `clientExtensionResults.prf.results.first` off it.
    */
   assertPasskeyForSlot: (credentialId: string) => Promise<unknown>
+  /** A friend's cached X25519 public key, for re-sealing share envelopes. */
+  friendEncryptionKey: (handle: string) => string | null | undefined
+  /** Show the new recovery key; resolves true once the user has saved it. */
+  confirmRecoveryKey: (recoveryKey: string) => Promise<boolean>
   onProgress?: (phase: RotationPhase) => void
 }
 
@@ -209,12 +274,65 @@ export async function rotateMasterKey(
         newSeed,
       })
     }
-    if (rebuilt.metadataEncrypted || rebuilt.points?.length) {
-      preparedCollections.push(rebuilt)
-    }
+    preparedCollections.push(rebuilt)
   }
 
-  // 3. Re-seal every slot. One tap per slot, scoped to the slot's own
+  // 3. Routes and canvases.
+  const { userId, oldSeed } = params
+  const routesResp = await api.get<ServerSealedRecord[]>('/library/routes')
+  const preparedRoutes = (routesResp.data ?? []).flatMap(r =>
+    rebuildSealedRecord(r, 'route', {
+      metadata: envelope =>
+        encryptRouteMetadata({
+          seed: newSeed,
+          userId,
+          routeId: r.id,
+          metadata: decryptRouteMetadata({ envelope, seed: oldSeed, userId, routeId: r.id }),
+        }),
+      body: envelope =>
+        encryptRouteBody({
+          seed: newSeed,
+          userId,
+          routeId: r.id,
+          body: decryptRouteBody({ envelope, seed: oldSeed, userId, routeId: r.id }),
+        }),
+    }),
+  )
+  const canvasesResp = await api.get<ServerSealedRecord[]>('/library/canvases')
+  const preparedCanvases = (canvasesResp.data ?? []).flatMap(c =>
+    rebuildSealedRecord(c, 'canvas', {
+      metadata: envelope =>
+        encryptCanvasMetadata({
+          seed: newSeed,
+          userId,
+          canvasId: c.id,
+          metadata: decryptCanvasMetadata({ envelope, seed: oldSeed, userId, canvasId: c.id }),
+        }),
+      body: envelope =>
+        encryptCanvasBody({
+          seed: newSeed,
+          userId,
+          canvasId: c.id,
+          body: decryptCanvasBody({ envelope, seed: oldSeed, userId, canvasId: c.id }),
+        }),
+    }),
+  )
+
+  // 4. Share envelopes.
+  const oldKeys = deriveAllKeys(params.oldSeed)
+  const preparedShares = await resealOutgoingShares({
+    privateCollections: serverCollections.filter(c => c.scheme === 'user-e2ee'),
+    newSeed,
+    newPrivateKey: newKeys.encryption.privateKey,
+    friendEncryptionKey: params.friendEncryptionKey,
+  })
+  const preparedIncomingShares = await resealIncomingShares({
+    oldPrivateKey: oldKeys.encryption.privateKey,
+    newPrivateKey: newKeys.encryption.privateKey,
+    friendEncryptionKey: params.friendEncryptionKey,
+  })
+
+  // 5. Re-seal every slot. One tap per slot, scoped to the slot's own
   //    credentialId so the user can't mis-tap.
   const slotsResponse = await api.get<{ slots: WrappedKmSlot[] }>(
     '/users/me/wrapped-keys',
@@ -246,7 +364,13 @@ export async function rotateMasterKey(
     slotResults.push(result.outcome)
   }
 
-  // 4. Atomic commit. Either everything lands or nothing does.
+  // 6. The old recovery key stops working, so the new one must be saved.
+  progress({ kind: 'confirming-recovery-key' })
+  if (!(await params.confirmRecoveryKey(exportRecoveryKey(newSeed)))) {
+    throw new RotationCancelledError()
+  }
+
+  // 7. Atomic commit. Either everything lands or nothing does.
   progress({ kind: 'committing' })
   let newKmVersion: number
   try {
@@ -258,22 +382,30 @@ export async function rotateMasterKey(
         encryptionKey: exportPublicKey(newKeys.encryption.publicKey),
         blobs: preparedBlobs,
         collections: preparedCollections,
+        routes: preparedRoutes,
+        canvases: preparedCanvases,
+        shares: preparedShares,
+        incomingShares: preparedIncomingShares,
         slots: preparedSlots,
+        recoveryKeyConfirmed: true,
       },
     )
     newKmVersion = response.data.kmVersion
   } catch (err: unknown) {
     const status = (err as { response?: { status?: number } })?.response?.status
     if (status === 409) throw new RotationConflictError()
+    const message = (err as { response?: { data?: { message?: string } } })
+      ?.response?.data?.message
+    if (status === 422 && message) throw new RotationAbortedError(message)
     throw err
   }
 
-  // 5. Persist the new seed locally. If this fails after a successful
+  // 8. Persist the new seed locally. If this fails after a successful
   //    commit the server is authoritative; user can recover via a
   //    passkey unlock on this device (which unwraps from a just-
   //    re-sealed slot).
   progress({ kind: 'storing-seed' })
-  await storeSeed(newSeed)
+  await keepPinsAcrossSeedChange(() => storeSeed(newSeed))
 
   progress({ kind: 'done', newKmVersion })
   return { newSeed, newKeys, newKmVersion, slotResults }
@@ -292,7 +424,12 @@ function personalBlobAad(userId: string, blobType: string): AAD {
   }
 }
 
-/** Null when the old envelope won't open: better left alone than overwritten. */
+function unreadable(what: string): RotationAbortedError {
+  return new RotationAbortedError(
+    `Couldn't read ${what} with your current keys, so nothing was changed. Sign out and back in on this device, then try again.`,
+  )
+}
+
 function rebuildCollectionMetadata(params: {
   userId: string
   collectionId: string
@@ -300,7 +437,7 @@ function rebuildCollectionMetadata(params: {
   keyVersion: number
   oldSeed: Uint8Array
   newSeed: Uint8Array
-}): string | undefined {
+}): string {
   let metadata
   try {
     metadata = decryptCollectionMetadata({
@@ -311,7 +448,7 @@ function rebuildCollectionMetadata(params: {
       keyVersion: params.keyVersion,
     })
   } catch {
-    return undefined
+    throw unreadable('a collection')
   }
   return encryptCollectionMetadata({
     metadata,
@@ -333,25 +470,133 @@ async function rebuildCollectionPoints(params: {
   const { data } = await api.get<{ points: Array<{ id: string; encryptedData: string }> }>(
     `/library/collections/${params.collectionId}/encrypted-points`,
   )
-  return (data.points ?? []).flatMap(row => {
+  return (data.points ?? []).map(row => {
+    let decrypted
     try {
-      const { id, ...point } = decryptCollectionPoint({
+      decrypted = decryptCollectionPoint({
         point: row,
         source: { seed: params.oldSeed },
         ownerUserId: params.userId,
         collectionId: params.collectionId,
         keyVersion: params.keyVersion,
       })
+    } catch {
+      throw unreadable('a saved place')
+    }
+    const { id, ...point } = decrypted
+    return {
+      id,
+      encryptedData: encryptCollectionPoint({
+        point,
+        pointId: id,
+        source: { seed: params.newSeed },
+        ownerUserId: params.userId,
+        collectionId: params.collectionId,
+        keyVersion: params.keyVersion,
+      }),
+    }
+  })
+}
+
+/** Re-encrypt a route's or canvas's sealed fields; empty when it has none. */
+function rebuildSealedRecord(
+  record: ServerSealedRecord,
+  label: string,
+  reencrypt: Record<'metadata' | 'body', (envelope: string) => string>,
+): Array<{ id: string; metadataEncrypted?: string; bodyEncrypted?: string }> {
+  if (!record.metadataEncrypted && !record.bodyEncrypted) return []
+  try {
+    return [
+      {
+        id: record.id,
+        ...(record.metadataEncrypted && {
+          metadataEncrypted: reencrypt.metadata(record.metadataEncrypted),
+        }),
+        ...(record.bodyEncrypted && {
+          bodyEncrypted: reencrypt.body(record.bodyEncrypted),
+        }),
+      },
+    ]
+  } catch {
+    throw unreadable(`a ${label}`)
+  }
+}
+
+/** Every live share of a private collection, re-sealed with the new owner key. */
+async function resealOutgoingShares(params: {
+  privateCollections: ServerCollection[]
+  newSeed: Uint8Array
+  newPrivateKey: Uint8Array
+  friendEncryptionKey: RotateParams['friendEncryptionKey']
+}): Promise<PreparedEnvelope[]> {
+  if (!params.privateCollections.length) return []
+  const byId = new Map(params.privateCollections.map(c => [c.id, c]))
+  const { data } = await api.get<{ shares: ServerOutgoingShare[] }>('/sharing/outgoing')
+  const live = (data.shares ?? []).filter(
+    s =>
+      s.resourceType === 'collection' &&
+      byId.has(s.resourceId) &&
+      LIVE_SHARE_STATUSES.has(s.status),
+  )
+  const remote = live.filter(s => !s.recipientUserId).map(s => s.recipientHandle)
+  if (remote.length) {
+    throw new RotationAbortedError(
+      `Stop sharing your private collections with ${remote.join(', ')} first. They're on another server, so new keys can't reach them.`,
+    )
+  }
+  return live.map(s => {
+    const recipientKey = params.friendEncryptionKey(s.recipientHandle)
+    if (!recipientKey) {
+      throw new RotationAbortedError(
+        `Couldn't find ${s.recipientHandle}'s keys, so nothing was changed. Open your friends list to refresh them, then try again.`,
+      )
+    }
+    const collection = byId.get(s.resourceId)!
+    const keyVersion = collection.metadataKeyVersion ?? 1
+    const sealed = sealCollectionShare({
+      share: {
+        collectionId: collection.id,
+        scheme: 'user-e2ee',
+        key: deriveCollectionKey(params.newSeed, collection.id, keyVersion),
+        keyVersion,
+      },
+      ownerPrivateKey: params.newPrivateKey,
+      recipientPublicKey: importPublicKey(recipientKey),
+    })
+    return { id: s.id, ...sealed }
+  })
+}
+
+/**
+ * Collections shared with this user, re-sealed for the new key. A static-DH
+ * envelope opens with either party's key, so the recipient can re-seal it.
+ * Envelopes that won't open are left for the server to judge: it refuses
+ * only when one guards a private collection.
+ */
+async function resealIncomingShares(params: {
+  oldPrivateKey: Uint8Array
+  newPrivateKey: Uint8Array
+  friendEncryptionKey: RotateParams['friendEncryptionKey']
+}): Promise<PreparedEnvelope[]> {
+  const { data } = await api.get<{ shares: ServerIncomingShare[] }>('/sharing/incoming')
+  return (data.shares ?? []).flatMap(s => {
+    if (s.resourceType !== 'collection' || !LIVE_SHARE_STATUSES.has(s.status)) return []
+    const senderKey = params.friendEncryptionKey(s.senderHandle)
+    if (!senderKey) return []
+    const senderPublicKey = importPublicKey(senderKey)
+    try {
+      const share = openCollectionShare({
+        envelope: s,
+        recipientPrivateKey: params.oldPrivateKey,
+        senderPublicKey,
+      })
       return [
         {
-          id,
-          encryptedData: encryptCollectionPoint({
-            point,
-            pointId: id,
-            source: { seed: params.newSeed },
-            ownerUserId: params.userId,
-            collectionId: params.collectionId,
-            keyVersion: params.keyVersion,
+          id: s.id,
+          ...sealCollectionShare({
+            share,
+            ownerPrivateKey: params.newPrivateKey,
+            recipientPublicKey: senderPublicKey,
           }),
         },
       ]
@@ -387,9 +632,7 @@ async function rebuildPersonalBlob(params: {
       aad: personalBlobAad(params.userId, params.blobType),
     })
   } catch {
-    // Not decryptable with our old key — maybe already under new seed
-    // from a parallel rotation. Skip; don't upload garbage.
-    return null
+    throw unreadable(`your ${params.blobType} data`)
   }
   const newEnvelope = encryptEnvelopeString({
     plaintext,

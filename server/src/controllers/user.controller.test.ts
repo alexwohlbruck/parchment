@@ -54,6 +54,9 @@ const updateUserAlias = mock(
   async (_userId: string, _alias: string) =>
     ({ success: true }) as { success: boolean; error?: string },
 )
+const isAliasAvailable = mock(
+  async (_alias: string, _exceptUserId?: string) => true,
+)
 const updateUserKeys = mock(
   async (_userId: string, _signing: string, _encryption: string) => undefined,
 )
@@ -65,9 +68,13 @@ const updateUserDisplayProfile = mock(async (_userId: string, _patch: any) => ({
   id: TEST_USER.id,
   firstName: 'New',
 }))
+class KeysAlreadyRegistered extends Error {}
 mock.module('../services/user.service', () => ({
   updateUserAlias,
+  isAliasAvailable,
+  getUserHandle: mock(async () => null),
   updateUserKeys,
+  KeysAlreadyRegistered,
   getUserIdentity,
   updateUserDisplayProfile,
 }))
@@ -77,10 +84,29 @@ mock.module('../services/realtime/emit', () => ({
   emit: { userProfile: emitUserProfile },
 }))
 
+const publish = mock((..._args: unknown[]) => undefined)
+mock.module('../services/realtime/event-bus.service', () => ({ publish }))
+
 const resetUserIdentity = mock(async (_userId: string) => undefined)
 mock.module('../services/identity-reset.service', () => ({ resetUserIdentity }))
 
+const beginStepUp = mock(async (_userId: string, _opts?: unknown) => ({
+  method: 'passkey' as const,
+  options: { challenge: 'step-up-challenge' },
+}))
+const verifyStepUp = mock(
+  async (_userId: string, proof: { code?: string }, _challenge?: string) =>
+    proof.code === '12345678',
+)
+mock.module('../services/step-up.service', () => ({ beginStepUp, verifyStepUp }))
+
 class RotationConflict extends Error {}
+class RotationIncomplete extends Error {
+  constructor(readonly missing: string[]) {
+    super('missing')
+  }
+}
+class RotationBlocked extends Error {}
 const getUserKmVersion = mock(
   async (_userId: string) => 3 as number | null,
 )
@@ -89,6 +115,8 @@ mock.module('../services/km-rotation.service', () => ({
   getUserKmVersion,
   commitRotation,
   RotationConflict,
+  RotationIncomplete,
+  RotationBlocked,
 }))
 
 const getOrCreateUserPreferences = mock(async (_userId: string) => ({
@@ -154,6 +182,7 @@ beforeEach(() => {
   permissions = [PermissionId.USERS_UPDATE]
   callerRoles = [{ id: 'user' }]
   getPermissions.mockClear()
+  publish.mockClear()
   getRoles.mockClear()
   createSession.mockClear()
   sendMail.mockClear()
@@ -400,34 +429,15 @@ describe('PATCH /users/me/alias', () => {
 })
 
 describe('GET /users/alias/check', () => {
-  test('reports an unused alias as available', async () => {
-    dbMock.queueSelect([])
-
-    const res = await req(app).get('/users/alias/check', {
-      query: { alias: 'freealias' },
-    })
-
-    expect(res.body).toEqual({ available: true })
-  })
-
-  test('reports another user’s alias as taken', async () => {
-    dbMock.queueSelect([{ id: 'someone-else' }])
+  test('asks the service, exempting the caller’s own alias', async () => {
+    isAliasAvailable.mockImplementationOnce(async () => false)
 
     const res = await req(app).get('/users/alias/check', {
       query: { alias: 'takenalias' },
     })
 
     expect(res.body).toEqual({ available: false })
-  })
-
-  test('treats the caller’s own current alias as available', async () => {
-    dbMock.queueSelect([{ id: TEST_USER.id }])
-
-    const res = await req(app).get('/users/alias/check', {
-      query: { alias: 'myalias' },
-    })
-
-    expect(res.body).toEqual({ available: true })
+    expect(isAliasAvailable).toHaveBeenCalledWith('takenalias', TEST_USER.id)
   })
 
   test('reports an invalid alias as unavailable without querying', async () => {
@@ -446,6 +456,17 @@ describe('PUT /users/me/keys', () => {
 
     expect(res.status).toBe(200)
     expect(updateUserKeys).toHaveBeenCalledWith(TEST_USER.id, 'sig-pub', 'enc-pub')
+  })
+
+  test('409s instead of overwriting registered keys', async () => {
+    updateUserKeys.mockImplementationOnce(async () => {
+      throw new KeysAlreadyRegistered()
+    })
+    const res = await req(app).put('/users/me/keys', {
+      body: { signingKey: 'sig-pub', encryptionKey: 'enc-pub' },
+    })
+
+    expect(res.status).toBe(409)
   })
 
   test('422s when a key is missing', async () => {
@@ -512,6 +533,27 @@ describe('key rotation', () => {
 
     expect(res.status).toBe(409)
   })
+
+  test('422s with the missing records when the commit would strand data', async () => {
+    commitRotation.mockRejectedValueOnce(new RotationIncomplete(['route r1']))
+
+    const res = await req(app).post('/users/me/km-version/commit', {
+      body: { expectedCurrent: 3, signingKey: 'sig', encryptionKey: 'enc' },
+    })
+
+    expect(res.status).toBe(422)
+    expect(res.body.missing).toEqual(['route r1'])
+  })
+
+  test('422s when rotation is blocked', async () => {
+    commitRotation.mockRejectedValueOnce(new RotationBlocked('remote share'))
+
+    const res = await req(app).post('/users/me/km-version/commit', {
+      body: { expectedCurrent: 3, signingKey: 'sig', encryptionKey: 'enc' },
+    })
+
+    expect(res.status).toBe(422)
+  })
 })
 
 describe('POST /users/me/identity/reset', () => {
@@ -531,13 +573,35 @@ describe('POST /users/me/identity/reset', () => {
     expect(resetUserIdentity).not.toHaveBeenCalled()
   })
 
-  test('wipes the identity with the right confirmation', async () => {
+  test('wipes the identity after a fresh step-up', async () => {
     const res = await req(app).post('/users/me/identity/reset', {
-      body: { confirm: 'erase-all-my-data' },
+      body: { confirm: 'erase-all-my-data', code: '12345678' },
     })
 
     expect(res.status).toBe(200)
     expect(resetUserIdentity).toHaveBeenCalledWith(TEST_USER.id)
+  })
+
+  test('refuses without a valid step-up', async () => {
+    const res = await req(app).post('/users/me/identity/reset', {
+      body: { confirm: 'erase-all-my-data', code: '00000000' },
+    })
+
+    expect(res.status).toBe(401)
+    expect(resetUserIdentity).not.toHaveBeenCalled()
+  })
+
+  test('step-up stores the passkey challenge for the reset to check', async () => {
+    const res = await req(app).post('/users/me/identity/reset/step-up', {
+      body: {},
+    })
+
+    expect(res.status).toBe(200)
+    expect(beginStepUp).toHaveBeenCalledWith(
+      TEST_USER.id,
+      expect.objectContaining({ preferEmail: false }),
+    )
+    expect(res.headers.get('set-cookie')).toContain('step_up_challenge=step-up-challenge')
   })
 
   test('rejects an unauthenticated caller', async () => {
@@ -662,6 +726,20 @@ describe('preferences', () => {
     })
   })
 
+  test("pushes a change to the user's other clients, tagged with its origin", async () => {
+    const res = await req(app).put('/users/me/preferences', {
+      body: { unitSystem: 'imperial', origin: 'tab-1' },
+    })
+
+    expect(res.status).toBe(200)
+    expect(updateUserPreferences).toHaveBeenCalledWith(TEST_USER.id, { unitSystem: 'imperial' })
+    expect(publish).toHaveBeenCalledWith(
+      'preferences:updated',
+      { ...res.body, origin: 'tab-1' },
+      { localUserIds: [TEST_USER.id], remoteHandles: [] },
+    )
+  })
+
   test('updates only the supplied fields', async () => {
     const res = await req(app).put('/users/me/preferences', {
       body: { unitSystem: 'imperial' },
@@ -678,6 +756,7 @@ describe('preferences', () => {
 
     expect(res.status).toBe(200)
     expect(updateUserPreferences).not.toHaveBeenCalled()
+    expect(publish).not.toHaveBeenCalled()
     expect(getOrCreateUserPreferences).toHaveBeenCalledWith(TEST_USER.id)
   })
 

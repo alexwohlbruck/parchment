@@ -10,6 +10,7 @@ import {
 import { appName, origins } from '../config'
 import { Passkey, passkeys } from '../schema/passkeys.schema'
 import { sessions } from '../schema/sessions.schema'
+import { closeSessions } from '../services/realtime/registry.service'
 import {
   createSession,
   destroySession,
@@ -669,6 +670,7 @@ app.group('/sessions', (app) => {
           await db
             .delete(sessions)
             .where(and(eq(sessions.id, target.id), eq(sessions.userId, user.id)))
+          closeSessions([target.id])
         }
         return (set.status = 204)
       },

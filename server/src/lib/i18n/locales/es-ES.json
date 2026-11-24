@@ -113,11 +113,16 @@
       "brandSearchFailed": "Error al ejecutar la búsqueda por marca"
     },
     "friends": {
-      "invalidHandle": "Formato de handle no válido. Use alias@domain"
+      "invalidHandle": "Formato de handle no válido. Use alias@domain",
+      "remoteLocationUnsupported": "Aún no puedes compartir tu ubicación con amigos de otros servidores"
     },
     "sharing": {
+      "alreadyShared": "Ya lo compartes con esta persona",
+      "remoteDeliveryFailed": "No se pudo contactar con el servidor de esta persona; no se compartió nada",
+      "resourceNotFound": "No encontrado",
       "collectionNotPermitted": "No tienes permiso para compartir esta colección",
-      "federationEnvelopeRequired": "Compartir entre servidores requiere federationSignature + federationNonce + federationTimestamp"
+      "federationEnvelopeRequired": "Compartir entre servidores requiere federationSignature + federationNonce + federationTimestamp",
+      "notFriends": "Solo puedes compartir con tus amigos"
     },
     "library": {
       "collectionNotFound": "Colección no encontrada",
@@ -180,6 +185,7 @@
       "impersonationNotAllowed": "La suplantación no está disponible en producción",
       "cannotImpersonateSelf": "No puedes suplantarte a ti mismo",
       "eraseConfirmationRequired": "Se requiere confirmación. Envía `{ \"confirm\": \"erase-all-my-data\" }`.",
+      "stepUpFailed": "No pudimos confirmar que eres tú. Inténtalo de nuevo.",
       "invalidAlias": "Alias no válido. Usa entre 3 y 30 caracteres alfanuméricos o guiones bajos.",
       "noPendingRevocation": "No hay ninguna revocación pendiente"
     },

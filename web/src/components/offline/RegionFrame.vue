@@ -10,6 +10,7 @@ import { useAppStore } from '@/stores/app.store'
 import { mapEventBus } from '@/lib/event-bus'
 import { toContainerRect } from '@/lib/map/map-padding'
 import type { Bounds } from '@/types/offline.types'
+import type { LngLat } from 'maplibre-gl'
 
 const SIDE_FRACTION = 0.8
 
@@ -33,10 +34,13 @@ const square = computed(() => {
   return { x: x0 + (w - side) / 2, y: y0 + (h - side) / 2, side }
 })
 
+let resizing = false
+let framed: { side: number; center: LngLat } | null = null
+
 function measure() {
   const map = mapService.mapStrategy?.mapInstance
   const { x, y, side } = square.value
-  if (!map?.unproject || !side) return
+  if (resizing || !map?.unproject || !side) return
   const corners = [
     [x, y],
     [x + side, y],
@@ -46,9 +50,27 @@ function measure() {
   const lngs = corners.map(c => c.lng)
   const lats = corners.map(c => c.lat)
   bounds.value = [Math.min(...lngs), Math.min(...lats), Math.max(...lngs), Math.max(...lats)]
+  framed = { side, center: map.unproject([x + side / 2, y + side / 2]) }
 }
 
-watch(square, measure, { immediate: true })
+/** Resizing the square (a drawer opening, a rotation) zooms the map so the same area stays in it. */
+function keepArea() {
+  const map = mapService.mapStrategy?.mapInstance
+  const { x, y, side } = square.value
+  if (!framed || !map?.project || !side) return measure()
+  const { center } = framed
+  resizing = true
+  try {
+    map.jumpTo({ zoom: map.getZoom() + Math.log2(side / framed.side) })
+    const p = map.project(center)
+    map.panBy([p.x - (x + side / 2), p.y - (y + side / 2)], { duration: 0 })
+  } finally {
+    resizing = false
+  }
+  framed = { side, center }
+}
+
+watch(square, keepArea, { immediate: true })
 mapEventBus.on('move', measure)
 onUnmounted(() => {
   mapEventBus.off('move', measure)

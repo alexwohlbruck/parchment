@@ -50,9 +50,16 @@ describe('runChoices', () => {
   })
 
   test('skips runs that pass the stop the rider gets off at', () => {
-    const choices = runChoices(input([run('booked', 9), run('express', 12, null)]))
+    const express = { ...run('express', 12, null), calls: [{ stop: 'mid', timeMs: min(15) }] }
+    const choices = runChoices(input([run('booked', 9), express], { set: { candidates: [run('booked', 9), express], known: ['mid', 'alight'] } }))
     expect(ids(choices)).toEqual(['booked'])
     expect(choices[0].arrivalMs).toBe(min(19))
+  })
+
+  test('keeps a run that could not be traced down the line', () => {
+    const choices = runChoices(input([run('booked', 9), run('untraced', 12, null)]))
+    expect(ids(choices)).toEqual(['booked', 'untraced'])
+    expect(choices[1].arrivalMs).toBeUndefined()
   })
 
   test('without a trip id, the run leaving at the booked time is the booked one', () => {

@@ -25,6 +25,7 @@ const walks = computed(() =>
     <StationWalkSteps
       v-for="placed in walks"
       :key="`${placed.kind}-${placed.ride}`"
+      :id="`${placed.kind}-${placed.ride}`"
       :walk="placed.walk"
       :sign="placed.sign"
       :spot="placed.spot"

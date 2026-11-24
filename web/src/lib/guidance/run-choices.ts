@@ -25,7 +25,10 @@ export interface RunChoiceInput {
 
 const MAX_CHOICES = 8
 
-/** The runs still to leave that get the rider off where planned, soonest first, the booked one marked. */
+/**
+ * The runs still to leave that get the rider off where planned, soonest first, the booked one marked.
+ * A run is only left out when it is seen further down the line but not at the rider's stop; one that can't be traced stays.
+ */
 export function runChoices(input: RunChoiceInput): RunChoice[] {
   const { set, alightStop, nowMs, toStopSec } = input
   const alightKnown = alightStop != null && set.known.includes(alightStop)
@@ -35,7 +38,7 @@ export function runChoices(input: RunChoiceInput): RunChoice[] {
       const booked = candidate.tripId === bookedId
       const reach = approachReach(candidate.departureMs, nowMs, toStopSec, input.runFactor ?? null)
       const arrivalMs = alightKnown ? candidate.calls.find(c => c.stop === alightStop)?.timeMs : undefined
-      if (alightKnown && arrivalMs == null) return []
+      if (alightKnown && arrivalMs == null && candidate.calls.length) return []
       if (reach === 'departed') return []
       const spareSec = (candidate.departureMs - nowMs) / 1000 - toStopSec
       return [{ candidate, reach, arrivalMs, spareSec, booked }]

@@ -34,13 +34,14 @@ import PasskeyOfferContent from './PasskeyOfferContent.vue'
 import TransferIdentityDialog from './TransferIdentityDialog.vue'
 import { useDialogCompletion } from '@/composables/useDialogCompletion'
 import RecoveryKeyDisplay from './RecoveryKeyDisplay.vue'
+import ResetVerifyStep from './ResetVerifyStep.vue'
 
 type Mode = 'setup' | 'import' | 'view'
 type SetupStep =
   | 'generate'
   | 'passkey-offer'
   | 'complete'
-type ImportStep = 'choose' | 'type-key' | 'complete'
+type ImportStep = 'choose' | 'type-key' | 'reset-verify' | 'complete'
 
 interface Props {
   open: boolean
@@ -172,11 +173,10 @@ async function handleResetIdentity() {
   if (!confirmed) return
 
   error.value = null
-  const result = await identityStore.resetIdentity()
-  if (!result.success) {
-    error.value = result.error ?? t('settings.identity.recoveryKey.reset.failedFallback')
-    return
-  }
+  importStep.value = 'reset-verify'
+}
+
+function handleResetComplete() {
   isOpen.value = false
   emit('complete')
 }
@@ -367,6 +367,11 @@ function handleClose() {
             </button>
           </div>
         </form>
+
+        <ResetVerifyStep
+          v-else-if="importStep === 'reset-verify'"
+          @reset="handleResetComplete"
+        />
 
         <!-- Complete -->
         <template v-else-if="importStep === 'complete'">

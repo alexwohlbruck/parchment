@@ -20,6 +20,7 @@ import {
   ShadowMode,
 } from '@/types/map.types'
 import type { Place } from '@/types/place.types'
+import type { FloorRequest } from '@/lib/indoor/indoor-venue'
 import { captureMapSnapshot } from './map-snapshot'
 import { useMapStore } from '@/stores/map.store'
 import { useLayersStore } from '@/stores/layers.store'
@@ -78,6 +79,7 @@ import { useCollectionsStore } from '@/stores/library/collections.store'
 import { api } from '@/lib/api'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
+import { availableImagery, resolveImageryStack } from '@/lib/imagery/imagery-stack'
 
 
 function mapService() {
@@ -99,6 +101,12 @@ function mapService() {
   const integrationsStore = useIntegrationsStore()
   const themeStore = useThemeStore()
   const authService = useAuthService()
+  const imageryStack = computed(() =>
+    resolveImageryStack(
+      mapStore.settings.satelliteImagery ?? [],
+      availableImagery(layersStore.layers, authService.hasPermission(PermissionId.PREMIUM_PHOTOREALISTIC_3D)),
+    ),
+  )
   const { settings } = storeToRefs(mapStore)
   const { layers } = storeToRefs(layersStore)
   const { accentColor, isDark } = storeToRefs(themeStore)
@@ -174,6 +182,7 @@ function mapService() {
           options,
           accessToken,
           proxyBaseUrl,
+          imageryStack.value,
         )
       }
     }
@@ -1329,6 +1338,8 @@ function mapService() {
     },
   )
 
+  watch(imageryStack, stack => mapStrategy?.setSatelliteImagery(stack))
+
   watch(
     () => mapStore.settings.mapStyle,
     styleId => {
@@ -1663,6 +1674,7 @@ function mapService() {
     toggleHdRoads,
     toggleIndoorMaps,
     setIndoorLevel: (level: number | null) => mapStrategy?.setIndoorLevel(level),
+    requestIndoorLevel: (request: FloorRequest | null) => mapStrategy?.requestIndoorLevel(request),
     toggleNorthUpSnap,
     destroy,
     on,

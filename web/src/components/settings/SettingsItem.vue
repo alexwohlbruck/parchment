@@ -3,6 +3,7 @@ import { H6 } from '@/components/ui/typography'
 import Caption from '@/components/ui/typography/Caption.vue'
 import Badge from '@/components/ui/badge/Badge.vue'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
+import SyncScopeToggle from './SyncScopeToggle.vue'
 import type { CommandName } from '@/stores/command.store'
 import type { Component } from 'vue'
 
@@ -14,6 +15,8 @@ interface Props {
   badge?: string
   badgeVariant?: 'default' | 'primary' | 'secondary' | 'destructive' | 'outline'
   commandId?: CommandName
+  /** Preference path this item edits, when it can follow the account. */
+  syncKey?: string
 }
 
 defineProps<Props>()
@@ -34,6 +37,7 @@ defineProps<Props>()
             {{ badge }}
           </Badge>
           <Kbd v-if="commandId" :command-id="commandId" size="xs" />
+          <SyncScopeToggle v-if="syncKey" :sync-key="syncKey" />
         </div>
         <Caption v-if="description">
           {{ description }}

@@ -1,6 +1,7 @@
 import { describe, it, test, expect } from 'vitest'
 import {
   calculateCameraPadding,
+  beyondMapPadding,
   calculateFitPadding,
   paddingEquals,
   roundPadding,
@@ -119,5 +120,13 @@ describe('paddingEquals', () => {
     expect(
       paddingEquals(applied, { top: 0, right: 0, bottom: 421, left: 0 }),
     ).toBe(false)
+  })
+})
+
+describe('beyondMapPadding', () => {
+  test('leaves the part of the fit the map padding does not already cover', () => {
+    expect(beyondMapPadding({ top: 200, right: 20, bottom: 560, left: 20 }, { top: 116, right: 0, bottom: 195, left: 0 }))
+      .toEqual({ top: 84, right: 20, bottom: 365, left: 20 })
+    expect(beyondMapPadding({ top: 50, right: 0, bottom: 0, left: 0 }, { top: 116, right: 0, bottom: 0, left: 0 }).top).toBe(0)
   })
 })

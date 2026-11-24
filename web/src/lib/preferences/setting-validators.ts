@@ -7,6 +7,9 @@ export const oneOf =
 
 export const isBoolean = (value: unknown): value is boolean => typeof value === 'boolean'
 
+export const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every(item => typeof item === 'string')
+
 const keysOf = <T>(validators: Validators<T>) => Object.keys(validators) as Array<keyof T>
 
 /** The settings in `stored` this app knows and can use; anything else is left out. */

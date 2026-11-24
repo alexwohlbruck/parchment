@@ -28,6 +28,7 @@ class InsufficientRoleError extends Error {}
 class SchemeAlreadySetError extends Error {}
 class CollectionVersionConflictError extends Error {}
 class RotationVersionError extends Error {}
+class RotationStaleError extends Error {}
 class PublicLinkNotAllowedOnE2eeError extends Error {}
 class PlaintextMetadataOnE2eeError extends Error {}
 class SchemeChangeMetadataError extends Error {}
@@ -86,6 +87,7 @@ mock.module('../../services/library/collections.service', () => ({
   SchemeAlreadySetError,
   CollectionVersionConflictError,
   RotationVersionError,
+  RotationStaleError,
   PublicLinkNotAllowedOnE2eeError,
   PlaintextMetadataOnE2eeError,
   SchemeChangeMetadataError,
@@ -565,6 +567,16 @@ describe('POST /collections/:id/rotate-key', () => {
     })
 
     expect(res.status).toBe(400)
+  })
+
+  test('409s when the bundle no longer matches the stored points', async () => {
+    rotateCollectionKey.mockRejectedValueOnce(new RotationStaleError('points'))
+
+    const res = await req(app).post('/collections/col-1/rotate-key', {
+      body: rotateBody,
+    })
+
+    expect(res.status).toBe(409)
   })
 
   test('404s when the collection is not the caller’s', async () => {

@@ -209,6 +209,7 @@
         "name": "Search",
         "description": "Search for places, businesses, and amenities",
         "keywords": "find locate",
+        "bookmarked": "Bookmarked",
         "arguments": {
           "places": {
             "name": "Places"
@@ -768,6 +769,7 @@
     },
     "editor": {
       "newTitle": "New layer",
+      "newImageryTitle": "New imagery source",
       "editTitle": "Edit layer",
       "namePlaceholder": "Layer name",
       "layerType": "Draw as",
@@ -852,6 +854,8 @@
       "options": {
         "showInSelectorHint": "List this layer in the map's layer menu.",
         "fadeBasemapHint": "Mute the basemap while this layer is on, so it reads clearly.",
+        "imagery": "Satellite imagery",
+        "imageryHint": "Draw this under the satellite map instead of as an overlay.",
         "filter": "Filter",
         "filterHint": "A style expression. Only features matching it are drawn.",
         "rawLayer": "Paint and layout JSON",
@@ -884,7 +888,8 @@
         "nameRequired": "Give the layer a name.",
         "urlRequired": "A URL is required.",
         "tilesRequired": "Add at least one tile URL.",
-        "tileTemplate": "Tile URLs need {z}, {x} and {y} placeholders.",
+        "tileTemplate": "Tile URLs need {'{z}'}, {'{x}'} and {'{y}'} placeholders.",
+        "imageryNeedsRaster": "Satellite imagery has to be a raster source.",
         "sourceLayerRequired": "Vector layers need a source layer.",
         "invalidGeoJson": "That isn't valid GeoJSON.",
         "cornersRequired": "An image needs four corner coordinates.",
@@ -1108,6 +1113,12 @@
       }
     },
     "refresh": "Refresh",
+    "view": {
+      "title": "View",
+      "timeline": "Timeline",
+      "list": "List",
+      "group": "Group by trip type"
+    },
     "station": {
       "transfer": {
         "crossPlatform": "Cross-platform",
@@ -1131,6 +1142,11 @@
         "back": "Walk to the back of the platform"
       },
       "saves": "saves {duration}",
+      "for": {
+        "exit": "for {name}",
+        "transfer": "for the {name}"
+      },
+      "waitWalk": "You have {duration}, walk to the {section} of the platform",
       "insideStation": "Through the station",
       "steps": "{n} step | {n} steps",
       "levelUp": "Up {n} level | Up {n} levels",
@@ -1545,30 +1561,31 @@
     "today": "Today",
     "thisWeek": "This week",
     "thisMonth": "This month",
-    "selectDate": "Select date",
-    "customRange": "Custom range",
-    "singleDay": "Single day",
-    "startTime": "Start",
-    "endTime": "End",
     "noEvents": "No location history for this range",
     "loadFailed": "Couldn't load timeline",
-    "stop": "Stop",
     "unnamedStop": "Unnamed location",
-    "duration": "{duration}",
-    "timeRange": "{start} – {end}",
-    "modeUnknown": "Travel",
     "noIntegration": {
       "title": "Connect a location tracker",
       "description": "Configure a location history integration to view your timeline.",
       "details": "Your config is end-to-end encrypted — your credentials never leave your device unencrypted.",
       "configure": "Configure integration"
     },
+    "checkIntegration": "Check your location history integration in Settings",
+    "yesterday": "Yesterday",
+    "previous": "Previous",
+    "next": "Next",
     "stats": {
-      "totalDistance": "{distance} km",
-      "totalStops": "{n} stop | {n} stops",
-      "dailyDistance": "Daily distance"
+      "places": "Places",
+      "distance": "Distance",
+      "moving": "Moving"
     },
-    "checkIntegration": "Check your location history integration in Settings"
+    "placeCount": "{n} place | {n} places",
+    "modes": {
+      "driving": "Drove {distance}",
+      "cycling": "Cycled {distance}",
+      "walking": "Walked {distance}",
+      "transit": "Rode transit {distance}"
+    }
   },
   "friends": {
     "title": "Friends",
@@ -1580,6 +1597,7 @@
     "cancel": "Cancel",
     "done": "Done",
     "locationSharing": "Location sharing",
+    "remoteLocationUnavailable": "Not available with friends on other servers yet",
     "countOne": "{n} friend",
     "countMany": "{n} friends",
     "invitations": {
@@ -1626,6 +1644,7 @@
       "setupDescription": "Set up a handle so friends can find you",
       "importButton": "Import recovery key",
       "importDescription": "Your identity exists on this server, but you need to import your recovery key to use it on this device.",
+      "unavailableDescription": "Couldn't load your identity. Check your connection and try again.",
       "recoveryKey": "Recovery key",
       "recoveryKeyDescription": "View your recovery key for backup",
       "viewKey": "View key",
@@ -1646,7 +1665,8 @@
       "warning": {
         "keepOpen": "Keep this tab open until it finishes.",
         "tapEach": "Any passkey you don't tap before finishing won't work for recovery afterward — have at least one passkey or your recovery key ready.",
-        "failsSafe": "If rotation fails partway, nothing changes on the server."
+        "failsSafe": "If rotation fails partway, nothing changes on the server.",
+        "newRecoveryKey": "You'll get a new recovery key at the end. Your old one stops working."
       },
       "action": "Rotate keys",
       "runningTitle": "Rotating keys",
@@ -1657,7 +1677,10 @@
       "failedTitle": "Rotation failed",
       "failedFallback": "Rotation failed",
       "close": "Close",
-      "slotWarning": "Passkey {id}… was not re-secured ({reason}). It will no longer work for recovery — remove and re-add it.",
+      "recoveryKeyTitle": "Save your new recovery key",
+      "recoveryKeyDescription": "Your old recovery key stops working once this finishes. Keep this one somewhere safe.",
+      "recoveryKeySaved": "I've saved it",
+      "slotWarning": "Passkey {id}… couldn't be re-secured ({reason}), so it can't unlock your keys anymore. Remove it and add it again.",
       "unknownReason": "unknown",
       "progress": {
         "preparing": "Preparing…",
@@ -1668,6 +1691,7 @@
         "resealingSlot": "Tap your passkey to re-secure slot {index} of {total}",
         "committing": "Finalizing — saving everything at once…",
         "storingSeed": "Updating this device…",
+        "confirmingRecoveryKey": "Waiting for you to save your new recovery key",
         "done": "Done — now on key version {version}"
       }
     },
@@ -1747,7 +1771,16 @@
       "keysSynced": "Keys synced",
       "syncFailed": "Couldn't sync keys",
       "removeTitle": "Remove {name}?",
-      "directions": "Directions"
+      "directions": "Directions",
+      "keyChangedTitle": "{name}'s keys changed",
+      "keyChangedDescription": "Their phone, or someone pretending to be them, has new keys. Nothing is shared with them until you compare this number with theirs.",
+      "safetyNumber": "Safety number",
+      "safetyNumberDescription": "Matches the number on {name}'s phone if your connection is secure.",
+      "trustNewKeys": "Numbers match",
+      "markVerified": "Mark as verified",
+      "verified": "Verified",
+      "keysTrusted": "Keys trusted",
+      "loadFailed": "Couldn't load this friend"
     }
   },
   "dashboard": {
@@ -1883,7 +1916,9 @@
       "show": "Show trip options",
       "hide": "Hide trip options",
       "destination": "Destination",
-      "alongTheWay": "Along the way"
+      "alongTheWay": "Along the way",
+      "parking": "Find parking",
+      "docks": "Other stations"
     },
     "arrival": {
       "destination": "Your destination",
@@ -2352,6 +2387,14 @@
         "board": "Board the {line}",
         "boardToward": "Board the {line} toward {headsign}",
         "boardSigned": "Board the {line}, {direction}",
+        "boardNear": "Board near the {section}",
+        "boardNearFor": "Board near the {section} for {target}",
+        "waitWalk": "You have {duration}, walk to the {section} of the platform",
+        "waitWalkFor": "You have {duration}, walk to the {section} of the platform for {target}",
+        "target": {
+          "exit": "the {name} exit",
+          "transfer": "the {name}"
+        },
         "alight-next": "Get off at the next stop, {stop}",
         "alight-now": "Get off at {stop}",
         "missed-vehicle": "The {line} has left. Catch the next one or find another way",
@@ -2411,7 +2454,8 @@
         "next": "Next",
         "done": "Done",
         "stepOf": "{n}/{total}",
-        "advancesIn": "next in {duration}"
+        "advancesIn": "next in {duration}",
+        "left": "{distance} to go"
       },
       "anotherRoute": "Another route",
       "nextLine": "Next {line}"
@@ -2452,7 +2496,17 @@
       "keep": "Keep",
       "voice": {
         "switched": "Switching to {station}"
-      }
+      },
+      "pick": {
+        "dock": "Where to drop off",
+        "bike": "Where to pick up"
+      },
+      "none": {
+        "dock": "No open docks nearby",
+        "bike": "No bikes nearby"
+      },
+      "goTo": "Go to {station}",
+      "failed": "Could not route to that station"
     },
     "alternatives": {
       "faster": "{duration} faster",
@@ -2550,6 +2604,37 @@
         "pickup": "Pickup",
         "bike": "Bike"
       }
+    },
+    "parking": {
+      "find": "Find",
+      "dismiss": "Not now",
+      "paid": "Paid",
+      "free": "Free",
+      "unavailable": "Parking search is unavailable right now",
+      "failed": "Could not route to that parking",
+      "kinds": {
+        "garage": "Garage",
+        "underground": "Underground garage",
+        "street": "Street parking",
+        "lot": "Parking lot",
+        "rack": "Bike rack",
+        "lockers": "Bike lockers",
+        "shelter": "Covered bike parking"
+      },
+      "car": {
+        "near": "Parking near {place}",
+        "nearby": "Parking near your destination",
+        "empty": "No public parking nearby"
+      },
+      "bike": {
+        "near": "Bike parking near {place}",
+        "nearby": "Bike parking near your destination",
+        "empty": "No bike parking nearby"
+      }
+    },
+    "pick": {
+      "minutes": "{n} min",
+      "walk": "walk"
     }
   },
   "attribution": {
@@ -2625,6 +2710,7 @@
       },
       "activeVehicles": "{count} {type} active",
       "selectVehicle": "Select a {type}",
+      "closestVehicle": "Closest",
       "everyNMin": "Every {n} min",
       "stops": "Stops",
       "alerts": {
@@ -2970,7 +3056,14 @@
           "confirmDescription": "This permanently erases all your encrypted data on this account — saved places, collections, friends, and sharing settings. Your email and passkeys stay, so you can keep signing in. This can't be undone.",
           "typePromptTitle": "Type RESET to confirm",
           "typePromptLabel": "Confirmation",
-          "failedFallback": "Reset failed. Please try again."
+          "failedFallback": "Reset failed. Please try again.",
+          "verifyTitle": "Confirm it's you",
+          "verifyPasskeyDescription": "Use your passkey to erase your encrypted data",
+          "verifyEmailDescription": "Enter the 8-digit code we emailed you",
+          "usePasskey": "Use passkey",
+          "emailInstead": "Email me a code instead",
+          "eraseAction": "Erase and reset",
+          "verifyFailed": "Couldn't confirm it's you. Try again"
         },
         "view": {
           "title": "Your recovery key",
@@ -3355,6 +3448,14 @@
         "poiStyle": "Place icons",
         "poiStyleBadge": "Colored badges",
         "poiStyleGlyph": "Icons only",
+        "imagery": {
+          "title": "Satellite imagery",
+          "description": "Higher sources win; lower ones fill the gaps",
+          "add": "Add",
+          "create": "New source…",
+          "remove": "Remove",
+          "empty": "No sources, so satellite shows a blank map"
+        },
         "descriptionMaplibre": "Visual style for the map",
         "descriptionMapbox": "Mapbox uses its own standard style",
         "placeholder": "Choose a style"
@@ -3559,6 +3660,7 @@
         "dawarich": "Private, encrypted location history tracking",
         "openaq": "Open air-quality data from ground monitoring stations",
         "firms": "Active wildfire detections from satellite (VIIRS/MODIS)",
+        "esri": "World Imagery for the satellite map",
         "quackback": "Feedback boards, voting and roadmap for the in-app feedback form",
         "openrouter": "The language model behind Ask"
       },
@@ -3673,6 +3775,11 @@
       "usage": {
         "title": "This month"
       }
+    },
+    "sync": {
+      "title": "Where this setting lives",
+      "synced": "All your devices",
+      "deviceOnly": "Only this device"
     }
   },
   "notes": {
@@ -3744,13 +3851,16 @@
     "errors": {
       "loadFailed": "Failed to load shares",
       "createFailed": "Failed to share",
+      "notFriends": "You can only share with friends",
       "revokeFailed": "Failed to remove access",
       "roleChangeFailed": "Failed to change role",
       "publicLinkFailed": "Failed to create public link",
       "publicLinkRevokeFailed": "Failed to revoke public link",
       "copyFailed": "Copy failed — select and copy the link manually",
       "identityRequired": "Set up your encryption keys in Settings before sharing",
-      "missingFriendKey": "This friend's keys aren't synced yet; try again in a moment"
+      "missingFriendKey": "This friend's keys aren't synced yet; try again in a moment",
+      "remainingKeysMissing": "Can't remove access until everyone else's keys are synced; try again in a moment",
+      "friendKeysChanged": "{name}'s keys changed. Check them on their profile before sharing"
     },
     "removeAction": "Remove {name}"
   },

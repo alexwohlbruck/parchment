@@ -372,7 +372,7 @@ function findGroupNode(id: string, tree: any[]): any {
               :model-value="mapStore.settings.basemap"
               class="grid grid-cols-3 gap-2"
               @update:model-value="
-                basemap => mapStore.setBasemap(basemap as Basemap)
+                basemap => basemap && mapStore.setBasemap(basemap as Basemap)
               "
             >
               <ToggleGroupItem

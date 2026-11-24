@@ -40,6 +40,9 @@ import {
 } from 'lucide-vue-next'
 import type { TransitDeparture } from '@/types/place.types'
 import { Spinner } from '@/components/ui/spinner'
+import { useGeolocationService } from '@/services/geolocation.service'
+import { useUnits } from '@/composables/useUnits'
+import { vehicleProximity } from '@/lib/transit/vehicle-proximity'
 
 const props = defineProps<{
   feedId: string
@@ -58,6 +61,9 @@ const route = computed(() => store.activeRoute)
 const isLoading = computed(() => store.isLoading)
 const vehiclesOnRoute = computed(() => store.vehiclesOnRoute)
 const selectedId = computed(() => store.selectedVehicleId)
+const geo = useGeolocationService()
+const { formatDistance } = useUnits()
+const proximity = computed(() => vehicleProximity(vehiclesOnRoute.value, geo.lngLat.value))
 const stopTimeMap = computed(() => store.stopTimeMap)
 const directions = computed(() => store.directions)
 const activeDirection = computed(() => store.activeDirection)
@@ -553,7 +559,19 @@ onUnmounted(() => {
                   :key="vr.vehicleId"
                   :value="vr.vehicleId"
                 >
-                  <span class="truncate">{{ vehicleLabel(vr) }}</span>
+                  <span class="flex w-full items-center gap-2 min-w-0">
+                    <span class="truncate">{{ vehicleLabel(vr) }}</span>
+                    <span
+                      v-if="proximity.distances.has(vr.vehicleId)"
+                      class="ml-auto shrink-0 tabular-nums text-xs"
+                      :class="vr.vehicleId === proximity.closestId ? 'text-primary font-medium' : 'text-muted-foreground'"
+                    >
+                      <template v-if="vr.vehicleId === proximity.closestId">
+                        {{ t('place.transit.closestVehicle') }} ·
+                      </template>
+                      {{ formatDistance(proximity.distances.get(vr.vehicleId)!) }}
+                    </span>
+                  </span>
                 </SelectItem>
               </SelectContent>
             </Select>

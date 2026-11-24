@@ -5,6 +5,8 @@ import type { RouteMetrics } from '@/lib/guidance/alternatives'
 import type { TripOption } from '@/types/directions.types'
 import { mapCandidate } from '@/lib/directions/trip-response'
 import { withCuratedTripColors } from '@/services/layers/features/portolan/portolan-bullets'
+import { getNetworkErrorKind, isRetriableNetworkError } from '@/lib/network-errors'
+import { planOffline } from '@/services/offline/offline-engine.service'
 
 export interface RerouteSegment {
   mode: string
@@ -33,14 +35,34 @@ export async function requestReroute(params: {
   destination: LngLat
   mode: string
 }): Promise<RerouteSegment | null> {
-  const { data } = await api.post('/directions/reroute', {
-    position: params.position,
-    heading: params.heading ?? undefined,
-    speed: params.speed ?? undefined,
-    destination: params.destination,
-    mode: SERVER_MODES[params.mode],
+  try {
+    const { data } = await api.post('/directions/reroute', {
+      position: params.position,
+      heading: params.heading ?? undefined,
+      speed: params.speed ?? undefined,
+      destination: params.destination,
+      mode: SERVER_MODES[params.mode],
+    })
+    return data?.segment ?? null
+  } catch (error) {
+    if (!isRetriableNetworkError(getNetworkErrorKind(error))) throw error
+    return (await rerouteFromSavedAreas(params)) ?? Promise.reject(error)
+  }
+}
+
+async function rerouteFromSavedAreas(params: { position: LngLat; destination: LngLat; mode: string }): Promise<RerouteSegment | null> {
+  const mode = SERVER_MODES[params.mode]
+  if (mode === 'driving') return null
+  const response = await planOffline({
+    origin: { lng: params.position.lng, lat: params.position.lat },
+    destination: { lng: params.destination.lng, lat: params.destination.lat },
+    selectedMode: mode === 'cycling' ? 'biking' : 'walking',
+    departAfter: Date.now(),
   })
-  return data?.segment ?? null
+  const segment = response?.trips[0]?.trip.segments[0]
+  if (!segment) return null
+  const { duration, distance, geometry, instructions } = segment
+  return { mode: params.mode, duration, distance, geometry, instructions }
 }
 
 export interface AlternativeSegment extends RerouteSegment {

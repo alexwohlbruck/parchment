@@ -144,13 +144,34 @@ async function updateBookmarkInternal(
   return updated as Bookmark
 }
 
+/** The owners of `collectionIds`, deduplicated. */
+async function collectionOwnerIds(collectionIds: string[]): Promise<Set<string>> {
+  if (collectionIds.length === 0) return new Set()
+  const rows = await db
+    .select({ userId: collections.userId })
+    .from(collections)
+    .where(inArray(collections.id, collectionIds))
+  return new Set(rows.map((r) => r.userId))
+}
+
+async function linkedCollectionIds(bookmarkId: string): Promise<string[]> {
+  return (
+    await db
+      .select({ collectionId: bookmarksCollections.collectionId })
+      .from(bookmarksCollections)
+      .where(eq(bookmarksCollections.bookmarkId, bookmarkId))
+  ).map((link) => link.collectionId)
+}
+
 /**
  * Updates a bookmark and optionally re-assigns its collections.
  *
- * Bookmark fields are owner-only. Membership may be changed by the owner or
- * by anyone who can write a collection that holds the bookmark, and only the
- * links to collections the caller can write are ever removed. Returns
- * undefined when the caller may not touch the bookmark at all.
+ * Bookmark fields are editable by the bookmark's author, and only while they
+ * can still write every collection holding it. Membership may be changed by
+ * the author or by anyone who can write a collection that holds the bookmark;
+ * a non-author may only link it into collections of the owners they reach it
+ * through, and only links to collections the caller can write are removed.
+ * Returns undefined when the caller may not touch the bookmark at all.
  */
 export async function updateBookmark(
   bookmarkId: string,
@@ -163,22 +184,30 @@ export async function updateBookmark(
   let updatedBookmark: Bookmark | undefined
   let membership: { linkedIds: string[]; writableIds: string[]; owns: boolean } | null = null
 
+  const [row] = await db
+    .select(bookmarkSelectFields)
+    .from(bookmarks)
+    .where(eq(bookmarks.id, bookmarkId))
+    .limit(1)
+  if (!row) return undefined
+  const owns = row.userId === userId
+  const linkedIds = await linkedCollectionIds(bookmarkId)
+  const writableIds = await writableCollectionIds(userId, linkedIds)
+
+  if (hasBookmarkFieldChanges) {
+    if (!owns || writableIds.length !== linkedIds.length) return undefined
+  }
+
   if (collectionIds !== undefined) {
-    const [row] = await db
-      .select(bookmarkSelectFields)
-      .from(bookmarks)
-      .where(eq(bookmarks.id, bookmarkId))
-      .limit(1)
-    if (!row) return null
-    const linkedIds = (
-      await db
-        .select({ collectionId: bookmarksCollections.collectionId })
-        .from(bookmarksCollections)
-        .where(eq(bookmarksCollections.bookmarkId, bookmarkId))
-    ).map((link) => link.collectionId)
-    const writableIds = await writableCollectionIds(userId, linkedIds)
-    const owns = row.userId === userId
     if (!owns && writableIds.length === 0) return undefined
+    const additions = collectionIds.filter((id) => !linkedIds.includes(id))
+    if (!owns && additions.length > 0) {
+      const reachableOwners = await collectionOwnerIds(writableIds)
+      const additionOwners = await collectionOwnerIds(additions)
+      for (const owner of additionOwners) {
+        if (!reachableOwners.has(owner)) return undefined
+      }
+    }
     membership = { linkedIds, writableIds, owns }
     updatedBookmark = row as Bookmark
   }
@@ -190,7 +219,7 @@ export async function updateBookmark(
       bookmarkUpdates,
     )
   }
-  if (!updatedBookmark) return null
+  if (!updatedBookmark) return undefined
 
   if (collectionIds !== undefined && membership) {
     const currentCollectionIds = membership.linkedIds

@@ -13,6 +13,8 @@ interface Props {
   trips: TripsResponse
   /** Height (px) of the pinned controls above; the time axis docks below it. */
   stickyTop?: number
+  /** Head each trip type with its own section. */
+  grouped?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -233,7 +235,7 @@ const advice = useTripListAdvice(() => props.trips.trips)
             : undefined,
         }"
       >
-        <TripRows :trips="trips.trips" :advice="advice" v-slot="{ trip, status }">
+        <TripRows :trips="trips.trips" :advice="advice" :grouped="grouped" v-slot="{ trip, status, sectioned }">
           <TripItem
             :trip="trip"
             :status="status"
@@ -242,6 +244,7 @@ const advice = useTripListAdvice(() => props.trips.trips)
             :px-per-minute="pxPerMinute"
             :sidebar-width="sidebarWidth"
             :bar-area-width="barAreaWidth"
+            :hide-type="sectioned"
             @click="openTrip"
           />
         </TripRows>

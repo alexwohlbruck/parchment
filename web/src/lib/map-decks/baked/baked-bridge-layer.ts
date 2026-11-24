@@ -63,6 +63,14 @@ export class BakedBridgeLayer {
     this.map?.triggerRepaint?.()
   }
 
+  /** Off, the decks only answer where they stand, for labels laid over a mesh that has its own bridges. */
+  private drawn = true
+  setDrawn(drawn: boolean) {
+    if (drawn === this.drawn) return
+    this.drawn = drawn
+    this.map?.triggerRepaint?.()
+  }
+
   private map: any
   private gl!: WebGL2RenderingContext
   private shadows = new MeshShadow()
@@ -140,10 +148,10 @@ export class BakedBridgeLayer {
   receiveSun(frame: SunFrame) { this.sun = frame }
   receiveOcclusion(occlusion: GroundOcclusion) { this.occlusion = occlusion }
   drawOcclusion(gl: WebGL2RenderingContext, frame: OcclusionFrame) {
-    if (this.covered) for (const [id, part] of this.parts) if (this.wanted.has(id)) part.shadow.drawOcclusion(gl, frame)
+    if (this.covered && this.drawn) for (const [id, part] of this.parts) if (this.wanted.has(id)) part.shadow.drawOcclusion(gl, frame)
   }
   drawSunDepth(gl: WebGL2RenderingContext, frame: SunFrame) {
-    if (this.covered) for (const [id, part] of this.parts) if (this.wanted.has(id)) part.shadow.drawSunDepth(gl, frame, this.exaggeration())
+    if (this.covered && this.drawn) for (const [id, part] of this.parts) if (this.wanted.has(id)) part.shadow.drawSunDepth(gl, frame, this.exaggeration())
   }
   /**
    * Whether the decks resident are drawn. Pieces from tiles draw as their tile lands, before the view's decks cover and the
@@ -888,7 +896,7 @@ export class BakedBridgeLayer {
       this.routePending = null
       this.route = { data: { origin, ranges: { paintFrom: 0, railsFrom: 0, routesFrom: 0 }, stands: [], under: [], tracks: [] }, buffers: uploadMesh(gl, mesh), shadow: new MeshShadow(), bytes: 0, bounds: null, extent: null }
     }
-    if (!this.drawing) return
+    if (!this.drawing || !this.drawn) return
     // A coarser tile's piece has no paint: drawn first, so a finer one's paint over the same deck lands on top.
     if (!this.drawOrder || this.drawOrder.parts !== this.parts.size || this.drawOrder.wanted !== this.wanted) {
       const ids = [...this.parts.keys()].filter(id => this.wanted.has(id))

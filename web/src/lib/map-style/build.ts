@@ -1,4 +1,5 @@
 import type { LayerSpecification, StyleSpecification } from 'maplibre-gl'
+import { imageryStyle, type ImagerySource } from '@/lib/imagery/imagery-stack'
 import { withElevationFormat } from '@/lib/map-elevation/elevated-lines'
 import type { MapStyleId } from '@/types/map.types'
 import { MapProjection } from '@/types/map.types'
@@ -27,6 +28,7 @@ import {
   BUILDING_3D_TILES,
   PROMOTED_REFS,
   DETAIL_TILES,
+  BRIDGE_DECK_TILES,
 } from './detail-layers'
 import { monorailLayers } from './monorail-layers'
 import { combineFilters } from './combine-filters'
@@ -425,6 +427,11 @@ export function buildTileUrl(tileServerUrl: string, source = 'basemap'): string 
   return `${tileServerUrl}/${source}/{z}/{x}/{y}?v=${TILE_FORMAT}`
 }
 
+function detailTileUrl(tileServerUrl: string, source: string, decks: boolean): string {
+  const url = buildTileUrl(tileServerUrl, source)
+  return source === DETAIL_TILES ? withDeckPieces(withFixtures(withElevationFormat(url)), decks) : url
+}
+
 function origin(): string {
   return typeof window !== 'undefined' ? window.location.origin : ''
 }
@@ -805,7 +812,7 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
     sprite: `${origin()}${SPRITE_PATH}`,
     sources: {
       [SOURCE]: vectorSource(tileServerUrl),
-      ...detailSources(source => withDeckPieces(source === DETAIL_TILES ? withFixtures(withElevationFormat(buildTileUrl(tileServerUrl, source))) : buildTileUrl(tileServerUrl, source), !!decks && source === DETAIL_TILES)),
+      ...detailSources(source => detailTileUrl(tileServerUrl, source, !!decks)),
       ...(barrelmanBuildingsTiles() === BUILDING_3D_TILES
         ? {
             [BUILDINGS_SOURCE]: {
@@ -829,34 +836,26 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
 }
 
 /**
- * Satellite / hybrid: ESRI World Imagery, with the basemap's labels and
- * arterial network over it in hybrid mode.
+ * Satellite / hybrid: the user's imagery stack, with the basemap's labels over
+ * it in hybrid mode. The photographed streets are the street lines.
  *
  * Hybrid always uses the dark flavor's labels regardless of app theme: the
  * ground here is imagery, always busy and mid-to-dark, not a flavor's own
  * background.
  */
 export function buildSatelliteStyle(
-  options: BasemapStyleOptions & { hybrid?: boolean },
+  options: BasemapStyleOptions & {
+    hybrid?: boolean
+    imagery: readonly ImagerySource[]
+    /** The bridge decks' tiles, read to raise names onto a 3D mesh's bridges. */
+    deckSource?: boolean
+  },
 ): StyleSpecification {
-  const { tileServerUrl, hybrid = false, mapStyle, lang, categoryColors, poiStyle, hdRoads } = options
+  const { tileServerUrl, hybrid = false, mapStyle, lang, categoryColors, poiStyle, hdRoads, imagery, decks, deckSource } = options
 
-  const sources: StyleSpecification['sources'] = {
-    'satellite-raster': {
-      type: 'raster',
-      tiles: [
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      ],
-      tileSize: 256,
-      maxzoom: 19,
-      attribution:
-        '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community',
-    },
-  }
-
-  const layers: StyleSpecification['layers'] = [
-    { id: 'satellite-raster', type: 'raster', source: 'satellite-raster' },
-  ]
+  const stack = imageryStyle(imagery)
+  const sources: StyleSpecification['sources'] = { ...stack.sources }
+  const layers: StyleSpecification['layers'] = [...stack.layers]
 
   if (hybrid) {
     sources[SOURCE] = vectorSource(tileServerUrl)
@@ -871,11 +870,13 @@ export function buildSatelliteStyle(
     }).filter(
       l =>
         (l.type === 'symbol' && (l as any).source === SOURCE) ||
-        (l as any)['source-layer'] === GLOBE_NAMES ||
-        // Keep the arterial network so the imagery stays navigable.
-        /^(Highway|Major road)$/.test(l.id),
+        (l as any)['source-layer'] === GLOBE_NAMES,
     )
     layers.push(...overlay)
+    if (deckSource) {
+      sources[DETAIL_SOURCE] = detailSources(source => detailTileUrl(tileServerUrl, source, !!decks))[DETAIL_SOURCE]
+      layers.push(keepDetailLayer(BRIDGE_DECK_TILES))
+    }
   }
 
   return {

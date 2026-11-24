@@ -1,0 +1,43 @@
+<script setup lang="ts">
+import { KeyRound } from 'lucide-vue-next'
+import OnboardingHeader from './OnboardingHeader.vue'
+import { ref, inject, onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useIdentityStore } from '@/stores/identity.store'
+import { validateKey } from './types'
+import RecoveryWordsSetupContent from '@/components/identity/RecoveryWordsSetupContent.vue'
+
+const { t } = useI18n()
+const identityStore = useIdentityStore()
+const contentRef = ref<InstanceType<typeof RecoveryWordsSetupContent>>()
+
+const validation = inject(validateKey)
+
+onMounted(async () => {
+  validation?.setCanContinue(false)
+  await identityStore.startSetup()
+  validation?.register(async () => {
+    if (!contentRef.value?.hasSavedKey) return false
+    return await contentRef.value.handleConfirm()
+  })
+})
+
+watch(
+  () => contentRef.value?.hasSavedKey,
+  saved => {
+    validation?.setCanContinue(!!saved)
+  },
+)
+</script>
+
+<template>
+  <div class="flex flex-col gap-6">
+    <OnboardingHeader
+      :title="t('onboarding.recoveryKey.title')"
+      :description="t('onboarding.recoveryKey.description')"
+      :icon="KeyRound"
+    />
+
+    <RecoveryWordsSetupContent ref="contentRef" hide-footer />
+  </div>
+</template>

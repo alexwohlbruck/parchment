@@ -19,10 +19,48 @@ import {
   decryptEnvelopeString,
   type AAD,
 } from './crypto-envelope'
-import { derivePersonalKey, PERSONAL_KEY_CONTEXT } from './federation-crypto'
+import {
+  deriveAllKeys,
+  derivePersonalKey,
+  exportPublicKey,
+  PERSONAL_KEY_CONTEXT,
+} from './federation-crypto'
 import { getSeed } from './key-storage'
 
-const KM_VERSION_CURRENT = 1
+/** This device's seed is older than the account's keys, so writing would strand data. */
+export class StaleKeysError extends Error {
+  constructor() {
+    super('Your keys changed on another device. Unlock them on this device before saving.')
+    this.name = 'StaleKeysError'
+  }
+}
+
+/** The stored blob won't open with this device's seed. */
+export class BlobUnreadableError extends Error {
+  constructor(blobType: string) {
+    super(`Couldn't decrypt ${blobType} with this device's keys`)
+    this.name = 'BlobUnreadableError'
+  }
+}
+
+let seedKmVersion: number | null = null
+
+/** Forget the cached key version, after this device's seed changes. */
+export function resetBlobKeyVersion(): void {
+  seedKmVersion = null
+}
+
+/** The account's key version, once confirmed to be the one this seed belongs to. */
+async function kmVersionForSeed(seed: Uint8Array): Promise<number> {
+  if (seedKmVersion !== null) return seedKmVersion
+  const { data } = await api.get<{ signingKey: string | null; kmVersion: number }>(
+    '/users/me/identity',
+  )
+  const ownSigningKey = exportPublicKey(deriveAllKeys(seed).signing.publicKey)
+  if (data.signingKey !== ownSigningKey) throw new StaleKeysError()
+  seedKmVersion = data.kmVersion
+  return seedKmVersion
+}
 
 function buildBlobAAD(params: {
   userId: string
@@ -59,16 +97,27 @@ export async function saveBlob<T>(
     key,
     aad: buildBlobAAD({ userId, blobType }),
   })
-  await api.put(`/me/blobs/${encodeURIComponent(blobType)}`, {
-    encryptedBlob: envelope,
-    nonce: '', // v2 envelope carries its own nonce internally
-    kmVersion: KM_VERSION_CURRENT,
-  })
+  const kmVersion = await kmVersionForSeed(seed)
+  try {
+    await api.put(`/me/blobs/${encodeURIComponent(blobType)}`, {
+      encryptedBlob: envelope,
+      nonce: '',
+      kmVersion,
+    })
+  } catch (err) {
+    if ((err as { response?: { status?: number } })?.response?.status === 409) {
+      resetBlobKeyVersion()
+      throw new StaleKeysError()
+    }
+    throw err
+  }
 }
 
 /**
  * Fetch + decrypt a named blob. Returns null if the blob doesn't exist
- * (new user, never synced) or decryption fails (seed rotated, etc.).
+ * (new user, never synced). Throws `BlobUnreadableError` when it exists
+ * but won't decrypt, so a caller never mistakes it for empty and
+ * overwrites it.
  */
 export async function loadBlob<T>(
   blobType: string,
@@ -98,8 +147,7 @@ export async function loadBlob<T>(
     })
     return JSON.parse(plaintext) as T
   } catch {
-    // Decrypt failed — treat as "no usable blob" and let caller recover.
-    return null
+    throw new BlobUnreadableError(blobType)
   }
 }
 

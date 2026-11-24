@@ -54,6 +54,10 @@ export interface EngineDiagnostics {
   /** Steps per second; null without a steady walk. */
   cadence: number | null
   stride: number
+  /** When the last motion sample came in; null before any. */
+  motionAt: number | null
+  /** The latest barometer reading, hPa; null without one. */
+  pressure: { t: number; hPa: number } | null
 }
 
 export interface EngineOptions {
@@ -114,6 +118,8 @@ export class GuidanceEngine {
   private fixIntervalSec = 1
   private clock = -Infinity
   private estimated = false
+  private motionAt: number | null = null
+  private pressure: { t: number; hPa: number } | null = null
 
   constructor(route: NavRoute, options: EngineOptions = {}) {
     this.route = route
@@ -145,7 +151,14 @@ export class GuidanceEngine {
       estimated: this.estimated,
       cadence: this.pedometer.cadence(this.clock),
       stride: this.pedometer.stride,
+      motionAt: this.motionAt,
+      pressure: this.pressure,
     }
+  }
+
+  /** Steps counted after `from` up to `to`, seconds. */
+  stepsBetween(from: number, to: number): number {
+    return this.pedometer.stepsBetween(from, to)
   }
 
   /** How often fixes were asked for; a gap is only a loss once several are overdue. */
@@ -154,6 +167,8 @@ export class GuidanceEngine {
   }
 
   pushMotion(sample: MotionSample): void {
+    this.motionAt = sample.t
+    if (sample.pressure != null) this.pressure = { t: sample.t, hPa: sample.pressure }
     this.stillness.push(sample)
     this.pedometer.push(sample)
     this.heading.integrate(sample.t, this.yaw.push(sample))

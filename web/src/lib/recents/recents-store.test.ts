@@ -19,6 +19,7 @@ vi.mock('@/lib/identity/personal-blob', () => ({
     savedBlobs[userId] = (savedBlobs[userId] ?? []).concat(value)
   }),
   deleteBlob: vi.fn(async () => {}),
+  BlobUnreadableError: class BlobUnreadableError extends Error {},
 }))
 
 interface Entry {

@@ -449,6 +449,7 @@ defineExpose({
     <template v-if="isMobileScreen">
       <bottom-sheet
         parent-id="map"
+        panel
         :open="bottomSheetOpen"
         @update:open="onOpenChange"
         :custom-snap-points="MOBILE_SNAP_POINTS"

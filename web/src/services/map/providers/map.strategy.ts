@@ -1,3 +1,4 @@
+import type { FloorRequest } from '@/lib/indoor/indoor-venue'
 import type { MapRenderBudget } from '@/lib/power/power-saver'
 import type { ImagerySource } from '@/lib/imagery/imagery-stack'
 import { type CameraOptions } from 'maplibre-gl'
@@ -224,6 +225,8 @@ export class MapStrategy {
   setIndoorMaps(value: boolean) {}
   /** Show another floor of the venue in focus. MapLibre only; Mapbox brings its own picker. */
   setIndoorLevel(level: number | null) {}
+  /** Show a guided step's floor until the rider picks another. MapLibre only. */
+  requestIndoorLevel(request: FloorRequest | null) {}
   setMapLanguage(locale: string): boolean {
     return false // Default: no reinitialization needed
   }

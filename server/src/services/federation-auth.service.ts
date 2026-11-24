@@ -79,6 +79,12 @@ export async function resolvePeerServer(
     throw new Error(`Peer ${domain} returned a malformed server manifest`)
   }
 
+  if (manifest.server_id.toLowerCase() !== domain.toLowerCase()) {
+    throw new Error(
+      `Peer ${domain} published a manifest for ${manifest.server_id}`,
+    )
+  }
+
   // Find a mutually supported protocol version.
   const shared = manifest.protocol_versions.filter(supportsProtocolVersion)
   if (shared.length === 0) {
@@ -204,7 +210,7 @@ export async function verifyInboundRequest(params: {
   path: string
   bodyJson: string
   headers: Headers
-}): Promise<{ senderServerId: string; protocolVersion: number }> {
+}): Promise<{ senderServerId: string; protocolVersion: number; nonce: string }> {
   const senderServerId = params.headers.get('X-Parchment-Server-Id')
   const protocolVersionRaw = params.headers.get('X-Parchment-Protocol-Version')
   const nonce = params.headers.get('X-Parchment-Nonce')
@@ -266,7 +272,7 @@ export async function verifyInboundRequest(params: {
   // rejected above at the signature step.)
   await assertNonceUnseen(senderServerId, nonce, new Date(timestamp))
 
-  return { senderServerId, protocolVersion }
+  return { senderServerId, protocolVersion, nonce }
 }
 
 /**

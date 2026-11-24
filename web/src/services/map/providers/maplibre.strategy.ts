@@ -141,7 +141,7 @@ import { isFlatTunnel, mutedTunnelOpacity } from '@/lib/map-tunnels/flat-tunnels
 import { ANCHOR_PROPERTY, ELEVATION_PROFILE, HEIGHT_PROPERTY, OCCLUSION_PROPERTY, PITCH_PROPERTY, PROFILE_PROPERTY, STATION_ANCHOR, STATION_HEIGHT, elevatesLine, holdsWidth, raisesSymbol, seesThrough } from '@/lib/map-elevation/elevated-lines'
 import { buildTileUrl, withDeckPieces } from '@/lib/map-style/build'
 import { INDOOR_LAYER_PREFIX } from '@/lib/map-style/indoor-layers'
-import { showsBasement } from '@/lib/indoor/indoor-venue'
+import { showsBasement, type FloorRequest } from '@/lib/indoor/indoor-venue'
 import { fadedPaint } from '@/lib/map-style/surface-fade'
 
 /** How solid the 3D buildings, and the rest of the surface but the transit network, stay while a floor plan shows a basement under them. */
@@ -851,6 +851,10 @@ export class MaplibreStrategy extends MapStrategy {
     this.indoor?.setEnabled(!!value)
     this.indoorTerrain?.setEnabled(!!value)
     this.indoorFlights?.setEnabled(!!value)
+  }
+
+  requestIndoorLevel(request: FloorRequest | null) {
+    this.indoor?.requestLevel(request)
   }
 
   setIndoorLevel(level: number | null) {

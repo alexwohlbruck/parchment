@@ -3,7 +3,7 @@ import { computed, ref, watchEffect } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Check } from 'lucide-vue-next'
 import { Input } from '@/components/ui/input'
-import { pickCheckPositions, sameRecoveryWord } from '@/lib/identity/recovery-key'
+import { pickCheckPositions, sameRecoveryWord } from '@/lib/identity/recovery-words'
 
 const props = defineProps<{ words: string[] }>()
 const passed = defineModel<boolean>('passed', { default: false })

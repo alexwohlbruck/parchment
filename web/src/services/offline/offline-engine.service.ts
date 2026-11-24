@@ -6,6 +6,8 @@ import type { OfflineTripRequest, OfflineTripResponse } from '@/lib/offline/offl
 import type { PackagePlace } from '@/types/offline-package.types'
 import type { EngineRegion, EngineRequest, EngineResponse, StopQuery } from '@/types/offline-engine.types'
 import type { TransitStopInfo } from '@/types/place.types'
+import { i18n } from '@/lib/i18n'
+import { stepText } from '@/lib/guidance/instructions/instruction-text'
 
 let worker: Worker | null = null
 let nextId = 0
@@ -70,4 +72,12 @@ export const offlinePlace = (id: string) => ask<PackagePlace>({ type: 'place', i
 export const offlineDepartures = (stop: StopQuery, after = Date.now()) =>
   ask<TransitStopInfo>({ type: 'departures', stop, after })
 
-export const planOffline = (request: OfflineTripRequest) => ask<OfflineTripResponse>({ type: 'plan', request })
+/** Trips planned on the device, with their instructions worded in the app's language. */
+export async function planOffline(request: OfflineTripRequest): Promise<OfflineTripResponse | null> {
+  const response = await ask<OfflineTripResponse>({ type: 'plan', request })
+  const t = (i18n.global as unknown as { t: (key: string, named?: Record<string, unknown>) => string }).t
+  for (const { trip } of response?.trips ?? []) {
+    for (const segment of trip.segments) for (const step of segment.instructions) step.text = stepText(step, t)
+  }
+  return response
+}

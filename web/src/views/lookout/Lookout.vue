@@ -6,7 +6,7 @@ import { useIdentityStore } from '@/stores/identity.store'
 import FriendsList from '@/components/friends/FriendsList.vue'
 import FriendInvitations from '@/components/friends/FriendInvitations.vue'
 import AddFriendDialog from '@/components/friends/AddFriendDialog.vue'
-import RecoveryKeyDialog from '@/components/identity/RecoveryKeyDialog.vue'
+import RecoveryWordsDialog from '@/components/identity/RecoveryWordsDialog.vue'
 import TrackersList from '@/components/trackers/TrackersList.vue'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -22,11 +22,11 @@ const canAccessFriends = computed(() => authService.hasPermission(PermissionId.S
 const friendsStore = useFriendsStore()
 const identityStore = useIdentityStore()
 
-const { isSetupComplete, needsImport } = storeToRefs(identityStore)
+const { isSetupComplete, needsImport, needsSetup } = storeToRefs(identityStore)
 const { pendingIncomingCount } = storeToRefs(friendsStore)
 
 const showAddFriendDialog = ref(false)
-const showRecoveryKeyDialog = ref(false)
+const showRecoveryWordsDialog = ref(false)
 const recoveryDialogMode = ref<'setup' | 'import'>('setup')
 
 const activeTab = ref('friends')
@@ -36,11 +36,11 @@ onMounted(async () => {
 
   if (needsImport.value) {
     recoveryDialogMode.value = 'import'
-    showRecoveryKeyDialog.value = true
-  } else if (!isSetupComplete.value) {
+    showRecoveryWordsDialog.value = true
+  } else if (needsSetup.value) {
     recoveryDialogMode.value = 'setup'
-    showRecoveryKeyDialog.value = true
-  } else {
+    showRecoveryWordsDialog.value = true
+  } else if (isSetupComplete.value) {
     await friendsStore.loadAll()
   }
 })
@@ -51,7 +51,7 @@ function handleSetupComplete() {
 
 function openIdentityDialog() {
   recoveryDialogMode.value = needsImport.value ? 'import' : 'setup'
-  showRecoveryKeyDialog.value = true
+  showRecoveryWordsDialog.value = true
 }
 
 function handleAddFriend() {
@@ -115,8 +115,8 @@ function handleSetupIdentity() {
 
     <!-- Dialogs -->
     <AddFriendDialog v-model:open="showAddFriendDialog" />
-    <RecoveryKeyDialog
-      v-model:open="showRecoveryKeyDialog"
+    <RecoveryWordsDialog
+      v-model:open="showRecoveryWordsDialog"
       :mode="recoveryDialogMode"
       @complete="handleSetupComplete"
     />

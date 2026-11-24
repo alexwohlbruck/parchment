@@ -207,6 +207,7 @@
       "search": {
         "name": "Buscar lugares",
         "description": "Buscar lugares, negocios y servicios",
+        "bookmarked": "Guardado",
         "arguments": {
           "places": {
             "name": "Lugares"
@@ -1110,6 +1111,11 @@
         "back": "Camina hasta la parte trasera del andén"
       },
       "saves": "ahorra {duration}",
+      "for": {
+        "exit": "para salir por {name}",
+        "transfer": "para el {name}"
+      },
+      "waitWalk": "Tienes {duration}, camina hasta la parte {section} del andén",
       "insideStation": "Dentro de la estación",
       "steps": "{n} paso | {n} pasos",
       "levelUp": "Sube {n} nivel | Sube {n} niveles",
@@ -1475,30 +1481,31 @@
     "today": "Hoy",
     "thisWeek": "Esta semana",
     "thisMonth": "Este mes",
-    "selectDate": "Seleccionar fecha",
-    "customRange": "Rango personalizado",
-    "singleDay": "Un día",
-    "startTime": "Inicio",
-    "endTime": "Fin",
     "noEvents": "No hay historial de ubicación para este rango",
     "loadFailed": "No se pudo cargar la cronología",
-    "stop": "Parada",
     "unnamedStop": "Ubicación sin nombre",
-    "duration": "{duration}",
-    "timeRange": "{start} – {end}",
-    "modeUnknown": "Viaje",
     "noIntegration": {
       "title": "Conecta un rastreador de ubicación",
       "description": "Configura una integración de historial de ubicación para ver tu cronología.",
       "details": "Tu configuración está cifrada de extremo a extremo — tus credenciales nunca salen de tu dispositivo sin cifrar.",
       "configure": "Configurar integración"
     },
+    "checkIntegration": "Revisa tu integración de historial de ubicaciones en Ajustes",
+    "yesterday": "Ayer",
+    "previous": "Anterior",
+    "next": "Siguiente",
     "stats": {
-      "totalDistance": "{distance} km",
-      "totalStops": "{n} parada | {n} paradas",
-      "dailyDistance": "Distancia diaria"
+      "places": "Lugares",
+      "distance": "Distancia",
+      "moving": "En movimiento"
     },
-    "checkIntegration": "Revisa tu integración de historial de ubicaciones en Ajustes"
+    "placeCount": "{n} lugar | {n} lugares",
+    "modes": {
+      "driving": "Condujiste {distance}",
+      "cycling": "Pedaleaste {distance}",
+      "walking": "Caminaste {distance}",
+      "transit": "Viajaste en transporte {distance}"
+    }
   },
   "friends": {
     "title": "Amigos",
@@ -1510,6 +1517,7 @@
     "cancel": "Cancelar",
     "done": "Listo",
     "locationSharing": "Compartir ubicación",
+    "remoteLocationUnavailable": "Aún no disponible con amigos de otros servidores",
     "countOne": "{n} amigo",
     "countMany": "{n} amigos",
     "invitations": {
@@ -1556,6 +1564,7 @@
       "setupDescription": "Configura tu identidad federada para conectar con amigos y compartir datos de forma segura entre servidores de Parchment.",
       "importButton": "Introducir palabras de recuperación",
       "importDescription": "Tu identidad existe en este servidor, pero necesitas introducir tus palabras de recuperación para usarla en este dispositivo.",
+      "unavailableDescription": "No se pudo cargar tu identidad. Revisa tu conexión e inténtalo de nuevo.",
       "viewKey": "Ver clave",
       "aliasHint": "3-30 caracteres, letras, números y guiones bajos",
       "updateFailed": "Error al actualizar alias",
@@ -1586,7 +1595,7 @@
       "failedTitle": "La rotación falló",
       "failedFallback": "La rotación falló",
       "close": "Cerrar",
-      "slotWarning": "La clave de acceso {id}… no se volvió a asegurar ({reason}). Ya no funcionará para recuperación — elimínala y agrégala de nuevo.",
+      "slotWarning": "La clave de acceso {id}… no se pudo volver a asegurar ({reason}), así que ya no puede desbloquear tus claves. Elimínala y agrégala de nuevo.",
       "unknownReason": "desconocido",
       "progress": {
         "preparing": "Preparando…",
@@ -1597,8 +1606,11 @@
         "resealingSlot": "Toca tu clave de acceso para volver a asegurar el slot {index} de {total}",
         "committing": "Finalizando — guardando todo a la vez…",
         "storingSeed": "Actualizando este dispositivo…",
-        "done": "Hecho — ahora en la versión de clave {version}"
-      }
+        "done": "Hecho — ahora en la versión de clave {version}",
+        "confirmingRecoveryWords": "Esperando a que guardes tus nuevas palabras de recuperación"
+      },
+      "recoveryWordsTitle": "Guarda tus nuevas palabras de recuperación",
+      "recoveryWordsDescription": "Tus palabras anteriores dejan de funcionar al terminar. Anota estas y guárdalas en un lugar seguro."
     },
     "security": {
       "title": "Claves de cifrado",
@@ -1659,7 +1671,16 @@
       "syncKeys": "Sincronizar claves",
       "syncingKeys": "Sincronizando claves…",
       "keysSynced": "Claves sincronizadas",
-      "syncFailed": "No se pudieron sincronizar las claves"
+      "syncFailed": "No se pudieron sincronizar las claves",
+      "keyChangedTitle": "Las claves de {name} cambiaron",
+      "keyChangedDescription": "Su teléfono, o alguien que se hace pasar por esa persona, tiene claves nuevas. No se comparte nada hasta que compares este número con el suyo.",
+      "safetyNumber": "Número de seguridad",
+      "safetyNumberDescription": "Coincide con el número del teléfono de {name} si tu conexión es segura.",
+      "trustNewKeys": "Los números coinciden",
+      "markVerified": "Marcar como verificado",
+      "verified": "Verificado",
+      "keysTrusted": "Claves de confianza",
+      "loadFailed": "No se pudo cargar este amigo"
     }
   },
   "dashboard": {
@@ -2272,6 +2293,14 @@
         "board": "Sube al {line}",
         "boardToward": "Sube al {line} hacia {headsign}",
         "boardSigned": "Sube al {line}, {direction}",
+        "boardNear": "Sube por la parte {section}",
+        "boardNearFor": "Sube por la parte {section} para {target}",
+        "waitWalk": "Tienes {duration}, camina hasta la parte {section} del andén",
+        "waitWalkFor": "Tienes {duration}, camina hasta la parte {section} del andén para {target}",
+        "target": {
+          "exit": "la salida de {name}",
+          "transfer": "el {name}"
+        },
         "alight-next": "Bájate en la próxima parada, {stop}",
         "alight-now": "Bájate en {stop}",
         "missed-vehicle": "El {line} ya salió. Toma el siguiente o busca otra ruta",
@@ -2333,7 +2362,8 @@
         "next": "Siguiente",
         "done": "Listo",
         "stepOf": "{n}/{total}",
-        "advancesIn": "siguiente en {duration}"
+        "advancesIn": "siguiente en {duration}",
+        "left": "faltan {distance}"
       }
     },
     "ahead": {
@@ -2886,7 +2916,7 @@
           "useRecoveryKeyInstead": "Usar palabras de recuperación en su lugar",
           "unlockFailed": "No se pudo desbloquear con la clave de acceso",
           "typeKeyTitle": "Introduce tus palabras de recuperación",
-          "typeKeyDescription": "Las 24 palabras que guardaste al configurar tu cuenta. Una clave de recuperación antigua también sirve.",
+          "typeKeyDescription": "Las 24 palabras que guardaste al configurar tu cuenta.",
           "recoveryKeyLabel": "Palabras de recuperación",
           "recoveryKeyPlaceholder": "Escribe o pega tus 24 palabras",
           "invalidKey": "Esas palabras no coinciden con esta cuenta",
@@ -2904,7 +2934,14 @@
           "confirmDescription": "Esto borra permanentemente todos tus datos cifrados en esta cuenta — lugares guardados, colecciones, amigos y ajustes de compartición. Tu correo y claves de acceso permanecen, así que puedes seguir iniciando sesión. Esto no se puede deshacer.",
           "typePromptTitle": "Escribe RESET para confirmar",
           "typePromptLabel": "Confirmación",
-          "failedFallback": "Error al restablecer. Por favor, inténtalo de nuevo."
+          "failedFallback": "Error al restablecer. Por favor, inténtalo de nuevo.",
+          "verifyTitle": "Confirma que eres tú",
+          "verifyPasskeyDescription": "Usa tu llave de acceso para borrar tus datos cifrados",
+          "verifyEmailDescription": "Introduce el código de 8 dígitos que te enviamos por correo",
+          "usePasskey": "Usar llave de acceso",
+          "emailInstead": "Enviarme un código por correo",
+          "eraseAction": "Borrar y restablecer",
+          "verifyFailed": "No pudimos confirmar que eres tú. Inténtalo de nuevo"
         },
         "view": {
           "title": "Tus palabras de recuperación",
@@ -2923,11 +2960,6 @@
           "start": "Ya las guardé",
           "showAgain": "Mostrar mis palabras otra vez",
           "savedToast": "Palabras de recuperación guardadas"
-        },
-        "prompt": {
-          "title": "Guarda tus 24 palabras de recuperación",
-          "description": "Sustituyen a tu antigua clave de recuperación.",
-          "action": "Guardar palabras"
         }
       },
       "transferDevice": {
@@ -3631,13 +3663,16 @@
     "errors": {
       "loadFailed": "No se pudieron cargar los recursos compartidos",
       "createFailed": "No se pudo compartir",
+      "notFriends": "Solo puedes compartir con tus amigos",
       "revokeFailed": "No se pudo eliminar el acceso",
       "roleChangeFailed": "No se pudo cambiar el rol",
       "publicLinkFailed": "No se pudo crear el enlace público",
       "publicLinkRevokeFailed": "No se pudo revocar el enlace público",
       "copyFailed": "Error al copiar — selecciona y copia el enlace manualmente",
       "identityRequired": "Configura tus claves de cifrado en Ajustes antes de compartir",
-      "missingFriendKey": "Las claves de este amigo aún no están sincronizadas; inténtalo en un momento"
+      "missingFriendKey": "Las claves de este amigo aún no están sincronizadas; inténtalo en un momento",
+      "remainingKeysMissing": "No se puede quitar el acceso hasta que se sincronicen las claves de los demás; inténtalo en un momento",
+      "friendKeysChanged": "Las claves de {name} cambiaron. Revísalas en su perfil antes de compartir"
     },
     "removeAction": "Quitar a {name}"
   },

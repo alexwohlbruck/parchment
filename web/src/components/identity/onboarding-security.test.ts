@@ -1,7 +1,7 @@
 import { beforeEach, expect, test, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { reactive, ref } from 'vue'
-import RecoveryKeySetupContent from './RecoveryKeySetupContent.vue'
+import RecoveryWordsSetupContent from './RecoveryWordsSetupContent.vue'
 import PasskeyOfferContent from './PasskeyOfferContent.vue'
 
 const mocks = vi.hoisted(() => ({ complete: vi.fn(), copy: vi.fn(), passkeys: vi.fn(), enroll: vi.fn(), enrollExisting: vi.fn(), refresh: vi.fn() }))
@@ -46,7 +46,7 @@ async function passWordCheck(wrapper: ReturnType<typeof mount>) {
 }
 
 test('copies the words as one phrase and saves only after 3 are retyped', async () => {
-  const wrapper = mount(RecoveryKeySetupContent)
+  const wrapper = mount(RecoveryWordsSetupContent)
   expect(wrapper.findAll('li')).toHaveLength(24)
   await wrapper.findAll('button').find(button => button.text().includes('copyToClipboard'))!.trigger('click')
   expect(mocks.copy).toHaveBeenCalledWith(WORDS.join(' '), 'settings.identity.recoveryKey.setup.keyCopiedToast')
@@ -70,7 +70,7 @@ test('copies the words as one phrase and saves only after 3 are retyped', async 
 
 test('keeps the word check out of reach while the words are generating', () => {
   identity.pendingRecoveryWords = null
-  const wrapper = mount(RecoveryKeySetupContent)
+  const wrapper = mount(RecoveryWordsSetupContent)
   const buttons = wrapper.findAll('button')
   expect(buttons.find(button => button.text() === 'settings.identity.recoveryKey.check.start')!.attributes('disabled')).toBeDefined()
   expect(buttons.find(button => button.text().includes('copyToClipboard'))!.attributes('disabled')).toBeDefined()
@@ -79,7 +79,7 @@ test('keeps the word check out of reach while the words are generating', () => {
 
 test('keeps setup errors visible without completing', async () => {
   mocks.complete.mockResolvedValue({ success: false, error: 'Could not save' })
-  const wrapper = mount(RecoveryKeySetupContent)
+  const wrapper = mount(RecoveryWordsSetupContent)
   await passWordCheck(wrapper)
   await wrapper.findAll('button').find(button => button.text() === 'general.continue')!.trigger('click')
   await flushPromises()

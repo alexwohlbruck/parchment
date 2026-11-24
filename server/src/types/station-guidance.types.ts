@@ -99,6 +99,8 @@ export interface BoardingPosition {
   toward: 'exit' | 'transfer'
   /** The exit's name or the line transferred to. */
   landmark: string | null
+  /** Seconds along the boarding platform from where the walk in reaches it to this spot. */
+  platformWalkSeconds?: number | null
 }
 
 /** The guidance fields a transit leg may carry. */

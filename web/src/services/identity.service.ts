@@ -8,6 +8,7 @@
  * - Get current identity for signing requests
  */
 
+import { startAuthentication } from '@simplewebauthn/browser'
 import { api } from '@/lib/api'
 import {
   generateSeed,
@@ -15,15 +16,16 @@ import {
   exportPublicKey,
   importPublicKey,
   sign,
-  buildSignableMessage,
+  buildSignableMessageV2,
+  generateNonce,
   type DerivedKeys,
 } from '@/lib/identity/federation-crypto'
 import {
-  parseRecoveryKey,
-  RecoveryKeyError,
+  parseRecoveryWords,
+  RecoveryWordsError,
   seedToRecoveryWords,
-  type RecoveryKeyProblem,
-} from '@/lib/identity/recovery-key'
+  type RecoveryWordsProblem,
+} from '@/lib/identity/recovery-words'
 import {
   storeSeed,
   getSeed,
@@ -55,16 +57,10 @@ export async function checkHasLocalIdentity(): Promise<boolean> {
   return hasIdentity()
 }
 
-/**
- * Get the current identity from the server
- */
-export async function fetchIdentityFromServer(): Promise<Identity | null> {
-  try {
-    const response = await api.get<Identity>('/users/me/identity')
-    return response.data
-  } catch {
-    return null
-  }
+/** Throws when the server can't be reached, so a failed request is never read as "no identity". */
+export async function fetchIdentityFromServer(): Promise<Identity> {
+  const response = await api.get<Identity>('/users/me/identity')
+  return response.data
 }
 
 /**
@@ -90,17 +86,23 @@ export async function completeIdentitySetup(
   seed: Uint8Array,
   keys: DerivedKeys,
 ): Promise<void> {
-  // Store seed in IndexedDB
+  try {
+    await api.put('/users/me/keys', {
+      signingKey: exportPublicKey(keys.signing.publicKey),
+      encryptionKey: exportPublicKey(keys.encryption.publicKey),
+    })
+  } catch (err) {
+    if ((err as { response?: { status?: number } })?.response?.status === 409) {
+      throw new Error(
+        'Your account already has keys. Restore them with your recovery key or a passkey instead.',
+      )
+    }
+    throw err
+  }
   await storeSeed(seed)
-  
-  // Register public keys with server
-  await api.put('/users/me/keys', {
-    signingKey: exportPublicKey(keys.signing.publicKey),
-    encryptionKey: exportPublicKey(keys.encryption.publicKey),
-  })
 }
 
-export type RecoveryImportProblem = RecoveryKeyProblem | 'mismatch'
+export type RecoveryImportProblem = RecoveryWordsProblem | 'mismatch'
 
 export interface RecoveryImportResult {
   success: boolean
@@ -108,19 +110,17 @@ export interface RecoveryImportResult {
   problem?: RecoveryImportProblem
   /** The word that isn't a recovery word, when `problem` is `unknown-word`. */
   word?: string
-  /** True when the user typed their 24 words rather than a legacy key. */
-  fromWords?: boolean
 }
 
 /**
- * Import identity from recovery words (or a legacy base64 key).
+ * Import identity from the 24 recovery words.
  * Used when logging in on a new device
  */
-export async function importIdentityFromRecoveryKey(
-  recoveryKey: string,
+export async function importIdentityFromRecoveryWords(
+  recoveryWords: string,
 ): Promise<RecoveryImportResult> {
   try {
-    const seed = parseRecoveryKey(recoveryKey)
+    const seed = parseRecoveryWords(recoveryWords)
     const keys = deriveAllKeys(seed)
     
     // Get server identity to verify
@@ -133,7 +133,7 @@ export async function importIdentityFromRecoveryKey(
         return {
           success: false,
           problem: 'mismatch',
-          error: 'Recovery key does not match your account',
+          error: 'Recovery words do not match your account',
         }
       }
     }
@@ -149,12 +149,12 @@ export async function importIdentityFromRecoveryKey(
       })
     }
     
-    return { success: true, fromWords: /\s/.test(recoveryKey.trim()) }
+    return { success: true }
   } catch (error) {
     return {
       success: false,
-      ...(error instanceof RecoveryKeyError && { problem: error.problem, word: error.word }),
-      error: error instanceof Error ? error.message : 'Invalid recovery key',
+      ...(error instanceof RecoveryWordsError && { problem: error.problem, word: error.word }),
+      error: error instanceof Error ? error.message : 'Invalid recovery words',
     }
   }
 }
@@ -176,20 +176,40 @@ export async function getRecoveryWords(): Promise<string[] | null> {
   return seed ? seedToRecoveryWords(seed) : null
 }
 
+export interface SignedFederationEnvelope {
+  signature: string
+  nonce: string
+  timestamp: string
+}
+
 /**
- * Sign a federation message
+ * Sign a v2 federation envelope. The server forwards the nonce and timestamp
+ * unchanged, so the recipient verifies exactly what was signed here.
  */
-export async function signFederationMessage(
-  type: string,
-  payload: Record<string, unknown>,
-): Promise<string> {
+export async function signFederationEnvelope(
+  messageType: string,
+  from: string,
+  to: string,
+  payload: Record<string, unknown> = {},
+): Promise<SignedFederationEnvelope> {
   const keys = await getLocalIdentity()
   if (!keys) {
     throw new Error('No identity found. Please set up your federation identity.')
   }
-  
-  const message = buildSignableMessage(type, payload)
-  return sign(message, keys.signing.privateKey)
+
+  const nonce = generateNonce()
+  const timestamp = new Date().toISOString()
+  const message = buildSignableMessageV2({
+    protocol_version: 2,
+    message_type: messageType,
+    message_version: 1,
+    from,
+    to,
+    nonce,
+    timestamp,
+    payload,
+  })
+  return { signature: await sign(message, keys.signing.privateKey), nonce, timestamp }
 }
 
 /**
@@ -230,13 +250,41 @@ export async function clearLocalIdentity(): Promise<void> {
  * every path back to their seed. Server returns 400 unless the
  * `confirm` literal is included — speed-bump against accidental calls.
  */
-export async function resetServerIdentity(): Promise<{
+type PasskeyRequestOptions = Parameters<typeof startAuthentication>[0]
+type PasskeyAssertion = Awaited<ReturnType<typeof startAuthentication>>
+
+export type ResetStepUp =
+  | { method: 'passkey'; options: PasskeyRequestOptions }
+  | { method: 'email' }
+
+export interface ResetProof {
+  code?: string
+  passkey?: PasskeyAssertion
+}
+
+/** Start the re-authentication a reset needs: a passkey prompt or an emailed code. */
+export async function beginResetStepUp(method?: 'email'): Promise<ResetStepUp> {
+  const response = await api.post<ResetStepUp>(
+    '/users/me/identity/reset/step-up',
+    method ? { method } : {},
+  )
+  return response.data
+}
+
+export async function assertPasskeyForReset(
+  options: PasskeyRequestOptions,
+): Promise<PasskeyAssertion> {
+  return startAuthentication(options)
+}
+
+export async function resetServerIdentity(proof: ResetProof): Promise<{
   success: boolean
   error?: string
 }> {
   try {
     await api.post('/users/me/identity/reset', {
       confirm: 'erase-all-my-data',
+      ...proof,
     })
     return { success: true }
   } catch (err: unknown) {
@@ -246,35 +294,6 @@ export async function resetServerIdentity(): Promise<{
       (err instanceof Error ? err.message : 'Reset failed')
     return { success: false, error: message }
   }
-}
-
-/**
- * Check if identity setup is needed
- * Returns true if user has no local identity or server has no keys
- */
-export async function needsIdentitySetup(): Promise<boolean> {
-  const [hasLocal, serverIdentity] = await Promise.all([
-    hasIdentity(),
-    fetchIdentityFromServer(),
-  ])
-  
-  // Needs setup if:
-  // - No local identity, OR
-  // - Server has no signing key
-  return !hasLocal || !serverIdentity?.signingKey
-}
-
-/**
- * Check if user needs to import their identity on this device
- * (Server has keys but local doesn't)
- */
-export async function needsIdentityImport(): Promise<boolean> {
-  const [hasLocal, serverIdentity] = await Promise.all([
-    hasIdentity(),
-    fetchIdentityFromServer(),
-  ])
-  
-  return !hasLocal && !!serverIdentity?.signingKey
 }
 
 /**
@@ -484,7 +503,7 @@ export async function enrollExistingPasskeyAsSlot(params: {
  * which user's salt + slot list to return.
  *
  * Returns the seed on success. Throws with a specific reason on failure
- * so the caller can route to the typed-recovery-key fallback with an
+ * so the caller can route to the typed-recovery-words fallback with an
  * accurate error message.
  */
 export async function unlockSeedWithPasskey(params: {
@@ -618,8 +637,12 @@ export async function verifyAndSyncKeys(): Promise<VerifyKeysOutcome> {
   const localKeys = await getLocalIdentity()
   if (!localKeys) return 'unknown'
 
-  const serverIdentity = await fetchIdentityFromServer()
-  if (!serverIdentity) return 'unknown'
+  let serverIdentity: Identity
+  try {
+    serverIdentity = await fetchIdentityFromServer()
+  } catch {
+    return 'unknown'
+  }
 
   const localSigningKey = exportPublicKey(localKeys.signing.publicKey)
   const localEncryptionKey = exportPublicKey(localKeys.encryption.publicKey)

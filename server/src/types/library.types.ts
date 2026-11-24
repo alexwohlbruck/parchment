@@ -41,7 +41,6 @@ export type CollectionMetadata = Pick<
 
 export type CollectionUpdate = CollectionMetadata & {
   metadataEncrypted?: string
-  metadataKeyVersion?: number
   isPublic?: boolean
 }
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import ConfirmDialog from '@/components/dialogs/ConfirmDialog.vue'
-import RecoveryKeyDisplay from './RecoveryKeyDisplay.vue'
+import RecoveryWordsDisplay from './RecoveryWordsDisplay.vue'
 import { useIdentityStore } from '@/stores/identity.store'
 import type { ConfirmDialogOptions } from '@/types/app.types'
 
@@ -17,6 +17,6 @@ onMounted(async () => {
 
 <template>
   <ConfirmDialog v-bind="$props" @submit="emit('submit', $event)">
-    <RecoveryKeyDisplay v-if="recoveryWords" :recovery-words="recoveryWords" />
+    <RecoveryWordsDisplay v-if="recoveryWords" :recovery-words="recoveryWords" />
   </ConfirmDialog>
 </template>

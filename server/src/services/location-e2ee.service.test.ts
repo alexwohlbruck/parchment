@@ -54,6 +54,8 @@ import {
   storeEncryptedLocation,
   getEncryptedLocationForFriend,
   getEncryptedLocationsFromFriends,
+  sweepStaleLocations,
+  LOCATION_RETENTION_MS,
 } from './location-e2ee.service'
 
 describe('Location Sharing Configuration', () => {
@@ -196,10 +198,12 @@ describe('Location Sharing Configuration', () => {
       mockInsertQuery.insert.mockReturnValue(mockInsertQuery)
       mockInsertQuery.values.mockReturnValue(mockInsertQuery)
 
+      mockDb.delete.mockClear()
       const config = await setLocationSharingConfig('user-123', 'alice@other.server', {
         enabled: true,
       })
 
+      expect(mockDb.delete).not.toHaveBeenCalled()
       expect(config.friendHandle).toBe('alice@other.server')
       expect(config.enabled).toBe(true)
     })
@@ -241,11 +245,13 @@ describe('Location Sharing Configuration', () => {
       mockUpdateQuery.set.mockReturnValue(mockUpdateQuery)
       mockUpdateQuery.where.mockReturnValue(mockUpdateQuery)
 
+      mockDb.delete.mockClear()
       const config = await setLocationSharingConfig('user-123', 'alice@other.server', {
         enabled: false,
       })
 
       expect(config.enabled).toBe(false)
+      expect(mockDb.delete).toHaveBeenCalledTimes(1)
     })
   })
 
@@ -484,3 +490,37 @@ describe('Integration Scenarios', () => {
   })
 })
 
+
+describe('sweepStaleLocations', () => {
+  beforeEach(() => {
+    mockDb.delete.mockClear()
+    mockDb.where.mockClear()
+    mockDb.returning.mockReset()
+  })
+
+  test('deletes rows past the retention window and reports how many', async () => {
+    const rows = [
+      { userId: 'u1', forFriendHandle: 'bob@test.parchment.app' },
+      { userId: 'u2', forFriendHandle: 'amy@test.parchment.app' },
+    ]
+    mockDb.delete.mockReturnValueOnce({
+      where: () => ({ returning: async () => rows }),
+    })
+    const aliasQuery = {
+      from: mock(() => aliasQuery),
+      where: mock(() => aliasQuery),
+      limit: mock(() => Promise.resolve([])),
+    }
+    mockDb.select.mockReturnValue(aliasQuery)
+
+    expect(await sweepStaleLocations(new Date(LOCATION_RETENTION_MS * 2))).toBe(2)
+    expect(mockDb.delete).toHaveBeenCalledTimes(1)
+  })
+
+  test('does nothing when every location is recent', async () => {
+    mockDb.delete.mockReturnValueOnce({
+      where: () => ({ returning: async () => [] }),
+    })
+    expect(await sweepStaleLocations()).toBe(0)
+  })
+})

@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Code } from '@/components/ui/code'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import RecoveryKeyDialog from './RecoveryKeyDialog.vue'
+import RecoveryWordsDialog from './RecoveryWordsDialog.vue'
 import RotateKeysDialog from './RotateKeysDialog.vue'
 import TransferIdentityDialog from './TransferIdentityDialog.vue'
 import {
@@ -34,10 +34,12 @@ const {
   alias,
   domain,
   isSetupComplete,
+  needsSetup,
   needsImport,
   isLoading,
   isStale,
   hasSavedRecoveryWords,
+  identityUnavailable,
   rotateKeysRequestCounter,
 } = storeToRefs(identityStore)
 
@@ -166,6 +168,13 @@ function handleSetupComplete() {
       </div>
     </SettingsSection>
 
+    <SettingsSection
+      v-else-if="identityUnavailable && !identity"
+      id="identity"
+      :title="t('friends.identity.title')"
+      :description="t('friends.identity.unavailableDescription')"
+    />
+
     <!-- Needs Import (has server keys but no local) -->
     <SettingsSection
       v-else-if="needsImport"
@@ -189,7 +198,7 @@ function handleSetupComplete() {
 
     <!-- Needs Setup -->
     <SettingsSection
-      v-else-if="!isSetupComplete"
+      v-else-if="needsSetup"
       id="identity"
       :title="t('friends.identity.title')"
       :description="t('friends.identity.description')"
@@ -331,7 +340,7 @@ function handleSetupComplete() {
     </template>
 
     <!-- Recovery Key Dialog -->
-    <RecoveryKeyDialog
+    <RecoveryWordsDialog
       v-model:open="showRecoveryDialog"
       :mode="recoveryDialogMode"
       @complete="handleSetupComplete"

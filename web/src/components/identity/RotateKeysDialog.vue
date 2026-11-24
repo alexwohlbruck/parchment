@@ -14,6 +14,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
+import RecoveryWordsDisplay from '@/components/identity/RecoveryWordsDisplay.vue'
+import RecoveryWordCheck from '@/components/identity/RecoveryWordCheck.vue'
 import { AlertTriangle, Check, RefreshCw, Fingerprint } from 'lucide-vue-next'
 
 interface Props {
@@ -26,12 +28,33 @@ const emit = defineEmits<{ 'update:open': [value: boolean] }>()
 const { t } = useI18n()
 const identityStore = useIdentityStore()
 
-type UiStep = 'confirm' | 'running' | 'done' | 'error'
+type UiStep = 'confirm' | 'running' | 'recovery-words' | 'done' | 'error'
 
 const step = ref<UiStep>('confirm')
 const phase = ref<RotationPhase | null>(null)
 const error = ref<string | null>(null)
 const slotWarnings = ref<string[]>([])
+const newRecoveryWords = ref<string[] | null>(null)
+const checkingWords = ref(false)
+const wordsChecked = ref(false)
+let resolveRecoveryWords: ((saved: boolean) => void) | null = null
+
+function confirmRecoveryWords(words: string[]): Promise<boolean> {
+  newRecoveryWords.value = words
+  checkingWords.value = false
+  wordsChecked.value = false
+  step.value = 'recovery-words'
+  return new Promise(resolve => {
+    resolveRecoveryWords = resolve
+  })
+}
+
+function settleRecoveryWords(saved: boolean) {
+  resolveRecoveryWords?.(saved)
+  resolveRecoveryWords = null
+  newRecoveryWords.value = null
+  if (saved) step.value = 'running'
+}
 
 const isOpen = computed({
   get: () => props.open,
@@ -41,7 +64,9 @@ const isOpen = computed({
 watch(
   () => props.open,
   (open) => {
-    if (open) {
+    if (!open) {
+      settleRecoveryWords(false)
+    } else {
       step.value = 'confirm'
       phase.value = null
       error.value = null
@@ -74,6 +99,8 @@ const progressMessage = computed(() => {
         index: p.index,
         total: p.total,
       })
+    case 'confirming-recovery-words':
+      return t('friends.rotateKeys.progress.confirmingRecoveryWords')
     case 'committing':
       return t('friends.rotateKeys.progress.committing')
     case 'storing-seed':
@@ -93,7 +120,9 @@ async function handleConfirm() {
     onProgress: (p) => {
       phase.value = p
     },
+    confirmRecoveryWords,
   })
+  if (result.cancelled) return
 
   if (result.success) {
     if (result.slotResults) {
@@ -186,6 +215,34 @@ function handleClose() {
             <span>{{ progressMessage }}</span>
           </div>
         </div>
+      </template>
+
+      <template v-else-if="step === 'recovery-words' && newRecoveryWords">
+        <DialogHeader>
+          <DialogTitle>{{ t('friends.rotateKeys.recoveryWordsTitle') }}</DialogTitle>
+          <DialogDescription>
+            {{ t('friends.rotateKeys.recoveryWordsDescription') }}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div v-if="checkingWords" class="flex flex-col gap-4 py-2">
+          <RecoveryWordCheck v-model:passed="wordsChecked" :words="newRecoveryWords" />
+          <button type="button" class="self-start text-sm text-muted-foreground hover:text-foreground" @click="checkingWords = false">
+            {{ t('settings.identity.recoveryKey.check.showAgain') }}
+          </button>
+        </div>
+        <div v-else class="py-2">
+          <RecoveryWordsDisplay :recovery-words="newRecoveryWords" />
+        </div>
+
+        <DialogFooter>
+          <Button v-if="checkingWords" :disabled="!wordsChecked" @click="settleRecoveryWords(true)">
+            {{ t('general.continue') }}
+          </Button>
+          <Button v-else @click="checkingWords = true">
+            {{ t('settings.identity.recoveryKey.check.start') }}
+          </Button>
+        </DialogFooter>
       </template>
 
       <template v-else-if="step === 'done'">

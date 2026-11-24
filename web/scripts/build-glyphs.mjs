@@ -64,6 +64,12 @@ const STACKS = [
     { name: `${family} SemiBold`, weight: '600-normal', style: 'SemiBold' },
     { name: `${family} Bold`, weight: '700-normal', style: 'Bold' },
   ]),
+  // Water names. @fontsource ships no Geist italic, so it is vendored from the
+  // `geist` package.
+  { name: 'Geist Italic', vendor: 'Geist-Italic.ttf', style: 'Regular', noto: 'NotoSans-Italic.ttf' },
+  ...['Inter', 'Roboto', 'EB Garamond'].map(family => (
+    { name: `${family} Italic`, family, weight: '400-italic', style: 'Regular', noto: 'NotoSans-Italic.ttf' }
+  )),
   // Cupertino's tall, narrow district names.
   { name: 'Barlow Condensed SemiBold', family: 'Barlow Condensed', weight: '600-normal', style: 'SemiBold' },
   // The Parchment chart theme: Garamond for the working labels, Fell types for
@@ -136,7 +142,9 @@ async function main() {
   const only = process.argv.slice(2)
   for (const stack of STACKS.filter(s => !only.length || only.includes(s.name))) {
     const faces = [
-      ...(await familyFaces(stack.family ?? stack.name.split(' ')[0], stack.weight)),
+      ...(stack.vendor
+        ? [await readFile(join(VENDOR, stack.vendor))]
+        : await familyFaces(stack.family ?? stack.name.split(' ')[0], stack.weight)),
       await readFile(join(VENDOR, stack.noto ?? 'NotoSans-Regular.ttf')),
       ...(await Promise.all(SCRIPT_FALLBACKS.map(f => readFile(join(VENDOR, `${f}-${stack.style}.ttf`))))),
     ]

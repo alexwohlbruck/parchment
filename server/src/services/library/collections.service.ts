@@ -6,11 +6,8 @@ import {
   encryptedPoints,
 } from '../../schema/library.schema'
 import { shares, incomingShares, ShareRole } from '../../schema/shares.schema'
-import { users } from '../../schema/users.schema'
-import { and, eq, count, sql } from 'drizzle-orm'
+import { and, eq, count, sql, notExists } from 'drizzle-orm'
 import { grantsLocalAccess } from '../sharing.service'
-import { parseHandle } from '../../lib/crypto'
-import { buildHandle, isLocalHandle } from '../federation.service'
 import { emit } from '../realtime/emit'
 import { resolveCollectionRecipients } from '../realtime/recipients.service'
 import {
@@ -35,40 +32,42 @@ import { randomBytes } from 'node:crypto'
 const bookmarkSelectFields = createSelectFieldsWithGeometry(bookmarksSchema)
 
 /**
- * Look up a same-server recipient's user_id from their federated handle.
- * Returns null for cross-server handles (we can't touch remote incoming
- * rows) or for handles that don't map to a user on this server.
+ * Swap each remaining recipient's envelope on the outgoing share and on the
+ * same-server mirror row. Cross-server recipients' rows live on their peer.
  */
-async function resolveLocalRecipientUserId(
+async function rewrapShareEnvelopes(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
-  handle: string,
-): Promise<string | null> {
-  if (!isLocalHandle(handle)) return null
-  const parsed = parseHandle(handle)
-  if (!parsed) return null
-  const [u] = await tx
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.alias, parsed.alias))
-    .limit(1)
-  return u?.id ?? null
+  ownerId: string,
+  collectionId: string,
+  envelopes: Array<{ recipientHandle: string; encryptedData: string; nonce: string }>,
+) {
+  for (const env of envelopes) {
+    const updated = await tx
+      .update(shares)
+      .set({ encryptedData: env.encryptedData, nonce: env.nonce })
+      .where(
+        and(
+          eq(shares.userId, ownerId),
+          eq(shares.resourceType, 'collection'),
+          eq(shares.resourceId, collectionId),
+          eq(shares.recipientHandle, env.recipientHandle),
+        ),
+      )
+      .returning({ id: shares.id })
+    if (updated.length === 0) continue
+    await tx
+      .update(incomingShares)
+      .set({ encryptedData: env.encryptedData, nonce: env.nonce })
+      .where(inArray(incomingShares.shareId, updated.map((r) => r.id)))
+  }
 }
 
-/**
- * The owner's federated handle, derived from their user_id. Used as the
- * `senderHandle` on every incoming_shares row their recipients see.
- */
-async function getOwnerHandle(
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
-  userId: string,
-): Promise<string | null> {
-  const [u] = await tx
-    .select({ alias: users.alias })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1)
-  if (!u?.alias) return null
-  return buildHandle(u.alias)
+/** A collection row for an event that reaches more people than its owner. */
+export function withoutPublicToken<T extends { publicToken?: string | null }>(
+  collection: T,
+): Omit<T, 'publicToken'> {
+  const { publicToken: _, ...rest } = collection
+  return rest
 }
 
 /** Joins in when `userId` archived the collection, null if they haven't. */
@@ -173,6 +172,7 @@ export async function getAccessibleCollection(
 
   return {
     ...collection,
+    publicToken: null,
     role: share.role,
     shareEnvelope: { encryptedData: share.encryptedData, nonce: share.nonce },
     senderHandle: share.senderHandle,
@@ -211,6 +211,7 @@ export async function getSharedCollections(
 
   return rows.map((r) => ({
     ...r.collection,
+    publicToken: null,
     archivedAt: r.archivedAt,
     role: r.role,
     shareEnvelope: { encryptedData: r.encryptedData, nonce: r.nonce },
@@ -278,17 +279,18 @@ export function resolveMetadataWrite(
   scheme: CollectionScheme,
   updates: CollectionUpdate,
 ): Partial<NewCollection> {
-  const { metadataEncrypted, metadataKeyVersion, isPublic, ...cleartext } =
+  const { name, description, icon, iconPack, iconColor, metadataEncrypted, isPublic } =
     updates
+  const cleartext = { name, description, icon, iconPack, iconColor }
   const hasCleartext = Object.values(cleartext).some((v) => v !== undefined)
 
   if (scheme === 'user-e2ee') {
     if (hasCleartext) throw new PlaintextMetadataOnE2eeError()
-    return { metadataEncrypted, metadataKeyVersion, isPublic }
+    return { metadataEncrypted, isPublic }
   }
   return hasCleartext
     ? { ...cleartext, metadataEncrypted: null, isPublic }
-    : { metadataEncrypted, metadataKeyVersion, isPublic }
+    : { metadataEncrypted, isPublic }
 }
 
 /**
@@ -320,7 +322,7 @@ export async function createCollection(params: CreateCollectionParams) {
   // Owner-only at creation; no share rows exist yet. The resolver still
   // looks them up but returns only the owner — keeps the emit site
   // uniform with `updateCollection` etc.
-  await emit.collection('collection:created', inserted, inserted.id)
+  await emit.collection('collection:created', withoutPublicToken(inserted), inserted.id)
   return inserted
 }
 
@@ -352,7 +354,7 @@ export async function updateCollection(
   if (updatedCollection) {
     await emit.collection(
       'collection:updated',
-      updatedCollection,
+      withoutPublicToken(updatedCollection),
       updatedCollection.id,
     )
   }
@@ -516,11 +518,13 @@ export interface RotateCollectionKeyParams {
   userId: string
   newMetadataEncrypted: string
   newMetadataKeyVersion: number
+  /** Every stored point, by its existing id: the point AAD binds the id. */
   newEncryptedPoints: Array<{
-    id?: string // reuse existing id when possible; mint a fresh one when null
+    id: string
     encryptedData: string
     nonce: string
   }>
+  /** One envelope for each recipient who is not being revoked. */
   updatedShareEnvelopes: Array<{
     recipientHandle: string
     encryptedData: string
@@ -540,6 +544,23 @@ export class RotationVersionError extends Error {
     )
     this.name = 'RotationVersionError'
   }
+}
+
+/**
+ * Thrown when a rotation bundle no longer matches the stored collection: a
+ * point or a share was added or removed after the client staged it.
+ * Controllers map this to 409; the client refetches and rebuilds.
+ */
+export class RotationStaleError extends Error {
+  constructor(what: 'points' | 'shares') {
+    super(`Collection ${what} changed since the rotation was prepared`)
+    this.name = 'RotationStaleError'
+  }
+}
+
+function sameMembers(a: string[], b: string[]): boolean {
+  const set = new Set(a)
+  return set.size === new Set(b).size && b.every((x) => set.has(x))
 }
 
 /**
@@ -594,17 +615,25 @@ export async function rotateCollectionKey(
       .where(eq(collections.id, params.collectionId))
       .returning()
 
-    // 2. Re-seed the encrypted_points table with the new ciphertexts.
-    //    Simplest correct sequence: delete all, reinsert. The client
-    //    supplies new ids (or we mint).
-    await tx
+    // 2. Replace every point. The bundle must cover exactly the stored set,
+    //    or a point added meanwhile would be lost.
+    const removed = await tx
       .delete(encryptedPoints)
       .where(eq(encryptedPoints.collectionId, params.collectionId))
+      .returning({ id: encryptedPoints.id })
+    if (
+      !sameMembers(
+        removed.map((p) => p.id),
+        params.newEncryptedPoints.map((p) => p.id),
+      )
+    ) {
+      throw new RotationStaleError('points')
+    }
 
     if (params.newEncryptedPoints.length > 0) {
       await tx.insert(encryptedPoints).values(
         params.newEncryptedPoints.map((p) => ({
-          id: p.id ?? generateId(),
+          id: p.id,
           collectionId: params.collectionId,
           userId: params.userId,
           encryptedData: p.encryptedData,
@@ -613,88 +642,59 @@ export async function rotateCollectionKey(
       )
     }
 
-    const ownerHandle = await getOwnerHandle(tx, params.userId)
-
-    // 3. Update each remaining share's outbound envelope (rewrapped key).
-    for (const env of params.updatedShareEnvelopes) {
-      await tx
-        .update(shares)
-        .set({
-          encryptedData: env.encryptedData,
-          nonce: env.nonce,
-        })
-        .where(
-          and(
-            eq(shares.userId, params.userId),
-            eq(shares.resourceType, 'collection'),
-            eq(shares.resourceId, params.collectionId),
-            eq(shares.recipientHandle, env.recipientHandle),
-          ),
-        )
-
-      // Mirror on the SAME-SERVER recipient's incoming_shares row. The row
-      // is keyed by the recipient's user_id + the owner's handle in
-      // sender_handle, so narrow to both. Cross-server recipients live on
-      // their peer's DB and are untouched here.
-      if (ownerHandle) {
-        const recipientUserId = await resolveLocalRecipientUserId(
-          tx,
-          env.recipientHandle,
-        )
-        if (recipientUserId) {
-          await tx
-            .update(incomingShares)
-            .set({
-              encryptedData: env.encryptedData,
-              nonce: env.nonce,
-            })
-            .where(
-              and(
-                eq(incomingShares.userId, recipientUserId),
-                eq(incomingShares.senderHandle, ownerHandle),
-                eq(incomingShares.resourceType, 'collection'),
-                eq(incomingShares.resourceId, params.collectionId),
-              ),
-            )
-        }
-      }
+    // 3. Every recipient who keeps access needs the new key.
+    const existingShares = await tx
+      .select({ recipientHandle: shares.recipientHandle })
+      .from(shares)
+      .where(
+        and(
+          eq(shares.userId, params.userId),
+          eq(shares.resourceType, 'collection'),
+          eq(shares.resourceId, params.collectionId),
+        ),
+      )
+    const kept = existingShares
+      .map((r) => r.recipientHandle)
+      .filter((h) => !params.revokeRecipientHandles.includes(h))
+    if (
+      !sameMembers(
+        kept,
+        params.updatedShareEnvelopes.map((e) => e.recipientHandle),
+      )
+    ) {
+      throw new RotationStaleError('shares')
     }
 
-    // 4. Delete revoked shares entirely. Both outgoing (owner side) and
-    //    incoming (recipient side) rows go in one sweep.
-    for (const revoked of params.revokeRecipientHandles) {
-      await tx
+    await rewrapShareEnvelopes(
+      tx,
+      params.userId,
+      params.collectionId,
+      params.updatedShareEnvelopes,
+    )
+
+    if (params.revokeRecipientHandles.length > 0) {
+      const revoked = await tx
         .delete(shares)
         .where(
           and(
             eq(shares.userId, params.userId),
             eq(shares.resourceType, 'collection'),
             eq(shares.resourceId, params.collectionId),
-            eq(shares.recipientHandle, revoked),
+            inArray(shares.recipientHandle, params.revokeRecipientHandles),
           ),
         )
-
-      if (ownerHandle) {
-        const recipientUserId = await resolveLocalRecipientUserId(tx, revoked)
-        if (recipientUserId) {
-          await tx
-            .delete(incomingShares)
-            .where(
-              and(
-                eq(incomingShares.userId, recipientUserId),
-                eq(incomingShares.senderHandle, ownerHandle),
-                eq(incomingShares.resourceType, 'collection'),
-                eq(incomingShares.resourceId, params.collectionId),
-              ),
-            )
-        }
+        .returning({ id: shares.id })
+      if (revoked.length > 0) {
+        await tx
+          .delete(incomingShares)
+          .where(inArray(incomingShares.shareId, revoked.map((r) => r.id)))
       }
     }
 
     return updatedCollection ?? null
   })
   if (result) {
-    await emit.collection('collection:rotated', result, result.id)
+    await emit.collection('collection:rotated', withoutPublicToken(result), result.id)
   }
   return result
 }
@@ -790,9 +790,9 @@ export class CollectionVersionConflictError extends Error {
  * Change a collection's encryption scheme atomically.
  *
  * Upgrade (server-key → user-e2ee):
- *   - Delete the cleartext `bookmarks` rows in the collection (and their
- *     pivots) — the client packaged their data into the new encrypted_points
- *     batch so the cleartext copies are no longer needed.
+ *   - Unlink the collection's cleartext bookmarks and delete the ones filed
+ *     nowhere else — the client packaged their data into the new
+ *     encrypted_points batch.
  *   - Insert the new encrypted_points.
  *   - Flip `scheme`, clear any public link (disallowed on user-e2ee), and
  *     mirror `is_sensitive=true` for the compat shim.
@@ -883,18 +883,20 @@ export async function changeCollectionScheme(
         .delete(bookmarksCollections)
         .where(eq(bookmarksCollections.collectionId, params.collectionId))
 
-      // Delete the bookmarks themselves — they belonged only to this
-      // collection. If a bookmark somehow also lived in another server-key
-      // collection, the FK cascade on bookmarks_collections would already
-      // have removed its tie here and the bookmark row stays put (we only
-      // delete bookmarks whose user_id matches and that were in our list).
+      // The cleartext copy of a place filed only here goes, whoever added it;
+      // one still filed in another collection stays there.
       if (bookmarkIds.length > 0) {
         await tx
           .delete(bookmarksSchema)
           .where(
             and(
-              eq(bookmarksSchema.userId, params.userId),
               inArray(bookmarksSchema.id, bookmarkIds),
+              notExists(
+                tx
+                  .select({ id: bookmarksCollections.bookmarkId })
+                  .from(bookmarksCollections)
+                  .where(eq(bookmarksCollections.bookmarkId, bookmarksSchema.id)),
+              ),
             ),
           )
       }
@@ -946,58 +948,17 @@ export async function changeCollectionScheme(
       }
     }
 
-    // Rewrap each remaining share's envelope under the new collection key.
-    // Same mechanics as rotate-key — the server is opaque to the key; we
-    // just swap stored ciphertext atomically.
-    const ownerHandle = await getOwnerHandle(tx, params.userId)
-    for (const env of params.updatedShareEnvelopes) {
-      await tx
-        .update(shares)
-        .set({
-          encryptedData: env.encryptedData,
-          nonce: env.nonce,
-        })
-        .where(
-          and(
-            eq(shares.userId, params.userId),
-            eq(shares.resourceType, 'collection'),
-            eq(shares.resourceId, params.collectionId),
-            eq(shares.recipientHandle, env.recipientHandle),
-          ),
-        )
-
-      // Mirror on the same-server recipient's incoming_shares row. Rows
-      // are keyed by (recipient user_id, owner handle as sender_handle) —
-      // the old code compared sender_handle to the RECIPIENT's handle by
-      // mistake and never matched.
-      if (ownerHandle) {
-        const recipientUserId = await resolveLocalRecipientUserId(
-          tx,
-          env.recipientHandle,
-        )
-        if (recipientUserId) {
-          await tx
-            .update(incomingShares)
-            .set({
-              encryptedData: env.encryptedData,
-              nonce: env.nonce,
-            })
-            .where(
-              and(
-                eq(incomingShares.userId, recipientUserId),
-                eq(incomingShares.senderHandle, ownerHandle),
-                eq(incomingShares.resourceType, 'collection'),
-                eq(incomingShares.resourceId, params.collectionId),
-              ),
-            )
-        }
-      }
-    }
+    await rewrapShareEnvelopes(
+      tx,
+      params.userId,
+      params.collectionId,
+      params.updatedShareEnvelopes,
+    )
 
     return updatedCollection ?? null
   })
   if (result) {
-    await emit.collection('collection:scheme-changed', result, result.id)
+    await emit.collection('collection:scheme-changed', withoutPublicToken(result), result.id)
   }
   return result
 }

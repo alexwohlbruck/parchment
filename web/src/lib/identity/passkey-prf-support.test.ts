@@ -13,6 +13,7 @@ import {
   base64urlToBytes,
   extractPrfOutputFromRegistration,
   extractPrfOutputFromAssertion,
+  withoutPrfOutput,
   isProbablyPrfSupported,
   hydratePrfExtensionInPlace,
 } from './passkey-prf-support'
@@ -199,5 +200,31 @@ describe('isProbablyPrfSupported', () => {
     // must return a boolean either way (no throws).
     const result = isProbablyPrfSupported()
     expect(typeof result).toBe('boolean')
+  })
+})
+
+describe('withoutPrfOutput', () => {
+  test('drops the PRF output but keeps the rest of the response', () => {
+    const response = {
+      id: 'cred',
+      response: { clientDataJSON: 'x' },
+      clientExtensionResults: {
+        credProps: { rk: true },
+        prf: { enabled: true, results: { first: 'c2VjcmV0' } },
+      },
+    }
+
+    expect(withoutPrfOutput(response)).toEqual({
+      id: 'cred',
+      response: { clientDataJSON: 'x' },
+      clientExtensionResults: { credProps: { rk: true }, prf: { enabled: true } },
+    })
+    expect(response.clientExtensionResults.prf.results.first).toBe('c2VjcmV0')
+  })
+
+  test('returns a response without PRF output unchanged', () => {
+    const response = { id: 'cred', clientExtensionResults: {} }
+
+    expect(withoutPrfOutput(response)).toBe(response)
   })
 })

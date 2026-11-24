@@ -24,14 +24,14 @@ afterEach(() => {
 
 describe('mintTicket', () => {
   test('returns a ticket bound to the user with an expiry', () => {
-    const { ticket, expiresAt } = mintTicket('user-1')
+    const { ticket, expiresAt } = mintTicket('user-1', 'session-1')
 
     expect(typeof ticket).toBe('string')
     expect(expiresAt).toBeGreaterThan(Date.now())
   })
 
   test('expires 30 seconds out', () => {
-    const { expiresAt } = mintTicket('user-1')
+    const { expiresAt } = mintTicket('user-1', 'session-1')
 
     const ttl = expiresAt - Date.now()
     expect(ttl).toBeGreaterThan(25_000)
@@ -40,21 +40,21 @@ describe('mintTicket', () => {
 
   test('issues a distinct ticket every time', () => {
     const seen = new Set(
-      Array.from({ length: 50 }, () => mintTicket('user-1').ticket),
+      Array.from({ length: 50 }, () => mintTicket('user-1', 'session-1').ticket),
     )
 
     expect(seen.size).toBe(50)
   })
 
   test('produces a URL-safe token — it travels as a query param', () => {
-    const { ticket } = mintTicket('user-1')
+    const { ticket } = mintTicket('user-1', 'session-1')
 
     expect(ticket).toMatch(/^[A-Za-z0-9_-]+$/)
     expect(encodeURIComponent(ticket)).toBe(ticket)
   })
 
   test('carries enough entropy to be unguessable (32 bytes base64url)', () => {
-    const { ticket } = mintTicket('user-1')
+    const { ticket } = mintTicket('user-1', 'session-1')
 
     // 32 bytes → 43 base64url characters, unpadded.
     expect(ticket).toHaveLength(43)
@@ -63,15 +63,15 @@ describe('mintTicket', () => {
 
 describe('redeemTicket', () => {
   test('resolves a fresh ticket to its user', () => {
-    const { ticket } = mintTicket('user-1')
+    const { ticket } = mintTicket('user-1', 'session-1')
 
-    expect(redeemTicket(ticket)).toBe('user-1')
+    expect(redeemTicket(ticket)?.userId).toBe('user-1')
   })
 
   test('is single-use — a second redemption fails', () => {
-    const { ticket } = mintTicket('user-1')
+    const { ticket } = mintTicket('user-1', 'session-1')
 
-    expect(redeemTicket(ticket)).toBe('user-1')
+    expect(redeemTicket(ticket)?.userId).toBe('user-1')
     expect(redeemTicket(ticket)).toBeNull()
   })
 
@@ -84,27 +84,27 @@ describe('redeemTicket', () => {
   })
 
   test('keeps tickets separate per user', () => {
-    const a = mintTicket('user-a')
-    const b = mintTicket('user-b')
+    const a = mintTicket('user-a', 'session-1')
+    const b = mintTicket('user-b', 'session-1')
 
-    expect(redeemTicket(b.ticket)).toBe('user-b')
-    expect(redeemTicket(a.ticket)).toBe('user-a')
+    expect(redeemTicket(b.ticket)?.userId).toBe('user-b')
+    expect(redeemTicket(a.ticket)?.userId).toBe('user-a')
   })
 
   test('redeeming one ticket does not invalidate another', () => {
-    const first = mintTicket('user-1')
-    const second = mintTicket('user-1')
+    const first = mintTicket('user-1', 'session-1')
+    const second = mintTicket('user-1', 'session-1')
 
     redeemTicket(first.ticket)
 
-    expect(redeemTicket(second.ticket)).toBe('user-1')
+    expect(redeemTicket(second.ticket)?.userId).toBe('user-1')
   })
 })
 
 describe('expiry', () => {
   test('an expired ticket does not resolve', () => {
     const realNow = Date.now
-    const { ticket } = mintTicket('user-1')
+    const { ticket } = mintTicket('user-1', 'session-1')
 
     try {
       Date.now = () => realNow() + 31_000
@@ -116,11 +116,11 @@ describe('expiry', () => {
 
   test('a ticket still inside the window resolves', () => {
     const realNow = Date.now
-    const { ticket } = mintTicket('user-1')
+    const { ticket } = mintTicket('user-1', 'session-1')
 
     try {
       Date.now = () => realNow() + 29_000
-      expect(redeemTicket(ticket)).toBe('user-1')
+      expect(redeemTicket(ticket)?.userId).toBe('user-1')
     } finally {
       Date.now = realNow
     }
@@ -128,12 +128,12 @@ describe('expiry', () => {
 
   test('minting sweeps expired entries so the map stays bounded', () => {
     const realNow = Date.now
-    const stale = mintTicket('user-old')
+    const stale = mintTicket('user-old', 'session-1')
 
     try {
       Date.now = () => realNow() + 31_000
       // The sweep runs on mint; the stale entry should be gone afterwards.
-      mintTicket('user-new')
+      mintTicket('user-new', 'session-1')
       Date.now = realNow
       expect(redeemTicket(stale.ticket)).toBeNull()
     } finally {
@@ -143,7 +143,7 @@ describe('expiry', () => {
 
   test('an expired ticket is consumed even though it resolves to null', () => {
     const realNow = Date.now
-    const { ticket } = mintTicket('user-1')
+    const { ticket } = mintTicket('user-1', 'session-1')
 
     try {
       Date.now = () => realNow() + 31_000

@@ -209,6 +209,7 @@
         "name": "Search",
         "description": "Search for places, businesses, and amenities",
         "keywords": "find locate",
+        "bookmarked": "Bookmarked",
         "arguments": {
           "places": {
             "name": "Places"
@@ -1141,6 +1142,11 @@
         "back": "Walk to the back of the platform"
       },
       "saves": "saves {duration}",
+      "for": {
+        "exit": "for {name}",
+        "transfer": "for the {name}"
+      },
+      "waitWalk": "You have {duration}, walk to the {section} of the platform",
       "insideStation": "Through the station",
       "steps": "{n} step | {n} steps",
       "levelUp": "Up {n} level | Up {n} levels",
@@ -1555,30 +1561,31 @@
     "today": "Today",
     "thisWeek": "This week",
     "thisMonth": "This month",
-    "selectDate": "Select date",
-    "customRange": "Custom range",
-    "singleDay": "Single day",
-    "startTime": "Start",
-    "endTime": "End",
     "noEvents": "No location history for this range",
     "loadFailed": "Couldn't load timeline",
-    "stop": "Stop",
     "unnamedStop": "Unnamed location",
-    "duration": "{duration}",
-    "timeRange": "{start} – {end}",
-    "modeUnknown": "Travel",
     "noIntegration": {
       "title": "Connect a location tracker",
       "description": "Configure a location history integration to view your timeline.",
       "details": "Your config is end-to-end encrypted — your credentials never leave your device unencrypted.",
       "configure": "Configure integration"
     },
+    "checkIntegration": "Check your location history integration in Settings",
+    "yesterday": "Yesterday",
+    "previous": "Previous",
+    "next": "Next",
     "stats": {
-      "totalDistance": "{distance} km",
-      "totalStops": "{n} stop | {n} stops",
-      "dailyDistance": "Daily distance"
+      "places": "Places",
+      "distance": "Distance",
+      "moving": "Moving"
     },
-    "checkIntegration": "Check your location history integration in Settings"
+    "placeCount": "{n} place | {n} places",
+    "modes": {
+      "driving": "Drove {distance}",
+      "cycling": "Cycled {distance}",
+      "walking": "Walked {distance}",
+      "transit": "Rode transit {distance}"
+    }
   },
   "friends": {
     "title": "Friends",
@@ -1590,6 +1597,7 @@
     "cancel": "Cancel",
     "done": "Done",
     "locationSharing": "Location sharing",
+    "remoteLocationUnavailable": "Not available with friends on other servers yet",
     "countOne": "{n} friend",
     "countMany": "{n} friends",
     "invitations": {
@@ -1636,6 +1644,7 @@
       "setupDescription": "Set up a handle so friends can find you",
       "importButton": "Enter recovery words",
       "importDescription": "Your identity exists on this server, but you need to enter your recovery words to use it on this device.",
+      "unavailableDescription": "Couldn't load your identity. Check your connection and try again.",
       "viewKey": "View key",
       "aliasHint": "3-30 characters, letters, numbers, underscores only",
       "updateFailed": "Failed to update alias",
@@ -1666,7 +1675,7 @@
       "failedTitle": "Rotation failed",
       "failedFallback": "Rotation failed",
       "close": "Close",
-      "slotWarning": "Passkey {id}… was not re-secured ({reason}). It will no longer work for recovery — remove and re-add it.",
+      "slotWarning": "Passkey {id}… couldn't be re-secured ({reason}), so it can't unlock your keys anymore. Remove it and add it again.",
       "unknownReason": "unknown",
       "progress": {
         "preparing": "Preparing…",
@@ -1677,8 +1686,11 @@
         "resealingSlot": "Tap your passkey to re-secure slot {index} of {total}",
         "committing": "Finalizing — saving everything at once…",
         "storingSeed": "Updating this device…",
-        "done": "Done — now on key version {version}"
-      }
+        "done": "Done — now on key version {version}",
+        "confirmingRecoveryWords": "Waiting for you to save your new recovery words"
+      },
+      "recoveryWordsTitle": "Save your new recovery words",
+      "recoveryWordsDescription": "Your old words stop working once this finishes. Write these down and keep them somewhere safe."
     },
     "security": {
       "title": "Encryption keys",
@@ -1741,7 +1753,16 @@
       "keysSynced": "Keys synced",
       "syncFailed": "Couldn't sync keys",
       "removeTitle": "Remove {name}?",
-      "directions": "Directions"
+      "directions": "Directions",
+      "keyChangedTitle": "{name}'s keys changed",
+      "keyChangedDescription": "Their phone, or someone pretending to be them, has new keys. Nothing is shared with them until you compare this number with theirs.",
+      "safetyNumber": "Safety number",
+      "safetyNumberDescription": "Matches the number on {name}'s phone if your connection is secure.",
+      "trustNewKeys": "Numbers match",
+      "markVerified": "Mark as verified",
+      "verified": "Verified",
+      "keysTrusted": "Keys trusted",
+      "loadFailed": "Couldn't load this friend"
     }
   },
   "dashboard": {
@@ -2348,6 +2369,14 @@
         "board": "Board the {line}",
         "boardToward": "Board the {line} toward {headsign}",
         "boardSigned": "Board the {line}, {direction}",
+        "boardNear": "Board near the {section}",
+        "boardNearFor": "Board near the {section} for {target}",
+        "waitWalk": "You have {duration}, walk to the {section} of the platform",
+        "waitWalkFor": "You have {duration}, walk to the {section} of the platform for {target}",
+        "target": {
+          "exit": "the {name} exit",
+          "transfer": "the {name}"
+        },
         "alight-next": "Get off at the next stop, {stop}",
         "alight-now": "Get off at {stop}",
         "missed-vehicle": "The {line} has left. Catch the next one or find another way",
@@ -2407,7 +2436,8 @@
         "next": "Next",
         "done": "Done",
         "stepOf": "{n}/{total}",
-        "advancesIn": "next in {duration}"
+        "advancesIn": "next in {duration}",
+        "left": "{distance} to go"
       },
       "anotherRoute": "Another route",
       "nextLine": "Next {line}"
@@ -2989,7 +3019,7 @@
           "useRecoveryKeyInstead": "Use recovery words instead",
           "unlockFailed": "Could not unlock with passkey",
           "typeKeyTitle": "Enter your recovery words",
-          "typeKeyDescription": "The 24 words you saved during setup. An older recovery key works too.",
+          "typeKeyDescription": "The 24 words you saved during setup.",
           "recoveryKeyLabel": "Recovery words",
           "recoveryKeyPlaceholder": "Type or paste your 24 words",
           "invalidKey": "Those words don't match this account",
@@ -3007,7 +3037,14 @@
           "confirmDescription": "This permanently erases all your encrypted data on this account — saved places, collections, friends, and sharing settings. Your email and passkeys stay, so you can keep signing in. This can't be undone.",
           "typePromptTitle": "Type RESET to confirm",
           "typePromptLabel": "Confirmation",
-          "failedFallback": "Reset failed. Please try again."
+          "failedFallback": "Reset failed. Please try again.",
+          "verifyTitle": "Confirm it's you",
+          "verifyPasskeyDescription": "Use your passkey to erase your encrypted data",
+          "verifyEmailDescription": "Enter the 8-digit code we emailed you",
+          "usePasskey": "Use passkey",
+          "emailInstead": "Email me a code instead",
+          "eraseAction": "Erase and reset",
+          "verifyFailed": "Couldn't confirm it's you. Try again"
         },
         "view": {
           "title": "Your recovery words",
@@ -3026,11 +3063,6 @@
           "start": "I've saved them",
           "showAgain": "Show my words again",
           "savedToast": "Recovery words saved"
-        },
-        "prompt": {
-          "title": "Save your 24 recovery words",
-          "description": "They replace your old recovery key.",
-          "action": "Save words"
         }
       },
       "transferDevice": {
@@ -3811,13 +3843,16 @@
     "errors": {
       "loadFailed": "Failed to load shares",
       "createFailed": "Failed to share",
+      "notFriends": "You can only share with friends",
       "revokeFailed": "Failed to remove access",
       "roleChangeFailed": "Failed to change role",
       "publicLinkFailed": "Failed to create public link",
       "publicLinkRevokeFailed": "Failed to revoke public link",
       "copyFailed": "Copy failed — select and copy the link manually",
       "identityRequired": "Set up your encryption keys in Settings before sharing",
-      "missingFriendKey": "This friend's keys aren't synced yet; try again in a moment"
+      "missingFriendKey": "This friend's keys aren't synced yet; try again in a moment",
+      "remainingKeysMissing": "Can't remove access until everyone else's keys are synced; try again in a moment",
+      "friendKeysChanged": "{name}'s keys changed. Check them on their profile before sharing"
     },
     "removeAction": "Remove {name}"
   },

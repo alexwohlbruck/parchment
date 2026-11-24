@@ -1,17 +1,15 @@
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
 import {
   checkHasLocalIdentity,
   fetchIdentityFromServer,
   generateNewIdentity,
   completeIdentitySetup,
-  importIdentityFromRecoveryKey,
+  importIdentityFromRecoveryWords,
   getLocalIdentity,
   getRecoveryWords,
   updateAlias as updateAliasService,
   clearLocalIdentity,
-  needsIdentitySetup,
-  needsIdentityImport,
   verifyAndSyncKeys,
   fetchWrappedKeySlots,
   enrollPasskeySlot,
@@ -20,6 +18,7 @@ import {
   resetServerIdentity,
   type Identity,
   type RecoveryImportResult,
+  type ResetProof,
 } from '@/services/identity.service'
 import { useAuthService } from '@/services/auth.service'
 import { useAuthStore } from '@/stores/auth.store'
@@ -28,10 +27,13 @@ import type { DerivedKeys } from '@/lib/identity/federation-crypto'
 import {
   rotateMasterKey,
   RotationConflictError,
+  RotationCancelledError,
   type RotationPhase,
 } from '@/lib/identity/km-rotation'
 import { getSeed } from '@/lib/identity/key-storage'
+import { resetBlobKeyVersion } from '@/lib/identity/personal-blob'
 import { flushAllPendingRevocations } from '@/services/revocations.service'
+import { useFriendsStore } from '@/stores/friends.store'
 
 /**
  * True if the given error is a user-cancelled WebAuthn prompt (closed
@@ -102,6 +104,18 @@ export const useIdentityStore = defineStore('identity', () => {
   // rotation one). The UI surfaces this via a banner that offers the
   // one-tap resync.
   const isStale = ref(false)
+  // The identity request failed, so whether this account has keys is unknown.
+  const identityUnavailable = ref(false)
+
+  async function refreshIdentity(): Promise<void> {
+    resetBlobKeyVersion()
+    try {
+      identity.value = await fetchIdentityFromServer()
+      identityUnavailable.value = false
+    } catch {
+      identityUnavailable.value = true
+    }
+  }
 
   // Cross-component trigger: incremented by any component that wants
   // IdentitySettings to open its "Rotate keys" dialog (currently
@@ -123,8 +137,10 @@ export const useIdentityStore = defineStore('identity', () => {
   const isSetupComplete = computed(() => 
     hasLocalIdentity.value && !!identity.value?.signingKey
   )
-  const needsSetup = computed(() => 
-    !hasLocalIdentity.value || !identity.value?.signingKey
+  const needsSetup = computed(
+    () =>
+      !identityUnavailable.value &&
+      (!hasLocalIdentity.value || !identity.value?.signingKey),
   )
   const needsImport = computed(() => 
     !hasLocalIdentity.value && !!identity.value?.signingKey
@@ -160,13 +176,12 @@ export const useIdentityStore = defineStore('identity', () => {
   async function initialize() {
     isLoading.value = true
     try {
-      const [hasLocal, serverIdentity] = await Promise.all([
+      const [hasLocal] = await Promise.all([
         checkHasLocalIdentity(),
-        fetchIdentityFromServer(),
+        refreshIdentity(),
       ])
 
       hasLocalIdentity.value = hasLocal
-      identity.value = serverIdentity
 
       if (hasLocal) {
         localKeys.value = await getLocalIdentity()
@@ -178,7 +193,7 @@ export const useIdentityStore = defineStore('identity', () => {
         //     resync. Do NOT overwrite the server's new keys.
         const outcome = await verifyAndSyncKeys()
         if (outcome === 'registered') {
-          identity.value = await fetchIdentityFromServer()
+          await refreshIdentity()
         }
         isStale.value = outcome === 'stale'
       } else {
@@ -219,7 +234,7 @@ export const useIdentityStore = defineStore('identity', () => {
       // Refresh server identity — also lets peers resolve our handle to
       // the new signingKey before we try to ship any client-signed
       // messages to them.
-      identity.value = await fetchIdentityFromServer()
+      await refreshIdentity()
       // Setup only completes once the user has retyped words from their copy.
       markRecoveryWordsSaved()
 
@@ -228,19 +243,7 @@ export const useIdentityStore = defineStore('identity', () => {
       pendingKeys.value = null
       pendingRecoveryWords.value = null
 
-      // Fan out any pending RELATIONSHIP_REVOKE messages queued by a
-      // prior `resetUserIdentity`. This is what tells friends /
-      // collection-share counterparties "my identity changed, drop your
-      // cached rows pointing at my old keys." Safe to call on a
-      // first-time setup too — the pending list is empty in that case.
-      // Errors are swallowed inside the service so a federation hiccup
-      // doesn't fail the overall setup; the queue persists for retry.
-      if (identity.value?.handle) {
-        void flushAllPendingRevocations({
-          myHandle: identity.value.handle,
-          signingPrivateKey: registeredKeys.signing.privateKey,
-        })
-      }
+      void retryPendingRevocations()
 
       return { success: true }
     } catch (error) {
@@ -250,6 +253,29 @@ export const useIdentityStore = defineStore('identity', () => {
       }
     }
   }
+
+  let revocationFlush: Promise<void> | null = null
+
+  /** Deliver revocations still queued server-side; failures stay queued. */
+  function retryPendingRevocations(): Promise<void> {
+    const myHandle = identity.value?.handle
+    const key = localKeys.value?.signing.privateKey
+    if (!myHandle || !key || isStale.value) return Promise.resolve()
+    revocationFlush ??= flushAllPendingRevocations({
+      myHandle,
+      signingPrivateKey: key,
+    }).finally(() => {
+      revocationFlush = null
+    })
+    return revocationFlush
+  }
+
+  watch(
+    () => [handle.value, signingPrivateKey.value, isStale.value] as const,
+    ([h, key, stale]) => {
+      if (h && key && !stale) void retryPendingRevocations()
+    },
+  )
 
   /**
    * Cancel pending setup
@@ -263,18 +289,18 @@ export const useIdentityStore = defineStore('identity', () => {
   /**
    * Import identity from recovery key
    */
-  async function importFromRecoveryKey(
+  async function importFromRecoveryWords(
     recoveryKey: string,
   ): Promise<RecoveryImportResult> {
     isLoading.value = true
     try {
-      const result = await importIdentityFromRecoveryKey(recoveryKey)
+      const result = await importIdentityFromRecoveryWords(recoveryKey)
 
       if (result.success) {
         hasLocalIdentity.value = true
         localKeys.value = await getLocalIdentity()
-        identity.value = await fetchIdentityFromServer()
-        if (result.fromWords) markRecoveryWordsSaved()
+        await refreshIdentity()
+        markRecoveryWordsSaved()
       }
 
       return result
@@ -315,17 +341,18 @@ export const useIdentityStore = defineStore('identity', () => {
    * This is the only path short of "make a new account" when every
    * other recovery tier has failed. Irreversible.
    */
-  async function resetIdentity(): Promise<{
+  async function resetIdentity(proof: ResetProof): Promise<{
     success: boolean
     error?: string
   }> {
     isLoading.value = true
     try {
-      const serverResult = await resetServerIdentity()
+      const serverResult = await resetServerIdentity(proof)
       if (!serverResult.success) {
         return { success: false, error: serverResult.error }
       }
       await clearLocalIdentity()
+      resetBlobKeyVersion()
       identity.value = null
       localKeys.value = null
       hasLocalIdentity.value = false
@@ -344,6 +371,7 @@ export const useIdentityStore = defineStore('identity', () => {
    */
   async function clear() {
     await clearLocalIdentity()
+    resetBlobKeyVersion()
     identity.value = null
     localKeys.value = null
     hasLocalIdentity.value = false
@@ -561,12 +589,14 @@ export const useIdentityStore = defineStore('identity', () => {
    *
    * The `onProgress` callback drives the Settings rotation dialog.
    */
-  async function rotateKeys(options?: {
+  async function rotateKeys(options: {
     onProgress?: (phase: RotationPhase) => void
+    confirmRecoveryWords: (words: string[]) => Promise<boolean>
   }): Promise<{
     success: boolean
     error?: string
     conflict?: boolean
+    cancelled?: boolean
     slotResults?: Array<{ credentialId: string; ok: boolean; reason?: string }>
   }> {
     const authStore = useAuthStore()
@@ -579,6 +609,14 @@ export const useIdentityStore = defineStore('identity', () => {
     if (!oldSeed) {
       return { success: false, error: 'No local seed to rotate' }
     }
+    if (isStale.value) {
+      return {
+        success: false,
+        error: 'Your keys changed on another device. Unlock them here first.',
+      }
+    }
+    const friendsStore = useFriendsStore()
+    await friendsStore.loadAll().catch(() => {})
 
     // Fetch current kmVersion for the CAS advance. If the server 404s
     // here something is badly off (user deleted out from under us) —
@@ -606,17 +644,26 @@ export const useIdentityStore = defineStore('identity', () => {
         oldSeed,
         currentKmVersion,
         assertPasskeyForSlot: authService.assertExistingPasskeyForPrf,
-        onProgress: options?.onProgress,
+        friendEncryptionKey: handle =>
+          friendsStore.friends.find(f => f.friendHandle === handle)
+            ?.friendEncryptionKey,
+        confirmRecoveryWords: options.confirmRecoveryWords,
+        onProgress: options.onProgress,
       })
 
       // Refresh store state with the new keys. Public-key re-registration
       // happened during rotation; just reflect it locally.
       localKeys.value = await getLocalIdentity()
-      identity.value = await fetchIdentityFromServer()
+      await refreshIdentity()
+      // Rotation only commits once the new words were retyped.
+      markRecoveryWordsSaved()
       return { success: true, slotResults: result.slotResults }
     } catch (err) {
       if (err instanceof RotationConflictError) {
         return { success: false, conflict: true, error: err.message }
+      }
+      if (err instanceof RotationCancelledError) {
+        return { success: false, cancelled: true, error: err.message }
       }
       return {
         success: false,
@@ -648,7 +695,7 @@ export const useIdentityStore = defineStore('identity', () => {
       })
       hasLocalIdentity.value = true
       localKeys.value = await getLocalIdentity()
-      identity.value = await fetchIdentityFromServer()
+      await refreshIdentity()
       // Seed we just stored was unwrapped from the server's current
       // wrapped-master-key slot, whose signature is bound to the
       // server's current signing key. So by definition we're now in
@@ -704,6 +751,7 @@ export const useIdentityStore = defineStore('identity', () => {
     passkeySlotCredentialIds,
     passkeyListVersion,
     isStale,
+    identityUnavailable,
     rotateKeysRequestCounter,
     requestRotateKeys,
 
@@ -724,7 +772,7 @@ export const useIdentityStore = defineStore('identity', () => {
     startSetup,
     completeSetup,
     cancelSetup,
-    importFromRecoveryKey,
+    importFromRecoveryWords,
     fetchRecoveryWords,
     markRecoveryWordsSaved,
     updateAlias,
@@ -736,6 +784,7 @@ export const useIdentityStore = defineStore('identity', () => {
     autoUnlockAfterSignIn,
     rotateKeys,
     resetIdentity,
+    retryPendingRevocations,
   }
 })
 

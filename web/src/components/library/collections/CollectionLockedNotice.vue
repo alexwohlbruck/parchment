@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { LockIcon } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
-import RecoveryKeyDialog from '@/components/identity/RecoveryKeyDialog.vue'
+import RecoveryWordsDialog from '@/components/identity/RecoveryWordsDialog.vue'
 import { useIdentityStore } from '@/stores/identity.store'
 import { useFriendsStore } from '@/stores/friends.store'
 import type { Collection } from '@/types/library.types'
@@ -52,7 +52,7 @@ const sharer = computed(() => {
       {{ t('library.entities.collections.lockedNotice.unlock') }}
     </Button>
 
-    <RecoveryKeyDialog
+    <RecoveryWordsDialog
       v-model:open="unlocking"
       mode="import"
       @complete="emit('unlocked')"

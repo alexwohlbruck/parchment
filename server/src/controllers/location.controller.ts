@@ -19,6 +19,56 @@ const updateRateLimit = makeUserRateLimit({
   windowMs: 60_000,
 })
 
+const MAX_BROADCAST_ITEMS = 200
+const BROADCAST_CONCURRENCY = 8
+
+type BroadcastItem = {
+  forFriendHandle: string
+  encryptedLocation: string
+  nonce: string
+}
+
+type BroadcastResult =
+  | { friendHandle: string; stored: true }
+  | {
+      friendHandle: string
+      stored: false
+      reason: 'not-a-friend' | 'not-enabled' | 'replayed' | 'error'
+    }
+
+async function storeBroadcastItem(
+  userId: string,
+  item: BroadcastItem,
+): Promise<BroadcastResult> {
+  const friendHandle = item.forFriendHandle
+  try {
+    if (!(await isFriend(userId, friendHandle))) {
+      return { friendHandle, stored: false, reason: 'not-a-friend' }
+    }
+
+    const config = await locationE2eeService.getLocationSharingConfigForFriend(
+      userId,
+      friendHandle,
+    )
+    if (!config?.enabled) {
+      return { friendHandle, stored: false, reason: 'not-enabled' }
+    }
+
+    const result = await locationE2eeService.storeEncryptedLocation(
+      userId,
+      friendHandle,
+      item.encryptedLocation,
+      item.nonce,
+    )
+    if (!result.stored) {
+      return { friendHandle, stored: false, reason: 'replayed' }
+    }
+    return { friendHandle, stored: true }
+  } catch {
+    return { friendHandle, stored: false, reason: 'error' }
+  }
+}
+
 // ============================================================================
 // Location Sharing Configuration
 // ============================================================================
@@ -130,38 +180,15 @@ app
         return status(401, { message: t('errors.auth.authenticationRequired') })
       }
 
-      const results = await Promise.all(
-        body.locations.map(async (item) => {
-          const friendHandle = item.forFriendHandle
-          try {
-            if (!(await isFriend(user.id, friendHandle))) {
-              return { friendHandle, stored: false, reason: 'not-a-friend' as const }
-            }
-
-            const config =
-              await locationE2eeService.getLocationSharingConfigForFriend(
-                user.id,
-                friendHandle,
-              )
-            if (!config?.enabled) {
-              return { friendHandle, stored: false, reason: 'not-enabled' as const }
-            }
-
-            const result = await locationE2eeService.storeEncryptedLocation(
-              user.id,
-              friendHandle,
-              item.encryptedLocation,
-              item.nonce,
-            )
-            if (!result.stored) {
-              return { friendHandle, stored: false, reason: 'replayed' as const }
-            }
-            return { friendHandle, stored: true as const }
-          } catch (err) {
-            return { friendHandle, stored: false, reason: 'error' as const }
-          }
-        }),
-      )
+      const results: BroadcastResult[] = []
+      for (let i = 0; i < body.locations.length; i += BROADCAST_CONCURRENCY) {
+        const batch = body.locations.slice(i, i + BROADCAST_CONCURRENCY)
+        results.push(
+          ...(await Promise.all(
+            batch.map((item) => storeBroadcastItem(user.id, item)),
+          )),
+        )
+      }
 
       return { results }
     },
@@ -169,10 +196,11 @@ app
       body: t.Object({
         locations: t.Array(
           t.Object({
-            forFriendHandle: t.String(),
-            encryptedLocation: t.String(),
-            nonce: t.String(),
+            forFriendHandle: t.String({ maxLength: 320 }),
+            encryptedLocation: t.String({ maxLength: 16_384 }),
+            nonce: t.String({ maxLength: 64 }),
           }),
+          { maxItems: MAX_BROADCAST_ITEMS },
         ),
       }),
       detail: {

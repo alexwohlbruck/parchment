@@ -259,6 +259,29 @@ describe('POST /location/e2ee/update — authorization gates', () => {
 })
 
 describe('POST /location/e2ee/update — batch behaviour', () => {
+  test('rejects a batch larger than the friend cap', async () => {
+    const res = await req(app).post('/location/e2ee/update', {
+      body: {
+        locations: Array.from({ length: 201 }, (_, i) => broadcast(`f${i}@peer.test`)),
+      },
+    })
+
+    expect(res.status).toBe(422)
+    expect(storeEncryptedLocation).not.toHaveBeenCalled()
+  })
+
+  test('rejects an oversized ciphertext', async () => {
+    const res = await req(app).post('/location/e2ee/update', {
+      body: {
+        locations: [
+          { ...broadcast('alice@peer.test'), encryptedLocation: 'x'.repeat(20_000) },
+        ],
+      },
+    })
+
+    expect(res.status).toBe(422)
+  })
+
   test('processes each item independently', async () => {
     isFriend.mockImplementation(async (_id, handle) => handle === 'alice@peer.test')
 

@@ -6,11 +6,8 @@ import {
   encryptedPoints,
 } from '../../schema/library.schema'
 import { shares, incomingShares, ShareRole } from '../../schema/shares.schema'
-import { users } from '../../schema/users.schema'
 import { and, eq, count, sql } from 'drizzle-orm'
 import { grantsLocalAccess } from '../sharing.service'
-import { parseHandle } from '../../lib/crypto'
-import { buildHandle, isLocalHandle } from '../federation.service'
 import { emit } from '../realtime/emit'
 import { resolveCollectionRecipients } from '../realtime/recipients.service'
 import {
@@ -35,40 +32,34 @@ import { randomBytes } from 'node:crypto'
 const bookmarkSelectFields = createSelectFieldsWithGeometry(bookmarksSchema)
 
 /**
- * Look up a same-server recipient's user_id from their federated handle.
- * Returns null for cross-server handles (we can't touch remote incoming
- * rows) or for handles that don't map to a user on this server.
+ * Swap each remaining recipient's envelope on the outgoing share and on the
+ * same-server mirror row. Cross-server recipients' rows live on their peer.
  */
-async function resolveLocalRecipientUserId(
+async function rewrapShareEnvelopes(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
-  handle: string,
-): Promise<string | null> {
-  if (!isLocalHandle(handle)) return null
-  const parsed = parseHandle(handle)
-  if (!parsed) return null
-  const [u] = await tx
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.alias, parsed.alias))
-    .limit(1)
-  return u?.id ?? null
-}
-
-/**
- * The owner's federated handle, derived from their user_id. Used as the
- * `senderHandle` on every incoming_shares row their recipients see.
- */
-async function getOwnerHandle(
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
-  userId: string,
-): Promise<string | null> {
-  const [u] = await tx
-    .select({ alias: users.alias })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1)
-  if (!u?.alias) return null
-  return buildHandle(u.alias)
+  ownerId: string,
+  collectionId: string,
+  envelopes: Array<{ recipientHandle: string; encryptedData: string; nonce: string }>,
+) {
+  for (const env of envelopes) {
+    const updated = await tx
+      .update(shares)
+      .set({ encryptedData: env.encryptedData, nonce: env.nonce })
+      .where(
+        and(
+          eq(shares.userId, ownerId),
+          eq(shares.resourceType, 'collection'),
+          eq(shares.resourceId, collectionId),
+          eq(shares.recipientHandle, env.recipientHandle),
+        ),
+      )
+      .returning({ id: shares.id })
+    if (updated.length === 0) continue
+    await tx
+      .update(incomingShares)
+      .set({ encryptedData: env.encryptedData, nonce: env.nonce })
+      .where(inArray(incomingShares.shareId, updated.map((r) => r.id)))
+  }
 }
 
 /** Joins in when `userId` archived the collection, null if they haven't. */
@@ -613,81 +604,29 @@ export async function rotateCollectionKey(
       )
     }
 
-    const ownerHandle = await getOwnerHandle(tx, params.userId)
+    await rewrapShareEnvelopes(
+      tx,
+      params.userId,
+      params.collectionId,
+      params.updatedShareEnvelopes,
+    )
 
-    // 3. Update each remaining share's outbound envelope (rewrapped key).
-    for (const env of params.updatedShareEnvelopes) {
-      await tx
-        .update(shares)
-        .set({
-          encryptedData: env.encryptedData,
-          nonce: env.nonce,
-        })
-        .where(
-          and(
-            eq(shares.userId, params.userId),
-            eq(shares.resourceType, 'collection'),
-            eq(shares.resourceId, params.collectionId),
-            eq(shares.recipientHandle, env.recipientHandle),
-          ),
-        )
-
-      // Mirror on the SAME-SERVER recipient's incoming_shares row. The row
-      // is keyed by the recipient's user_id + the owner's handle in
-      // sender_handle, so narrow to both. Cross-server recipients live on
-      // their peer's DB and are untouched here.
-      if (ownerHandle) {
-        const recipientUserId = await resolveLocalRecipientUserId(
-          tx,
-          env.recipientHandle,
-        )
-        if (recipientUserId) {
-          await tx
-            .update(incomingShares)
-            .set({
-              encryptedData: env.encryptedData,
-              nonce: env.nonce,
-            })
-            .where(
-              and(
-                eq(incomingShares.userId, recipientUserId),
-                eq(incomingShares.senderHandle, ownerHandle),
-                eq(incomingShares.resourceType, 'collection'),
-                eq(incomingShares.resourceId, params.collectionId),
-              ),
-            )
-        }
-      }
-    }
-
-    // 4. Delete revoked shares entirely. Both outgoing (owner side) and
-    //    incoming (recipient side) rows go in one sweep.
-    for (const revoked of params.revokeRecipientHandles) {
-      await tx
+    if (params.revokeRecipientHandles.length > 0) {
+      const revoked = await tx
         .delete(shares)
         .where(
           and(
             eq(shares.userId, params.userId),
             eq(shares.resourceType, 'collection'),
             eq(shares.resourceId, params.collectionId),
-            eq(shares.recipientHandle, revoked),
+            inArray(shares.recipientHandle, params.revokeRecipientHandles),
           ),
         )
-
-      if (ownerHandle) {
-        const recipientUserId = await resolveLocalRecipientUserId(tx, revoked)
-        if (recipientUserId) {
-          await tx
-            .delete(incomingShares)
-            .where(
-              and(
-                eq(incomingShares.userId, recipientUserId),
-                eq(incomingShares.senderHandle, ownerHandle),
-                eq(incomingShares.resourceType, 'collection'),
-                eq(incomingShares.resourceId, params.collectionId),
-              ),
-            )
-        }
+        .returning({ id: shares.id })
+      if (revoked.length > 0) {
+        await tx
+          .delete(incomingShares)
+          .where(inArray(incomingShares.shareId, revoked.map((r) => r.id)))
       }
     }
 
@@ -946,53 +885,12 @@ export async function changeCollectionScheme(
       }
     }
 
-    // Rewrap each remaining share's envelope under the new collection key.
-    // Same mechanics as rotate-key — the server is opaque to the key; we
-    // just swap stored ciphertext atomically.
-    const ownerHandle = await getOwnerHandle(tx, params.userId)
-    for (const env of params.updatedShareEnvelopes) {
-      await tx
-        .update(shares)
-        .set({
-          encryptedData: env.encryptedData,
-          nonce: env.nonce,
-        })
-        .where(
-          and(
-            eq(shares.userId, params.userId),
-            eq(shares.resourceType, 'collection'),
-            eq(shares.resourceId, params.collectionId),
-            eq(shares.recipientHandle, env.recipientHandle),
-          ),
-        )
-
-      // Mirror on the same-server recipient's incoming_shares row. Rows
-      // are keyed by (recipient user_id, owner handle as sender_handle) —
-      // the old code compared sender_handle to the RECIPIENT's handle by
-      // mistake and never matched.
-      if (ownerHandle) {
-        const recipientUserId = await resolveLocalRecipientUserId(
-          tx,
-          env.recipientHandle,
-        )
-        if (recipientUserId) {
-          await tx
-            .update(incomingShares)
-            .set({
-              encryptedData: env.encryptedData,
-              nonce: env.nonce,
-            })
-            .where(
-              and(
-                eq(incomingShares.userId, recipientUserId),
-                eq(incomingShares.senderHandle, ownerHandle),
-                eq(incomingShares.resourceType, 'collection'),
-                eq(incomingShares.resourceId, params.collectionId),
-              ),
-            )
-        }
-      }
-    }
+    await rewrapShareEnvelopes(
+      tx,
+      params.userId,
+      params.collectionId,
+      params.updatedShareEnvelopes,
+    )
 
     return updatedCollection ?? null
   })

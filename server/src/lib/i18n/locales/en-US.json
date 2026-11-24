@@ -116,6 +116,9 @@
       "invalidHandle": "Invalid handle format. Use alias@domain"
     },
     "sharing": {
+      "alreadyShared": "Already shared with this person",
+      "remoteDeliveryFailed": "Couldn't reach this person's server; nothing was shared",
+      "resourceNotFound": "Not found",
       "collectionNotPermitted": "Not permitted to share this collection",
       "federationEnvelopeRequired": "Cross-server shares require federationSignature + federationNonce + federationTimestamp"
     },

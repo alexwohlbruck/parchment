@@ -60,10 +60,6 @@ app.use(permissions(PermissionId.SHARING_WRITE)).post(
   async ({ body, user, status, t }) => {
     const role = body.role ?? 'viewer'
 
-    // For collection shares, enforce that the caller is allowed to share
-    // (owner, or editor when resharing_policy permits). Other resource
-    // types don't yet have a policy layer — owner check stays implicit
-    // in the service.
     if (body.resourceType === 'collection') {
       const { allowed } = await sharingService.canShareCollection(
         user.id,
@@ -72,6 +68,10 @@ app.use(permissions(PermissionId.SHARING_WRITE)).post(
       if (!allowed) {
         return status(403, { message: t('errors.sharing.collectionNotPermitted') })
       }
+    } else if (
+      !(await sharingService.ownsResource(user.id, body.resourceType, body.resourceId))
+    ) {
+      return status(404, { message: t('errors.sharing.resourceNotFound') })
     }
 
     // Cross-server shares MUST carry a signed v2 envelope — without it
@@ -89,19 +89,28 @@ app.use(permissions(PermissionId.SHARING_WRITE)).post(
       }
     }
 
-    const share = await sharingService.createShare({
-      userId: user.id,
-      recipientHandle: body.recipientHandle,
-      resourceType: body.resourceType as any,
-      resourceId: body.resourceId,
-      encryptedData: body.encryptedData,
-      nonce: body.nonce,
-      role,
-      federationSignature: body.federationSignature,
-      federationNonce: body.federationNonce,
-      federationTimestamp: body.federationTimestamp,
-    })
-    return share
+    try {
+      return await sharingService.createShare({
+        userId: user.id,
+        recipientHandle: body.recipientHandle,
+        resourceType: body.resourceType,
+        resourceId: body.resourceId,
+        encryptedData: body.encryptedData,
+        nonce: body.nonce,
+        role,
+        federationSignature: body.federationSignature,
+        federationNonce: body.federationNonce,
+        federationTimestamp: body.federationTimestamp,
+      })
+    } catch (err) {
+      if (err instanceof sharingService.DuplicateShareError) {
+        return status(409, { message: t('errors.sharing.alreadyShared') })
+      }
+      if (err instanceof sharingService.RemoteShareDeliveryError) {
+        return status(502, { message: t('errors.sharing.remoteDeliveryFailed') })
+      }
+      throw err
+    }
   },
   {
     body: t.Object({
@@ -129,6 +138,8 @@ app.use(permissions(PermissionId.SHARING_WRITE)).post(
     detail: {
       tags: ['Sharing'],
       summary: 'Share a resource with a friend',
+      description:
+        'Collections may be shared by their owner, or by an editor when the resharing policy allows it; other resource types only by their owner. Returns 409 when the resource is already shared with the recipient, and 502 when a cross-server share could not be delivered (nothing is stored).',
     },
   },
 )

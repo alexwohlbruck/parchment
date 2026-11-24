@@ -11,6 +11,7 @@
 * Satellite and hybrid maps no longer draw 3D trees, street furniture, landmarks or raised bridges over the photos, and hybrid shows street names without drawing the streets.
 
 ### Fixed
+* Tapping the basemap that's already selected keeps it, instead of switching to the standard map.
 
 * In 3D, road names and one-way arrows on bridges sit on the bridge instead of on the water or ground below.
 

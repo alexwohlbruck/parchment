@@ -2351,7 +2351,8 @@
         "next": "Siguiente",
         "done": "Listo",
         "stepOf": "{n}/{total}",
-        "advancesIn": "siguiente en {duration}"
+        "advancesIn": "siguiente en {duration}",
+        "left": "faltan {distance}"
       }
     },
     "ahead": {

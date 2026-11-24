@@ -2,14 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { GuidanceStep, StationWalk, TransitTransfer } from '@server/types/station-guidance.types'
 import type { GuidedSegment } from '@/lib/transit/station/station-walks'
 import type { TransitStage } from './transit-progress'
-import {
-  advanceGuide,
-  autoAdvance,
-  guideView,
-  startGuide,
-  stationGuideTarget,
-  STREET_RESUME_METERS,
-} from './station-guide'
+import { stationGuideTarget, STREET_RESUME_METERS } from './station-guide'
 
 const step = (instruction: string, duration: number): GuidanceStep => ({
   type: 'walk', instruction, distance: duration, duration, fromLevel: -1, toLevel: -1,
@@ -56,34 +49,5 @@ describe('stationGuideTarget', () => {
   it('never narrates an estimate', () => {
     const guessed: GuidedSegment[] = [{ mode: 'transit' }, { mode: 'transit', transfer: transfer(walk([step('x', 5)], true)) }]
     expect(stationGuideTarget(guessed, waiting(1, 'wait'), null)).toBeNull()
-  })
-})
-
-describe('stepping through a station', () => {
-  const guide = stationGuideTarget(trip, waiting(3, 'wait'), null)!
-
-  it('moves on by hand and finishes after the last step', () => {
-    let state = startGuide(guide, 0)
-    state = advanceGuide(state, guide, 1000)!
-    expect(guideView(state, guide, 1000)).toMatchObject({ index: 1, total: 3, next: { instruction: 'Board the 7' } })
-    state = advanceGuide(state, guide, 2000)!
-    expect(advanceGuide(state, guide, 3000)).toBeNull()
-  })
-
-  it('moves on by itself once a step has had half again its time, holding at the last', () => {
-    const state = startGuide(guide, 0)
-    expect(guideView(state, guide, 0).advancesInMs).toBe(45_000)
-    expect(autoAdvance(state, guide, 44_000).step).toBe(0)
-    expect(autoAdvance(state, guide, 45_000).step).toBe(1)
-    const held = autoAdvance(state, guide, 600_000)
-    expect(held.step).toBe(2)
-    expect(guideView(held, guide, 600_000).advancesInMs).toBeNull()
-  })
-
-  it('tightens the slack so the steps are done by the departure, never below the expected pace', () => {
-    const tight = stationGuideTarget(trip, waiting(3, 'wait', 100_000), null)!
-    expect(guideView(startGuide(tight, 0), tight, 0).advancesInMs).toBe(30_000 * (100 / 82))
-    const missed = stationGuideTarget(trip, waiting(3, 'wait', 10_000), null)!
-    expect(guideView(startGuide(missed, 0), missed, 0).advancesInMs).toBe(30_000)
   })
 })

@@ -107,6 +107,10 @@ export const guidanceEngine = {
     return engine?.navRoute ?? null
   },
 
+  stepsBetween(from: number, to: number): number {
+    return engine?.stepsBetween(from, to) ?? 0
+  },
+
   get diagnostics() {
     return engine?.diagnostics ?? null
   },

@@ -184,14 +184,17 @@ export class DawarichAdapter {
 
     // Collect raw entries across all days first — we need ALL visits to
     // split journeys correctly, regardless of day grouping.
-    const allVisits: DawarichTimelineVisitEntry[] = []
-    const allJourneys: DawarichTimelineJourneyEntry[] = []
+    // An entry that crosses midnight is listed under both days.
+    const visitsById = new Map<number, DawarichTimelineVisitEntry>()
+    const journeysById = new Map<number, DawarichTimelineJourneyEntry>()
     for (const day of timeline.days) {
       for (const e of day.entries) {
-        if (e.type === 'visit') allVisits.push(e)
-        else allJourneys.push(e)
+        if (e.type === 'visit') visitsById.set(e.visit_id, e)
+        else journeysById.set(e.track_id, e)
       }
     }
+    const allVisits = [...visitsById.values()]
+    const allJourneys = [...journeysById.values()]
 
     const rangeStartMs = range.start.getTime()
     const rangeEndMs = range.end.getTime()
@@ -292,7 +295,6 @@ export class DawarichAdapter {
       startTime: entry.started_at,
       endTime: entry.ended_at,
       duration: durationSec,
-      category: entry.status,
     }
   }
 

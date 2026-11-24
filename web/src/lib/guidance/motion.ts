@@ -10,6 +10,8 @@ export interface MotionSample {
   accelWithGravity: Vec3
   /** rotationRate mapped to device axes, deg/s: x=beta, y=gamma, z=alpha. */
   rotationRate: Vec3
+  /** Air pressure, hPa, where a barometer is read; browsers have none. */
+  pressure?: number | null
 }
 
 const GRAVITY_SMOOTHING = 0.1

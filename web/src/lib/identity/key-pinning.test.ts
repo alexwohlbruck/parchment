@@ -7,7 +7,7 @@
  */
 
 import { describe, test, expect } from 'vitest'
-import { deriveSafetyNumber } from './key-pinning'
+import { comparePin, deriveSafetyNumber } from './key-pinning'
 import { deriveSigningKeyPair, exportPublicKey } from './federation-crypto'
 
 function seed(byte: number): Uint8Array {
@@ -52,5 +52,22 @@ describe('deriveSafetyNumber', () => {
     expect(deriveSafetyNumber(alice, bob)).not.toBe(
       deriveSafetyNumber(alice, bobRotated),
     )
+  })
+})
+
+describe('comparePin', () => {
+  const keys = { signingKey: 'sig-a', encryptionKey: 'enc-a' }
+
+  test('pins on first contact', () => {
+    expect(comparePin(undefined, keys)).toBe('pinned')
+  })
+
+  test('matches identical keys', () => {
+    expect(comparePin({ ...keys }, keys)).toBe('match')
+  })
+
+  test('flags a changed signing or encryption key', () => {
+    expect(comparePin({ ...keys, signingKey: 'sig-b' }, keys)).toBe('mismatch')
+    expect(comparePin({ ...keys, encryptionKey: 'enc-b' }, keys)).toBe('mismatch')
   })
 })

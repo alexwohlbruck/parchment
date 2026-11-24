@@ -9,6 +9,8 @@ import { useCategoryStore } from '@/stores/category.store'
 import { useSyncStore } from '@/stores/sync.store'
 import { useEncryptedPointsStore } from '@/stores/library/encrypted-points.store'
 import { useCollectionKeysStore } from '@/stores/library/collection-keys.store'
+import { useFriendsStore } from '@/stores/friends.store'
+import { useFriendKeyPinsStore } from '@/stores/friends/friend-key-pins.store'
 
 /**
  * Clear all cached user data from localStorage and Pinia stores.
@@ -28,6 +30,9 @@ export function clearAllUserCaches() {
   syncStore.clear()
   useEncryptedPointsStore().clear()
   useCollectionKeysStore().clear()
+  // Resets the in-memory refs too; removing the keys alone lets useStorage write them back.
+  useFriendsStore().clear()
+  useFriendKeyPinsStore().clear()
   
   // Clear any other localStorage keys that should be removed on sign out
   // Add additional keys here as needed

@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { useFriendsStore } from '@/stores/friends.store'
+import { useFriendKeyPinsStore } from '@/stores/friends/friend-key-pins.store'
 import { useIdentityStore } from '@/stores/identity.store'
 import { useEncryptedPointsStore } from '@/stores/library/encrypted-points.store'
 import type {
@@ -90,18 +91,20 @@ function isOwnCollection(collection: Collection): boolean {
  * Open the envelope a collection's owner sealed for this user and keep the
  * key it carries. A new key version drops places decrypted under the old one.
  */
-function openShareEnvelope(collection: Collection) {
+async function openShareEnvelope(collection: Collection) {
   if (!collection.shareEnvelope || !collection.senderHandle) return
   const sender = useFriendsStore().friends.find(
     f => f.friendHandle === collection.senderHandle,
   )
   const recipientPrivateKey = useIdentityStore().encryptionPrivateKey
   if (!sender?.friendEncryptionKey || !recipientPrivateKey) return
+  const trusted = await useFriendKeyPinsStore().trustedKeys(sender)
+  if (!trusted) return
   try {
     const share = openCollectionShare({
       envelope: collection.shareEnvelope,
       recipientPrivateKey,
-      senderPublicKey: importPublicKey(sender.friendEncryptionKey),
+      senderPublicKey: importPublicKey(trusted.encryptionKey),
     })
     if (!share.key || share.collectionId !== collection.id) return
     const keysStore = useCollectionKeysStore()
@@ -145,7 +148,7 @@ async function collectionKey(collection: Collection): Promise<Uint8Array | null>
  */
 async function hydrateDecryptedMetadata<T extends Collection>(collection: T): Promise<T> {
   collection.locked = false
-  if (!isOwnCollection(collection)) openShareEnvelope(collection)
+  if (!isOwnCollection(collection)) await openShareEnvelope(collection)
 
   const source = await collectionKeySource(collection)
   if (!collection.metadataEncrypted) {

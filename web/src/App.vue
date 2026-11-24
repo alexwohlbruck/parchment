@@ -261,7 +261,7 @@ async function bootstrapAuthenticatedUser() {
   // Initialize friend locations layer (watches visibility and polls accordingly)
   // Requires social permissions — skip for free users to avoid 403s
   if (authService.hasPermission(PermissionId.SOCIAL_READ)) {
-    friendLocationsLayer.initialize()
+    void friendLocationsLayer.initialize()
   }
   // Initialize tracker locations layer (handles marker click → detail navigation)
   trackerLocationsLayer.initialize()
@@ -319,6 +319,7 @@ watch(
     if (id && !previous) void bootstrapAuthenticatedUser()
     else if (!id && previous) {
       authBootstrapped = false
+      friendLocationsLayer.cleanup()
       realtimeDisconnect()
     }
   },

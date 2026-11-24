@@ -4,7 +4,7 @@
  * Pure in-memory — no DB, no sockets. Uses stub `Connection` objects.
  */
 
-import { describe, test, expect, beforeEach } from 'bun:test'
+import { describe, test, expect, beforeEach, mock } from 'bun:test'
 import {
   add,
   removeById,
@@ -12,6 +12,9 @@ import {
   connectedUserCount,
   totalSocketCount,
   _resetForTests,
+  closeSessions,
+  closeUserConnections,
+  SESSION_ENDED_CLOSE_CODE,
   type Connection,
 } from './registry.service'
 
@@ -88,5 +91,36 @@ describe('registry.socketsForUser', () => {
 
   test('empty array for unknown user', () => {
     expect(socketsForUser('nobody')).toEqual([])
+  })
+})
+
+describe('closing on session end', () => {
+  function conn(id: string, sessionId: string) {
+    return { id, sessionId, send: mock(() => undefined), close: mock(() => undefined) }
+  }
+
+  test('closeSessions closes only sockets from the ended session', () => {
+    const ended = conn('c1', 's1')
+    const live = conn('c2', 's2')
+    add('user-1', ended)
+    add('user-1', live)
+
+    closeSessions(['s1'])
+
+    expect(ended.close).toHaveBeenCalledWith(SESSION_ENDED_CLOSE_CODE, 'Session ended')
+    expect(live.close).not.toHaveBeenCalled()
+    expect(socketsForUser('user-1').map((c) => c.id)).toEqual(['c2'])
+  })
+
+  test('closeUserConnections spares the excepted session', () => {
+    const current = conn('c1', 's1')
+    const other = conn('c2', 's2')
+    add('user-1', current)
+    add('user-1', other)
+
+    closeUserConnections('user-1', { exceptSessionId: 's1' })
+
+    expect(other.close).toHaveBeenCalled()
+    expect(socketsForUser('user-1').map((c) => c.id)).toEqual(['c1'])
   })
 })

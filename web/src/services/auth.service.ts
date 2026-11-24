@@ -13,6 +13,7 @@ import { startRegistration, startAuthentication } from '@simplewebauthn/browser'
 import {
   hydratePrfExtensionInPlace,
   extractPrfOutputFromAssertion,
+  withoutPrfOutput,
 } from '@/lib/identity/passkey-prf-support'
 import { Session } from '@/types/session.types'
 import { PermissionId, PermissionRule, User } from '@/types/auth.types'
@@ -220,7 +221,7 @@ function authService() {
     const attestationResponse = await startRegistration(options)
 
     const { data: passkey } = await api.post(`auth/passkeys/register/verify`, {
-      ...attestationResponse,
+      ...withoutPrfOutput(attestationResponse),
       name,
     })
 
@@ -279,7 +280,7 @@ function authService() {
       data: { user, token: sessionId },
     } = await api.post(
       `/auth/passkeys/authenticate/verify`,
-      attestationResponse,
+      withoutPrfOutput(attestationResponse),
     )
 
     if (user) {

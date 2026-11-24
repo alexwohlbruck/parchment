@@ -1,11 +1,20 @@
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { createSharedComposable } from '@vueuse/core'
 import { useIdentityStore } from '@/stores/identity.store'
 import { useFriendsStore } from '@/stores/friends.store'
+import { useFriendKeyPinsStore } from '@/stores/friends/friend-key-pins.store'
 import { useLocationService } from '@/services/location.service'
 import { useGeolocationService } from '@/services/geolocation.service'
 import { haversineMeters } from '@/lib/geo/geo-line'
+import {
+  BROADCAST_HEARTBEAT_MS,
+  MAX_RESEND_FIX_AGE_MS,
+  MIN_BROADCAST_DISTANCE_M,
+  MIN_BROADCAST_INTERVAL_MS,
+  STATIONARY_REFRESH_MS,
+  broadcastBackoffMs,
+} from '@/lib/friends/friend-location'
 import {
   buildRelationshipId,
   encryptLocationForFriendV2,
@@ -14,128 +23,96 @@ import {
   type LocationData,
 } from '@/lib/identity/federation-crypto'
 
-// Broadcast cadence is driven by GPS movement, not a fixed timer. Three
-// gates keep traffic sane:
-//
-//   - MIN_BROADCAST_INTERVAL_MS: floor between consecutive broadcasts so
-//     GPS jitter (sub-second updates with tiny accuracy wobble) doesn't
-//     fan out a request storm.
-//   - MIN_DISTANCE_M: ignore movement smaller than this; GPS noise can
-//     report a few meters of drift while the device is still on a desk.
-//   - STATIONARY_REFRESH_MS: even if neither gate trips, broadcast at
-//     least this often so receivers see a fresh `updatedAt` and battery
-//     info — proof the marker is still alive.
-//
-// HEARTBEAT_MS drives a low-frequency timer that re-evaluates the gates
-// even when the geolocation watcher hasn't fired (OS suspended GPS,
-// background tab on mobile). Without it, a stationary device would
-// never trip the stationary refresh because no coord change would wake
-// the broadcast trigger.
-//
-// Sized to give the receiver enough samples for smooth interpolation:
-// 2s minimum interval + 3m distance threshold means a brisk walk
-// (~1.4 m/s) broadcasts roughly every 2-3s, and a moving vehicle
-// every 2s. Server rate limit is sized to match (60/min).
-const MIN_BROADCAST_INTERVAL_MS = 2_000
-const MIN_DISTANCE_M = 3
-const STATIONARY_REFRESH_MS = 5 * 60_000
-const HEARTBEAT_MS = 60_000
+interface BatteryManager extends EventTarget {
+  charging: boolean
+  level: number
+}
 
 /**
- * Composable for broadcasting encrypted location to friends. SHARED via
- * `createSharedComposable` — every caller across the app sees the same
- * watcher, broadcast loop, and state. The location feature has many
- * touch points (FriendsList, LocationSharingSettings, FriendDetail,
- * map layer controller); without sharing, each component would spin up
- * its own GPS watcher and POST independently.
+ * Broadcasts this device's encrypted location to every friend it is shared
+ * with. Shared, so the app has one GPS watch and one broadcast loop.
  *
- * Broadcast is driven by `geolocation.coords` updates plus a low-rate
- * heartbeat tick (so stationary devices still refresh). The receive
- * path is realtime websocket push; see `useFriendLocations.realtime.ts`.
+ * Runs whenever it has been activated, the identity is ready and at least
+ * one friend has sharing on — independent of whether the friends layer is
+ * drawn. Broadcasts follow movement, with a heartbeat for stationary devices.
  */
 function e2eeLocationBroadcastComposable() {
   const identityStore = useIdentityStore()
   const friendsStore = useFriendsStore()
+  const pinsStore = useFriendKeyPinsStore()
   const locationService = useLocationService()
   const geolocation = useGeolocationService()
 
-  const { isSetupComplete, encryptionPrivateKey, signingPrivateKey, handle } =
-    storeToRefs(identityStore)
+  const { isSetupComplete, signingPrivateKey, handle } = storeToRefs(identityStore)
   const { friends } = storeToRefs(friendsStore)
 
-  // State
   const isEnabled = ref(false)
   const isBroadcasting = ref(false)
   const lastBroadcastTime = ref<Date | null>(null)
   const broadcastError = ref<string | null>(null)
+  const sharedHandles = ref<Set<string>>(new Set())
+  const isActive = ref(false)
 
-  // Internal state
   let stopLocationWatch: (() => void) | null = null
   let heartbeatId: ReturnType<typeof setInterval> | null = null
-  let currentLocation: GeolocationPosition | null = null
+  let configPollId: ReturnType<typeof setInterval> | null = null
+  let currentLocation: Omit<LocationData, 'battery' | 'batteryCharging'> | null = null
   let lastBroadcastPosition: { lat: number; lng: number } | null = null
   let batteryManager: BatteryManager | null = null
+  let failures = 0
+  let retryAt = 0
+  // Bumped by stop() so a start() still awaiting can tell it was cancelled.
+  let generation = 0
 
-  // Battery Manager type (not in all TypeScript libs)
-  interface BatteryManager extends EventTarget {
-    charging: boolean
-    chargingTime: number
-    dischargingTime: number
-    level: number
-  }
+  const friendsWithSharing = computed(() =>
+    friends.value.filter(
+      (f) =>
+        sharedHandles.value.has(f.friendHandle.toLowerCase()) &&
+        !!f.friendEncryptionKey &&
+        !!f.friendSigningKey,
+    ),
+  )
+
+  const shouldRun = computed(
+    () => isActive.value && isSetupComplete.value && sharedHandles.value.size > 0,
+  )
 
   async function initBatteryMonitor() {
+    if (batteryManager || !('getBattery' in navigator)) return
     try {
-      if ('getBattery' in navigator) {
-        batteryManager = await (navigator as any).getBattery()
-      }
+      batteryManager = await (navigator as any).getBattery()
+    } catch {
+      batteryManager = null
+    }
+  }
+
+  async function loadFriendsWithSharing() {
+    if (!isActive.value) return
+    try {
+      const configs = await locationService.getE2eeConfigs()
+      sharedHandles.value = new Set(
+        configs.filter((c) => c.enabled).map((c) => c.friendHandle.toLowerCase()),
+      )
     } catch (error) {
-      console.warn('Battery API not available:', error)
+      console.error('Failed to load sharing configs:', error)
     }
   }
 
-  function getBatteryInfo(): { level: number; charging: boolean } | undefined {
-    if (batteryManager) {
-      return { level: batteryManager.level, charging: batteryManager.charging }
-    }
-    return undefined
-  }
-
-  const friendsWithSharing = ref<
-    Array<{
-      friendHandle: string
-      encryptionKey: string
-    }>
-  >([])
-
-  /**
-   * Decide whether the latest coords should trigger a broadcast. First
-   * coord after `start()` always broadcasts (cold-start UX); subsequent
-   * coords must clear the time floor AND either move enough or have
-   * triggered the stationary refresh.
-   */
   function shouldBroadcast(coords: { lat: number; lng: number }): boolean {
-    if (!isEnabled.value) return false
-    // Single in-flight broadcast at a time. Encrypt+POST can take seconds
-    // on a long friends list and a second concurrent run would update
-    // last-broadcast bookkeeping out of order.
-    if (isBroadcasting.value) return false
+    if (!isEnabled.value || isBroadcasting.value) return false
+    const now = Date.now()
+    if (now < retryAt) return false
     if (!lastBroadcastTime.value || !lastBroadcastPosition) return true
 
-    const elapsed = Date.now() - lastBroadcastTime.value.getTime()
+    const elapsed = now - lastBroadcastTime.value.getTime()
     if (elapsed < MIN_BROADCAST_INTERVAL_MS) return false
-
     if (elapsed >= STATIONARY_REFRESH_MS) return true
     const { lat, lng } = lastBroadcastPosition
-    return haversineMeters(lat, lng, coords.lat, coords.lng) >= MIN_DISTANCE_M
+    return haversineMeters(lat, lng, coords.lat, coords.lng) >= MIN_BROADCAST_DISTANCE_M
   }
 
-  /**
-   * Watch the device location. Two responsibilities: keep
-   * `currentLocation` fresh so `broadcast()` always reads the latest
-   * fix, and trigger a broadcast when the gates allow it.
-   */
   function startLocationWatch() {
+    stopLocationWatch?.()
     if (!geolocation.isSupported.value) {
       broadcastError.value = 'Geolocation not supported'
       return
@@ -147,200 +124,104 @@ function e2eeLocationBroadcastComposable() {
       geolocation.coords,
       (coords) => {
         if (coords.latitude === Infinity) return
-
         currentLocation = {
-          coords: {
-            latitude: coords.latitude,
-            longitude: coords.longitude,
-            accuracy: coords.accuracy,
-            altitude: coords.altitude,
-            altitudeAccuracy: coords.altitudeAccuracy,
-            heading: coords.heading,
-            speed: coords.speed,
-          },
-          timestamp: Date.now(),
-        } as GeolocationPosition
-
-        if (shouldBroadcast({ lat: coords.latitude, lng: coords.longitude })) {
-          void broadcast()
+          lat: coords.latitude,
+          lng: coords.longitude,
+          accuracy: coords.accuracy ?? undefined,
+          altitude: coords.altitude ?? undefined,
+          altitudeAccuracy: coords.altitudeAccuracy ?? undefined,
+          heading: coords.heading ?? undefined,
+          speed: coords.speed ?? undefined,
+          timestamp: geolocation.locatedAt.value ?? Date.now(),
         }
+        if (shouldBroadcast(currentLocation)) void broadcast()
       },
       { immediate: true },
     )
   }
 
-  /**
-   * Heartbeat tick. Re-evaluates the broadcast gates against the last
-   * known position, even if no coord change has fired (OS suspended GPS,
-   * background tab on mobile). The gates themselves are unchanged — this
-   * is just a wake-up.
-   */
   function startHeartbeat() {
     if (heartbeatId) return
     heartbeatId = setInterval(() => {
       if (!currentLocation) return
-      const coords = {
-        lat: currentLocation.coords.latitude,
-        lng: currentLocation.coords.longitude,
-      }
-      if (shouldBroadcast(coords)) {
-        void broadcast()
-      }
-    }, HEARTBEAT_MS)
+      if (Date.now() - currentLocation.timestamp > MAX_RESEND_FIX_AGE_MS) return
+      if (shouldBroadcast(currentLocation)) void broadcast()
+    }, BROADCAST_HEARTBEAT_MS)
   }
 
   function stopHeartbeat() {
-    if (heartbeatId) {
-      clearInterval(heartbeatId)
-      heartbeatId = null
-    }
+    if (!heartbeatId) return
+    clearInterval(heartbeatId)
+    heartbeatId = null
   }
 
-  async function loadFriendsWithSharing() {
-    try {
-      if (friends.value.length === 0) {
-        await friendsStore.loadAll()
-      }
-
-      const configs = await locationService.getE2eeConfigs()
-      const enabledConfigs = configs.filter((c) => c.enabled)
-
-      friendsWithSharing.value = enabledConfigs
-        .map((config) => {
-          const handle = config.friendHandle.toLowerCase()
-          const friend = friends.value.find(
-            (f) => f.friendHandle.toLowerCase() === handle,
-          )
-          if (!friend?.friendEncryptionKey) {
-            console.warn('[location-broadcast] friend missing encryption key:', handle, {
-              friendFound: !!friend,
-              hasKey: !!friend?.friendEncryptionKey,
-            })
-            return null
-          }
-          return {
-            friendHandle: friend.friendHandle,
-            encryptionKey: friend.friendEncryptionKey,
-          }
-        })
-        .filter((f): f is NonNullable<typeof f> => f !== null)
-    } catch (error) {
-      console.error('Failed to load sharing configs:', error)
-    }
+  function markBroadcast(location: { lat: number; lng: number }) {
+    lastBroadcastTime.value = new Date()
+    lastBroadcastPosition = { lat: location.lat, lng: location.lng }
   }
 
-  /**
-   * Broadcast current location to all friends with sharing enabled.
-   *
-   * Guards: returns early (without throwing) if anything required is
-   * missing. Always advances `lastBroadcastTime` so `shouldBroadcast`
-   * doesn't retry-spam on every coord update when there's nothing to
-   * send.
-   */
+  async function encryptFor(
+    friend: (typeof friendsWithSharing.value)[number],
+    location: LocationData,
+    senderHandle: string,
+    signingPriv: Uint8Array,
+  ) {
+    const keys = await pinsStore.trustedKeys(friend)
+    if (!keys) return null
+    const sentAt = new Date().toISOString()
+    const binding: FriendShareBinding = {
+      senderId: senderHandle,
+      recipientId: friend.friendHandle,
+      relationshipId: buildRelationshipId(senderHandle, friend.friendHandle),
+      timestamp: sentAt,
+    }
+    const blob = await encryptLocationForFriendV2({
+      location,
+      mySigningPrivateKey: signingPriv,
+      friendEncryptionPublicKey: importPublicKey(keys.encryptionKey),
+      binding,
+    })
+    // `nonce` carries the sentAt timestamp the AAD binds.
+    return { forFriendHandle: friend.friendHandle, encryptedLocation: blob, nonce: sentAt }
+  }
+
   async function broadcast() {
-    if (
-      !currentLocation ||
-      !encryptionPrivateKey.value ||
-      !signingPrivateKey.value ||
-      !handle.value
-    ) {
-      console.warn('[location-broadcast] broadcast() skipped — missing:', {
-        hasLocation: !!currentLocation,
-        hasEncKey: !!encryptionPrivateKey.value,
-        hasSignKey: !!signingPrivateKey.value,
-        hasHandle: !!handle.value,
-      })
-      return
-    }
+    const location = currentLocation
+    const senderHandle = handle.value
+    const signingPriv = signingPrivateKey.value
+    if (!location || !senderHandle || !signingPriv || isBroadcasting.value) return
 
-    if (isBroadcasting.value) return
-
-    if (friendsWithSharing.value.length === 0) {
-      console.warn('[location-broadcast] broadcast() skipped — no friends with sharing enabled')
-      // Nothing to send, but advance the bookkeeping so the watcher
-      // doesn't call us back on every single coord update.
-      lastBroadcastTime.value = new Date()
-      lastBroadcastPosition = {
-        lat: currentLocation.coords.latitude,
-        lng: currentLocation.coords.longitude,
-      }
+    const recipients = friendsWithSharing.value
+    if (recipients.length === 0) {
+      markBroadcast(location)
       return
     }
 
     isBroadcasting.value = true
     broadcastError.value = null
-
     try {
-      const batteryInfo = getBatteryInfo()
       const locationData: LocationData = {
-        lat: currentLocation.coords.latitude,
-        lng: currentLocation.coords.longitude,
-        accuracy: currentLocation.coords.accuracy ?? undefined,
-        altitude: currentLocation.coords.altitude ?? undefined,
-        altitudeAccuracy: currentLocation.coords.altitudeAccuracy ?? undefined,
-        speed: currentLocation.coords.speed ?? undefined,
-        heading: currentLocation.coords.heading ?? undefined,
-        battery: batteryInfo?.level,
-        batteryCharging: batteryInfo?.charging,
-        timestamp: currentLocation.timestamp,
+        ...location,
+        battery: batteryManager?.level,
+        batteryCharging: batteryManager?.charging,
       }
-
-      // v2 wire shape: `encryptedLocation` carries the ECIES blob base64;
-      // `nonce` is repurposed to carry the RFC 3339 sentAt timestamp that
-      // the AAD binds (receivers recompute AAD using this value). The old
-      // AES-GCM nonce now lives inside the v2 envelope.
-      const encryptedLocations: Array<{
-        forFriendHandle: string
-        encryptedLocation: string
-        nonce: string
-      }> = []
-
-      const senderHandle = handle.value
-      const signingPriv = signingPrivateKey.value
-
-      for (const friend of friendsWithSharing.value) {
+      const encrypted: NonNullable<Awaited<ReturnType<typeof encryptFor>>>[] = []
+      for (const friend of recipients) {
         try {
-          const sentAt = new Date().toISOString()
-          const binding: FriendShareBinding = {
-            senderId: senderHandle,
-            recipientId: friend.friendHandle,
-            relationshipId: buildRelationshipId(
-              senderHandle,
-              friend.friendHandle,
-            ),
-            timestamp: sentAt,
-          }
-          const friendPublicKey = importPublicKey(friend.encryptionKey)
-          const blob = await encryptLocationForFriendV2({
-            location: locationData,
-            mySigningPrivateKey: signingPriv,
-            friendEncryptionPublicKey: friendPublicKey,
-            binding,
-          })
-
-          encryptedLocations.push({
-            forFriendHandle: friend.friendHandle,
-            encryptedLocation: blob,
-            nonce: sentAt,
-          })
+          const row = await encryptFor(friend, locationData, senderHandle, signingPriv)
+          if (row) encrypted.push(row)
         } catch (error) {
           console.error(`Failed to encrypt for ${friend.friendHandle}:`, error)
         }
       }
-
-      if (encryptedLocations.length > 0) {
-        await locationService.updateLocation(encryptedLocations)
-      }
-
-      lastBroadcastTime.value = new Date()
-      lastBroadcastPosition = {
-        lat: currentLocation.coords.latitude,
-        lng: currentLocation.coords.longitude,
-      }
+      if (encrypted.length > 0) await locationService.updateLocation(encrypted)
+      markBroadcast(location)
+      failures = 0
+      retryAt = 0
     } catch (error) {
-      console.error('Broadcast failed:', error)
-      broadcastError.value =
-        error instanceof Error ? error.message : 'Broadcast failed'
+      failures += 1
+      retryAt = Date.now() + broadcastBackoffMs(failures)
+      broadcastError.value = error instanceof Error ? error.message : 'Broadcast failed'
     } finally {
       isBroadcasting.value = false
     }
@@ -351,9 +232,10 @@ function e2eeLocationBroadcastComposable() {
       broadcastError.value = 'Identity not set up'
       return
     }
-
-    await loadFriendsWithSharing()
+    const myGeneration = ++generation
+    if (sharedHandles.value.size === 0) await loadFriendsWithSharing()
     await initBatteryMonitor()
+    if (myGeneration !== generation) return
 
     isEnabled.value = true
     startLocationWatch()
@@ -361,43 +243,63 @@ function e2eeLocationBroadcastComposable() {
   }
 
   function stop() {
+    generation += 1
     stopLocationWatch?.()
     stopLocationWatch = null
     stopHeartbeat()
     isEnabled.value = false
     lastBroadcastPosition = null
     lastBroadcastTime.value = null
+    failures = 0
+    retryAt = 0
+  }
+
+  watch(shouldRun, (run) => {
+    if (run && !isEnabled.value) void start()
+    else if (!run && isEnabled.value) stop()
+  })
+
+  /** Begin following the sharing settings. Call once the user is signed in. */
+  async function activate() {
+    isActive.value = true
+    // Sharing can be changed from another device, which sends no event here.
+    configPollId ??= setInterval(() => {
+      void loadFriendsWithSharing()
+    }, STATIONARY_REFRESH_MS)
+    await loadFriendsWithSharing()
+  }
+
+  /** Stop broadcasting and forget this account's sharing settings. */
+  function deactivate() {
+    isActive.value = false
+    if (configPollId) clearInterval(configPollId)
+    configPollId = null
+    stop()
+    sharedHandles.value = new Set()
+    currentLocation = null
   }
 
   async function broadcastNow() {
-    if (!isEnabled.value) {
-      await start()
-    }
+    if (!isEnabled.value) await start()
     await broadcast()
   }
 
-  /**
-   * Refresh sharing config and broadcast immediately. Called when
-   * location sharing is toggled in the UI.
-   */
+  /** Re-read sharing settings and send a fresh location to anyone newly added. */
   async function refreshAndBroadcast() {
     await loadFriendsWithSharing()
-    if (isEnabled.value && friendsWithSharing.value.length > 0) {
-      await broadcast()
-    }
+    if (isEnabled.value && friendsWithSharing.value.length > 0) await broadcast()
   }
 
   return {
-    // State
     isEnabled,
     isBroadcasting,
     lastBroadcastTime,
     broadcastError,
     friendsWithSharing,
-
-    // Actions
     start,
     stop,
+    activate,
+    deactivate,
     broadcastNow,
     loadFriendsWithSharing,
     refreshAndBroadcast,

@@ -78,6 +78,19 @@ export async function getPin(handle: string): Promise<FriendPin | null> {
   return pins[handle] ?? null
 }
 
+export type PinDecision = 'pinned' | 'match' | 'mismatch'
+
+export function comparePin(
+  existing: Pick<FriendPin, 'signingKey' | 'encryptionKey'> | undefined,
+  keys: { signingKey: string; encryptionKey: string },
+): PinDecision {
+  if (!existing) return 'pinned'
+  return existing.signingKey === keys.signingKey &&
+    existing.encryptionKey === keys.encryptionKey
+    ? 'match'
+    : 'mismatch'
+}
+
 /**
  * Compare resolved pubkeys against the local pin for a friend.
  * - No existing pin  → TOFU-pin them now, return { action: 'pinned' }
@@ -97,8 +110,9 @@ export async function checkAndPinFriend(params: {
 > {
   const pins = await loadPins()
   const existing = pins[params.handle]
+  const decision = comparePin(existing, params)
 
-  if (!existing) {
+  if (decision === 'pinned') {
     const pin: FriendPin = {
       handle: params.handle,
       signingKey: params.signingKey,
@@ -111,14 +125,8 @@ export async function checkAndPinFriend(params: {
     return { action: 'pinned', pin }
   }
 
-  if (
-    existing.signingKey !== params.signingKey ||
-    existing.encryptionKey !== params.encryptionKey
-  ) {
-    return { action: 'mismatch', pin: existing }
-  }
-
-  return { action: 'match', pin: existing }
+  if (decision === 'mismatch') return { action: 'mismatch', pin: existing! }
+  return { action: 'match', pin: existing! }
 }
 
 /**
@@ -161,6 +169,15 @@ export async function dropPin(handle: string): Promise<void> {
   const pins = await loadPins()
   delete pins[handle]
   await savePins(pins)
+}
+
+/** Re-encrypt the pins under whichever seed `swapSeed` leaves loaded. */
+export async function keepPinsAcrossSeedChange(
+  swapSeed: () => Promise<void>,
+): Promise<void> {
+  const pins = await loadPins()
+  await swapSeed()
+  if (Object.keys(pins).length > 0) await savePins(pins)
 }
 
 export async function listPins(): Promise<FriendPin[]> {

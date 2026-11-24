@@ -1,8 +1,10 @@
 import Elysia, { t } from 'elysia'
 import { permissions } from '../middleware/auth.middleware'
 import { PermissionId } from '../types/auth.types'
-import { makeUserRateLimit } from '../middleware/rate-limit.middleware'
+import { byUser, rateLimitHandler } from '../middleware/rate-limit.middleware'
 import { isFriend } from '../services/friends.service'
+import { isLocalHandle } from '../services/federation.service'
+import { parseHandle } from '../lib/crypto'
 import * as locationE2eeService from '../services/location-e2ee.service'
 import { i18nPlugin } from '../lib/i18n/plugin'
 
@@ -13,11 +15,63 @@ const app = new Elysia({ prefix: '/location' }).use(i18nPlugin)
 // caps a well-behaved client to ~30 req/min while moving. 60/min leaves
 // headroom for burst broadcasts (sharing toggle, refresh-and-broadcast)
 // without throttling real usage. Anything above is either a bug or abuse.
-const updateRateLimit = makeUserRateLimit({
-  name: 'location-update',
-  limit: 60,
-  windowMs: 60_000,
-})
+const updateRateLimit = rateLimitHandler(
+  { name: 'location-update', limit: 60, windowMs: 60_000 },
+  byUser,
+)
+
+const MAX_BROADCAST_ITEMS = 200
+const BROADCAST_CONCURRENCY = 8
+
+type BroadcastItem = {
+  forFriendHandle: string
+  encryptedLocation: string
+  nonce: string
+}
+
+type BroadcastResult =
+  | { friendHandle: string; stored: true }
+  | {
+      friendHandle: string
+      stored: false
+      reason: 'not-a-friend' | 'not-enabled' | 'replayed' | 'error'
+    }
+
+async function storeBroadcastItem(
+  userId: string,
+  item: BroadcastItem,
+): Promise<BroadcastResult> {
+  const friendHandle = item.forFriendHandle
+  try {
+    if (!(await isFriend(userId, friendHandle))) {
+      return { friendHandle, stored: false, reason: 'not-a-friend' }
+    }
+    if (!isLocalHandle(friendHandle)) {
+      return { friendHandle, stored: false, reason: 'not-enabled' }
+    }
+
+    const config = await locationE2eeService.getLocationSharingConfigForFriend(
+      userId,
+      friendHandle,
+    )
+    if (!config?.enabled) {
+      return { friendHandle, stored: false, reason: 'not-enabled' }
+    }
+
+    const result = await locationE2eeService.storeEncryptedLocation(
+      userId,
+      friendHandle,
+      item.encryptedLocation,
+      item.nonce,
+    )
+    if (!result.stored) {
+      return { friendHandle, stored: false, reason: 'replayed' }
+    }
+    return { friendHandle, stored: true }
+  } catch {
+    return { friendHandle, stored: false, reason: 'error' }
+  }
+}
 
 // ============================================================================
 // Location Sharing Configuration
@@ -54,9 +108,21 @@ app.use(permissions(PermissionId.LOCATION_SHARING)).post(
       return status(401, { message: t('errors.auth.authenticationRequired') })
     }
 
+    if (!parseHandle(body.friendHandle)) {
+      return status(400, { message: t('errors.friends.invalidHandle') })
+    }
+    if (!(await isFriend(user.id, body.friendHandle))) {
+      return status(404, { message: t('errors.notFound.user') })
+    }
+    if (body.enabled !== false && !isLocalHandle(body.friendHandle)) {
+      return status(400, {
+        message: t('errors.friends.remoteLocationUnsupported'),
+      })
+    }
+
     const config = await locationE2eeService.setLocationSharingConfig(
       user.id,
-      body.friendHandle.toLowerCase(),
+      body.friendHandle,
       { enabled: body.enabled },
     )
 
@@ -64,12 +130,16 @@ app.use(permissions(PermissionId.LOCATION_SHARING)).post(
   },
   {
     body: t.Object({
-      friendHandle: t.String(),
+      friendHandle: t.String({ maxLength: 320 }),
       enabled: t.Optional(t.Boolean()),
     }),
     detail: {
       tags: ['Location'],
       summary: 'Set location sharing configuration for a friend',
+      description:
+        'The handle must be an accepted friend on this server; sharing with ' +
+        'friends on other servers is refused with 400. Turning sharing off ' +
+        'also deletes the location held for that friend and clears their marker.',
     },
   },
 )
@@ -86,7 +156,7 @@ app.use(permissions(PermissionId.LOCATION_SHARING)).delete(
 
     const deleted = await locationE2eeService.disableLocationSharing(
       user.id,
-      decodeURIComponent(params.friendHandle).toLowerCase(),
+      decodeURIComponent(params.friendHandle),
     )
 
     return { deleted }
@@ -122,7 +192,6 @@ app.use(permissions(PermissionId.LOCATION_SHARING)).delete(
  */
 app
   .use(permissions(PermissionId.LOCATION_SHARING))
-  .use(updateRateLimit)
   .post(
     '/e2ee/update',
     async ({ body, user, status, t }) => {
@@ -130,49 +199,28 @@ app
         return status(401, { message: t('errors.auth.authenticationRequired') })
       }
 
-      const results = await Promise.all(
-        body.locations.map(async (item) => {
-          const friendHandle = item.forFriendHandle.toLowerCase()
-          try {
-            if (!(await isFriend(user.id, friendHandle))) {
-              return { friendHandle, stored: false, reason: 'not-a-friend' as const }
-            }
-
-            const config =
-              await locationE2eeService.getLocationSharingConfigForFriend(
-                user.id,
-                friendHandle,
-              )
-            if (!config?.enabled) {
-              return { friendHandle, stored: false, reason: 'not-enabled' as const }
-            }
-
-            const result = await locationE2eeService.storeEncryptedLocation(
-              user.id,
-              friendHandle,
-              item.encryptedLocation,
-              item.nonce,
-            )
-            if (!result.stored) {
-              return { friendHandle, stored: false, reason: 'replayed' as const }
-            }
-            return { friendHandle, stored: true as const }
-          } catch (err) {
-            return { friendHandle, stored: false, reason: 'error' as const }
-          }
-        }),
-      )
+      const results: BroadcastResult[] = []
+      for (let i = 0; i < body.locations.length; i += BROADCAST_CONCURRENCY) {
+        const batch = body.locations.slice(i, i + BROADCAST_CONCURRENCY)
+        results.push(
+          ...(await Promise.all(
+            batch.map((item) => storeBroadcastItem(user.id, item)),
+          )),
+        )
+      }
 
       return { results }
     },
     {
+      beforeHandle: updateRateLimit,
       body: t.Object({
         locations: t.Array(
           t.Object({
-            forFriendHandle: t.String(),
-            encryptedLocation: t.String(),
-            nonce: t.String(),
+            forFriendHandle: t.String({ maxLength: 320 }),
+            encryptedLocation: t.String({ maxLength: 16_384 }),
+            nonce: t.String({ maxLength: 64 }),
           }),
+          { maxItems: MAX_BROADCAST_ITEMS },
         ),
       }),
       detail: {

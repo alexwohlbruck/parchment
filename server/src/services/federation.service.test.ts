@@ -9,8 +9,7 @@
  *     timestamp are covered by the *client's* signature, so rewriting any of
  *     them would silently invalidate it at the recipient;
  *   - inbound messages are rejected unless addressed to a local handle, fresh,
- *     from a resolvable sender, and correctly signed under the right (v1 or v2)
- *     signable form.
+ *     from a resolvable sender, and correctly signed under the v2 signable form.
  */
 
 import { describe, test, expect, mock, beforeEach } from 'bun:test'
@@ -43,11 +42,9 @@ mock.module('../lib/crypto', () => ({
 
 let timestampFresh = true
 const buildClientSignableV2 = mock((envelope: any) => `v2:${JSON.stringify(envelope)}`)
-const buildLegacySignableV1 = mock((type: string, _fields: any) => `v1:${type}`)
 
 mock.module('../lib/federation-canonical', () => ({
   buildClientSignableV2,
-  buildLegacySignableV1,
   canonicalJsonStringify: (value: unknown) => JSON.stringify(value),
   generateNonce: () => 'generated-nonce',
   isTimestampFresh: (_ts: string, _skew: number) => timestampFresh,
@@ -83,6 +80,11 @@ const friendHandlers = {
   handleIncomingFriendAccept: mock(async () => ({ success: true })),
 }
 mock.module('./friends.service', () => friendHandlers)
+
+const handleIncomingRealtimeEvent = mock(async () => ({ success: true }))
+mock.module('./realtime/federation-inbound', () => ({
+  handleIncomingRealtimeEvent,
+}))
 
 const {
   getServerDomain,
@@ -127,7 +129,6 @@ beforeEach(() => {
   resolvePeerServer.mockClear()
   signOutboundRequest.mockClear()
   buildClientSignableV2.mockClear()
-  buildLegacySignableV1.mockClear()
   friendHandlers.handleIncomingFriendInvite.mockClear()
   friendHandlers.handleIncomingFriendInvite.mockImplementation(async () => ({
     success: true,
@@ -276,52 +277,47 @@ describe('resolveHandle', () => {
 describe('sendFederationMessage', () => {
   const message = { ...v2Message, from: 'alice@parchment.test', to: 'bob@peer.test' }
 
-  test('posts the canonicalized message to the peer inbox', async () => {
+  function inboxResolves(inbox = 'https://peer.test/federation/inbox') {
+    http.get.mockResolvedValueOnce({
+      status: 200,
+      data: { handle: 'bob@peer.test', inbox },
+    })
+  }
+
+  test('posts the canonicalized message to the handle’s inbox', async () => {
+    inboxResolves()
     http.post.mockResolvedValueOnce({ status: 202 })
 
-    const sent = await sendFederationMessage(
-      'https://peer.test/federation/inbox',
-      message,
-    )
-
-    expect(sent).toBe(true)
+    expect(await sendFederationMessage('bob@peer.test', message)).toBe(true)
     expect(http.post.mock.calls[0][0]).toBe('https://peer.test/federation/inbox')
   })
 
   test('treats 200 as delivered too', async () => {
+    inboxResolves()
     http.post.mockResolvedValueOnce({ status: 200 })
 
-    expect(
-      await sendFederationMessage('https://peer.test/federation/inbox', message),
-    ).toBe(true)
+    expect(await sendFederationMessage('bob@peer.test', message)).toBe(true)
   })
 
   test('reports failure on any other status', async () => {
+    inboxResolves()
     http.post.mockResolvedValueOnce({ status: 400 })
 
-    expect(
-      await sendFederationMessage('https://peer.test/federation/inbox', message),
-    ).toBe(false)
+    expect(await sendFederationMessage('bob@peer.test', message)).toBe(false)
   })
 
-  test('refuses a plain-HTTP target outside dev', async () => {
-    expect(
-      await sendFederationMessage('http://peer.test/federation/inbox', message),
-    ).toBe(false)
+  test('refuses a plain-HTTP inbox outside dev', async () => {
+    inboxResolves('http://peer.test/federation/inbox')
+
+    expect(await sendFederationMessage('bob@peer.test', message)).toBe(false)
     expect(http.post).not.toHaveBeenCalled()
   })
 
-  test('resolves a handle target to its inbox', async () => {
-    http.get.mockResolvedValueOnce({
-      status: 200,
-      data: {
-        handle: 'bob@peer.test',
-        inbox: 'https://peer.test/federation/inbox',
-      },
-    })
-    http.post.mockResolvedValueOnce({ status: 202 })
+  test('refuses an inbox hosted off the handle’s domain', async () => {
+    inboxResolves('https://internal.test/admin')
 
-    expect(await sendFederationMessage('bob@peer.test', message)).toBe(true)
+    expect(await sendFederationMessage('bob@peer.test', message)).toBe(false)
+    expect(http.post).not.toHaveBeenCalled()
   })
 
   test('fails when the target handle cannot be resolved', async () => {
@@ -334,27 +330,25 @@ describe('sendFederationMessage', () => {
   test('aborts when the peer manifest check fails', async () => {
     peerResolveError = new Error('pin mismatch')
 
-    expect(
-      await sendFederationMessage('https://peer.test/federation/inbox', message),
-    ).toBe(false)
+    expect(await sendFederationMessage('bob@peer.test', message)).toBe(false)
     expect(http.post).not.toHaveBeenCalled()
   })
 
-  test('refuses to send a message with no timestamp', async () => {
-    // The timestamp is part of the signed surface; we can't invent one.
+  test('refuses to send a message with no timestamp or nonce', async () => {
     expect(
-      await sendFederationMessage('https://peer.test/federation/inbox', {
-        ...message,
-        timestamp: undefined,
-      }),
+      await sendFederationMessage('bob@peer.test', { ...message, timestamp: undefined }),
+    ).toBe(false)
+    expect(
+      await sendFederationMessage('bob@peer.test', { ...message, nonce: undefined }),
     ).toBe(false)
     expect(http.post).not.toHaveBeenCalled()
   })
 
   test('never mutates the client-signed envelope fields', async () => {
+    inboxResolves()
     http.post.mockResolvedValueOnce({ status: 202 })
 
-    await sendFederationMessage('https://peer.test/federation/inbox', message)
+    await sendFederationMessage('bob@peer.test', message)
 
     const body = JSON.parse(http.post.mock.calls[0][1] as string)
     expect(body.nonce).toBe('msg-nonce')
@@ -362,31 +356,20 @@ describe('sendFederationMessage', () => {
     expect(body.protocol_version).toBe(2)
   })
 
-  test('reuses the envelope nonce for the transport signature', async () => {
+  test('uses the envelope nonce for the transport signature', async () => {
+    inboxResolves()
     http.post.mockResolvedValueOnce({ status: 202 })
 
-    await sendFederationMessage('https://peer.test/federation/inbox', message)
+    await sendFederationMessage('bob@peer.test', message)
 
     expect((signOutboundRequest.mock.calls[0][0] as any).nonce).toBe('msg-nonce')
   })
 
-  test('mints a transport nonce for a v1 message that has none', async () => {
-    http.post.mockResolvedValueOnce({ status: 202 })
-
-    await sendFederationMessage('https://peer.test/federation/inbox', {
-      ...message,
-      nonce: undefined,
-    })
-
-    expect((signOutboundRequest.mock.calls[0][0] as any).nonce).toBe(
-      'generated-nonce',
-    )
-  })
-
   test('attaches the server auth headers to the request', async () => {
+    inboxResolves()
     http.post.mockResolvedValueOnce({ status: 202 })
 
-    await sendFederationMessage('https://peer.test/federation/inbox', message)
+    await sendFederationMessage('bob@peer.test', message)
 
     expect(http.post.mock.calls[0][2].headers).toMatchObject({
       'X-Parchment-Server-Signature': 'server-sig',
@@ -394,11 +377,10 @@ describe('sendFederationMessage', () => {
   })
 
   test('reports failure rather than throwing when the post errors', async () => {
+    inboxResolves()
     http.post.mockRejectedValueOnce(new Error('ECONNRESET'))
 
-    expect(
-      await sendFederationMessage('https://peer.test/federation/inbox', message),
-    ).toBe(false)
+    expect(await sendFederationMessage('bob@peer.test', message)).toBe(false)
   })
 })
 
@@ -450,15 +432,23 @@ describe('processFederationMessage — envelope validation', () => {
     expect(result.error).toBe('Could not resolve sender')
   })
 
-  test('rejects a v2 message with no nonce', async () => {
-    http.get.mockResolvedValueOnce({
-      status: 200,
-      data: { handle: 'bob@peer.test', signingKey: 'bob-key' },
-    })
-
+  test('rejects a message with no nonce', async () => {
     const result = await processFederationMessage({ ...v2Message, nonce: undefined })
 
-    expect(result.error).toContain('v2 message missing nonce')
+    expect(result.error).toBe('Invalid message structure')
+  })
+
+  test('rejects a legacy v1 message', async () => {
+    const result = await processFederationMessage({
+      type: 'FRIEND_INVITE',
+      from: 'bob@peer.test',
+      to: 'alice@parchment.test',
+      timestamp: '2026-01-01T00:00:00.000Z',
+      signature: 'client-sig',
+    } as any)
+
+    expect(result.error).toBe('Invalid message structure')
+    expect(verifySignature).not.toHaveBeenCalled()
   })
 })
 
@@ -476,22 +466,34 @@ describe('processFederationMessage — signature', () => {
     await processFederationMessage(v2Message)
 
     expect(buildClientSignableV2).toHaveBeenCalled()
-    expect(buildLegacySignableV1).not.toHaveBeenCalled()
   })
 
-  test('verifies a v1 message against the legacy signable form', async () => {
+  test('reads handler fields from the signed payload only', async () => {
     senderResolves()
 
-    await processFederationMessage({
-      type: 'FRIEND_INVITE',
-      from: 'bob@peer.test',
-      to: 'alice@parchment.test',
-      timestamp: '2026-01-01T00:00:00.000Z',
-      signature: 'client-sig',
-    } as any)
+    const result = await processFederationMessage({
+      ...v2Message,
+      message_type: 'RESOURCE_SHARE',
+      payload: {},
+      encryptedData: 'unsigned',
+      nonce: 'msg-nonce',
+      resourceType: 'collection',
+      resourceId: 'c1',
+    })
 
-    expect(buildLegacySignableV1).toHaveBeenCalled()
-    expect(buildClientSignableV2).not.toHaveBeenCalled()
+    expect(result.error).toBe('Missing resource data')
+  })
+
+  test('refuses cross-server location updates', async () => {
+    senderResolves()
+
+    const result = await processFederationMessage({
+      ...v2Message,
+      message_type: 'LOCATION_UPDATE',
+      payload: { encryptedLocation: 'x', nonce: 'n' },
+    })
+
+    expect(result.success).toBe(false)
   })
 
   test('verifies against the SENDER’s signing key', async () => {
@@ -541,5 +543,46 @@ describe('processFederationMessage — signature', () => {
       expect.objectContaining({ signingKey: 'bob-key' }),
       'client-sig',
     )
+  })
+})
+
+describe('processFederationMessage — server-attested realtime events', () => {
+  const realtimeMessage = {
+    ...v2Message,
+    message_type: 'REALTIME_EVENT',
+    signature: '',
+    payload: {
+      eventType: 'collection:updated',
+      eventPayload: { id: 'c1' },
+      recipientAliases: ['alice'],
+    },
+  }
+
+  test('dispatches a REALTIME_EVENT without a user signature', async () => {
+    http.get.mockResolvedValueOnce({
+      status: 200,
+      data: { handle: 'bob@peer.test', signingKey: 'bob-key' },
+    })
+
+    const result = await processFederationMessage(realtimeMessage)
+
+    expect(result).toEqual({ success: true })
+    expect(verifySignature).not.toHaveBeenCalled()
+    expect(handleIncomingRealtimeEvent).toHaveBeenCalledWith(
+      'bob@peer.test',
+      'collection:updated',
+      { id: 'c1' },
+      ['alice'],
+    )
+  })
+
+  test('still requires a user signature for every other type', async () => {
+    const result = await processFederationMessage({
+      ...v2Message,
+      message_type: 'RESOURCE_SHARE',
+      signature: '',
+    })
+
+    expect(result.error).toBe('Invalid message structure')
   })
 })

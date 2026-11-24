@@ -13,6 +13,7 @@ import {
   getOurServerId,
 } from '../services/federation-auth.service'
 import { canonicalJsonStringify } from '../lib/federation-canonical'
+import { parseHandle } from '../lib/crypto'
 import { logger } from '../lib/logger'
 import { federationRateLimit } from '../middleware/rate-limit.middleware'
 import { i18nPlugin } from '../lib/i18n/plugin'
@@ -81,8 +82,9 @@ app.post(
     // the hash is stable regardless of how each side's JSON parser orders
     // keys.
     const bodyJson = canonicalJsonStringify(body)
+    let auth: Awaited<ReturnType<typeof verifyInboundRequest>>
     try {
-      const auth = await verifyInboundRequest({
+      auth = await verifyInboundRequest({
         method: request.method,
         path: '/federation/inbox',
         bodyJson,
@@ -104,6 +106,19 @@ app.post(
     }
 
     const message = body as FederationMessage
+
+    const senderDomain = parseHandle(message.from)?.domain.toLowerCase()
+    if (senderDomain !== auth.senderServerId.toLowerCase()) {
+      logger.warn(
+        { sender: auth.senderServerId, from: message.from },
+        'Federation message sender is not hosted by the sending server',
+      )
+      return status(401, { message: 'Sender is not hosted by this server' })
+    }
+    if (auth.nonce !== message.nonce) {
+      return status(401, { message: 'Transport nonce must match message nonce' })
+    }
+
     const result = await processFederationMessage(message)
 
     if (!result.success) {
@@ -117,22 +132,20 @@ app.post(
   },
   {
     body: t.Object({
-      // v2 fields (preferred)
-      protocol_version: t.Optional(t.Number()),
-      message_type: t.Optional(t.String()),
-      message_version: t.Optional(t.Number()),
-      nonce: t.Optional(t.String()),
-      // v1 fields (legacy; retained for transition)
-      type: t.Optional(t.String()),
-      from: t.String(),
-      to: t.String(),
-      timestamp: t.String(),
-      signature: t.String(),
-      payload: t.Optional(t.Record(t.String(), t.Unknown())),
+      protocol_version: t.Number({ minimum: 2 }),
+      message_type: t.String(),
+      message_version: t.Number(),
+      nonce: t.String({ maxLength: 64 }),
+      from: t.String({ maxLength: 320 }),
+      to: t.String({ maxLength: 320 }),
+      timestamp: t.String({ maxLength: 40 }),
+      signature: t.String({ maxLength: 256 }),
+      payload: t.Record(t.String(), t.Unknown()),
     }),
     detail: {
       tags: ['Federation'],
-      description: 'Receive federation messages from other servers',
+      description:
+        'Receive a v2 federation message from another server. The request must carry a valid server signature, the `from` handle must live on the sending server, and the transport nonce must equal the message nonce so each user-signed message is accepted once.',
     },
   },
 )

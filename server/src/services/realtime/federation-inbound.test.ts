@@ -74,11 +74,46 @@ describe('authorized delivery', () => {
     })
   })
 
+  test('refuses an event type peers may not send', async () => {
+    const result = await handleIncomingRealtimeEvent(
+      SENDER,
+      'admin:settings',
+      {},
+      ['alex'],
+    )
+
+    expect(result.success).toBe(false)
+    expect(publish).not.toHaveBeenCalled()
+  })
+
+  test('refuses location events from peers', async () => {
+    const result = await handleIncomingRealtimeEvent(
+      SENDER,
+      'location:updated',
+      {},
+      ['alex'],
+    )
+
+    expect(result.success).toBe(false)
+    expect(publish).not.toHaveBeenCalled()
+  })
+
+  test('refuses a non-string recipient alias', async () => {
+    const result = await handleIncomingRealtimeEvent(
+      SENDER,
+      'collection:updated',
+      {},
+      [{ $ne: null }] as any,
+    )
+
+    expect(result.success).toBe(false)
+  })
+
   test('never forwards the event onward', async () => {
     // A peer cycle would otherwise amplify the event indefinitely.
     queueLookups([{ id: 'u-1', alias: 'alex' }], [accepted])
 
-    await handleIncomingRealtimeEvent(SENDER, 'e', {}, ['alex'])
+    await handleIncomingRealtimeEvent(SENDER, 'collection:updated', {}, ['alex'])
 
     expect(publish.mock.calls[0][2].remoteHandles).toEqual([])
   })
@@ -92,7 +127,7 @@ describe('authorized delivery', () => {
       [accepted, accepted],
     )
 
-    await handleIncomingRealtimeEvent(SENDER, 'e', {}, ['alex', 'sam'])
+    await handleIncomingRealtimeEvent(SENDER, 'collection:updated', {}, ['alex', 'sam'])
 
     expect(publish).toHaveBeenCalledTimes(1)
     expect(publish.mock.calls[0][2].localUserIds).toEqual(['u-1', 'u-2'])
@@ -102,7 +137,7 @@ describe('authorized delivery', () => {
     queueLookups([{ id: 'u-1', alias: 'alex' }], [accepted])
     const payload = { nested: { value: [1, 2, 3] } }
 
-    await handleIncomingRealtimeEvent(SENDER, 'e', payload, ['alex'])
+    await handleIncomingRealtimeEvent(SENDER, 'collection:updated', payload, ['alex'])
 
     expect(publish.mock.calls[0][1]).toBe(payload)
   })
@@ -112,7 +147,7 @@ describe('the friendship gate', () => {
   test('drops a recipient with no friendship to the sender', async () => {
     queueLookups([{ id: 'u-1', alias: 'alex' }], [none])
 
-    const result = await handleIncomingRealtimeEvent(SENDER, 'e', {}, ['alex'])
+    const result = await handleIncomingRealtimeEvent(SENDER, 'collection:updated', {}, ['alex'])
 
     expect(result).toEqual({ success: true })
     expect(publish).not.toHaveBeenCalled()
@@ -127,7 +162,7 @@ describe('the friendship gate', () => {
       [accepted, none],
     )
 
-    await handleIncomingRealtimeEvent(SENDER, 'e', {}, ['alex', 'stranger'])
+    await handleIncomingRealtimeEvent(SENDER, 'collection:updated', {}, ['alex', 'stranger'])
 
     expect(publish.mock.calls[0][2].localUserIds).toEqual(['u-1'])
   })
@@ -141,7 +176,7 @@ describe('the friendship gate', () => {
       [accepted, accepted],
     )
 
-    await handleIncomingRealtimeEvent(SENDER, 'e', {}, ['alex', 'sam'])
+    await handleIncomingRealtimeEvent(SENDER, 'collection:updated', {}, ['alex', 'sam'])
 
     // One alias lookup plus one friendship lookup per user.
     expect(dbMock.selectCount).toBe(3)
@@ -150,7 +185,7 @@ describe('the friendship gate', () => {
 
 describe('silent drops', () => {
   test('accepts an empty recipient list without querying', async () => {
-    const result = await handleIncomingRealtimeEvent(SENDER, 'e', {}, [])
+    const result = await handleIncomingRealtimeEvent(SENDER, 'collection:updated', {}, [])
 
     expect(result).toEqual({ success: true })
     expect(dbMock.selectCount).toBe(0)
@@ -161,7 +196,7 @@ describe('silent drops', () => {
     // Reporting the difference would turn this into a user-enumeration oracle.
     dbMock.queueSelect([])
 
-    const result = await handleIncomingRealtimeEvent(SENDER, 'e', {}, [
+    const result = await handleIncomingRealtimeEvent(SENDER, 'collection:updated', {}, [
       'nobody',
     ])
 
@@ -172,7 +207,7 @@ describe('silent drops', () => {
   test('skips the friendship checks entirely when no alias resolves', async () => {
     dbMock.queueSelect([])
 
-    await handleIncomingRealtimeEvent(SENDER, 'e', {}, ['nobody', 'nobody-else'])
+    await handleIncomingRealtimeEvent(SENDER, 'collection:updated', {}, ['nobody', 'nobody-else'])
 
     expect(dbMock.selectCount).toBe(1)
   })

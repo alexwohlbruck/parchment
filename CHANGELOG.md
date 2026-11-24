@@ -2,13 +2,31 @@
 
 ### Added
 
+* If a friend's encryption keys change, their profile warns you and shows a safety number to compare. Nothing is shared with them until you confirm it matches.
 * Inside a station, step cards follow your steps and level changes without GPS, read each step aloud and show which level it leads to.
 * Where to board now names the exit or line it lines you up with, and navigation says it aloud. With minutes to spare on the platform, it tells you to walk there first.
 * The floor picker switches to the floor of the station step you're looking at, in trip details and while navigating. Tap a step to see that part of the walk on the map.
 
 ### Changed
 
+* Rotating your keys shows your new recovery key before it finishes, since the old one stops working.
+* Resetting your account asks you to confirm it's you with your passkey or an emailed code first.
+* Collections and routes can only be shared with friends.
+* Location sharing with friends on other servers isn't available yet, and the switch says so.
+
 ### Fixed
+
+* Turning off location sharing from a friend's profile now removes your last position from their map.
+* Friends' markers turn grey once their location is old, instead of looking live until the next update.
+* Your location keeps reaching friends while the friends layer is hidden, and stops as soon as you turn sharing off.
+* Making a collection private no longer removes its places from your other collections.
+* Removing someone from a private collection now stops with a message, instead of cutting off others whose keys haven't synced.
+* Changing someone's role on a shared collection takes effect even after you change your username.
+* Rotating your keys no longer leaves saved routes, canvases or shared private collections unreadable, and stops instead of skipping anything it can't carry over.
+* Setting up encryption can no longer replace keys your account already has after a failed connection.
+* A device with outdated keys can no longer overwrite your synced data after you rotate keys elsewhere.
+* A friend's location disappears from your map a day after they last shared it, instead of staying forever.
+* Changes to collections shared with friends on other servers now show up for them right away.
 
 ## [0.26.0] - 2026-11-24
 

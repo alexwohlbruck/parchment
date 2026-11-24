@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, index, unique } from 'drizzle-orm/pg-core'
+import { pgTable, text, timestamp, index, unique, uniqueIndex } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 import { users } from './users.schema'
 
@@ -31,7 +31,9 @@ export const shares = pgTable(
     
     // Recipient (can be local or remote)
     recipientHandle: text('recipient_handle').notNull(), // bob@other.com
-    recipientUserId: text('recipient_user_id').references(() => users.id), // Optional, for local users
+    recipientUserId: text('recipient_user_id').references(() => users.id, {
+      onDelete: 'cascade',
+    }), // Optional, for local users
     
     // Resource being shared
     resourceType: text('resource_type').notNull(), // 'collection' | 'route' | 'map' | 'layer'
@@ -56,6 +58,12 @@ export const shares = pgTable(
   },
   (table) => [
     unique('unique_share').on(table.userId, table.recipientHandle, table.resourceType, table.resourceId),
+    unique('unique_share_local_recipient').on(
+      table.userId,
+      table.recipientUserId,
+      table.resourceType,
+      table.resourceId,
+    ),
     index('idx_shares_user').on(table.userId),
     index('idx_shares_recipient').on(table.recipientHandle),
     index('idx_shares_resource').on(table.resourceType, table.resourceId),
@@ -80,6 +88,12 @@ export const incomingShares = pgTable(
     
     // Sender
     senderHandle: text('sender_handle').notNull(), // alex@parchment.app
+
+    // The outgoing share this row mirrors, when the sender is on this server.
+    // Null for rows a remote peer delivered.
+    shareId: text('share_id').references(() => shares.id, {
+      onDelete: 'cascade',
+    }),
     
     // Resource info
     resourceType: text('resource_type').notNull(),
@@ -104,6 +118,13 @@ export const incomingShares = pgTable(
   (table) => [
     index('idx_incoming_shares_user').on(table.userId),
     index('idx_incoming_shares_sender').on(table.senderHandle),
+    uniqueIndex('unique_incoming_share_mirror').on(table.shareId),
+    unique('unique_incoming_share').on(
+      table.userId,
+      table.senderHandle,
+      table.resourceType,
+      table.resourceId,
+    ),
   ],
 )
 

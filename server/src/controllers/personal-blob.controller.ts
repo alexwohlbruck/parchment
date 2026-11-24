@@ -10,6 +10,7 @@ import {
 import { i18nPlugin } from '../lib/i18n/plugin'
 import { publish } from '../services/realtime/event-bus.service'
 import { INTEGRATION_CONFIG_BLOB_PREFIX } from '../services/integration.service'
+import { BLOB, KEY_VERSION, NONCE } from '../lib/payload-limits'
 
 // A blob write under integration-config:* IS an integration edit (user-e2ee
 // configs live here, not in the integrations table) — notify the user's
@@ -90,9 +91,9 @@ app.use(permissions(PermissionId.LIBRARY_WRITE)).put(
   {
     params: t.Object({ type: t.String() }),
     body: t.Object({
-      encryptedBlob: t.String(),
-      nonce: t.Optional(t.String()),
-      kmVersion: t.Optional(t.Number()),
+      encryptedBlob: BLOB,
+      nonce: t.Optional(NONCE),
+      kmVersion: t.Optional(KEY_VERSION),
     }),
     detail: {
       tags: ['PersonalBlob'],

@@ -116,6 +116,9 @@
       "invalidHandle": "Formato de handle no válido. Use alias@domain"
     },
     "sharing": {
+      "alreadyShared": "Ya lo compartes con esta persona",
+      "remoteDeliveryFailed": "No se pudo contactar con el servidor de esta persona; no se compartió nada",
+      "resourceNotFound": "No encontrado",
       "collectionNotPermitted": "No tienes permiso para compartir esta colección",
       "federationEnvelopeRequired": "Compartir entre servidores requiere federationSignature + federationNonce + federationTimestamp"
     },

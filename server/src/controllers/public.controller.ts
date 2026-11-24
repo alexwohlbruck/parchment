@@ -60,7 +60,7 @@ const publicController = new Elysia({ prefix: '/public' })
           updatedAt: collection.updatedAt,
           publicRole: collection.publicRole,
         },
-        bookmarks,
+        bookmarks: bookmarks.map(({ userId: _, ...bookmark }) => bookmark),
       }
     },
     {

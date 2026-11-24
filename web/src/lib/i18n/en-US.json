@@ -3818,7 +3818,8 @@
       "publicLinkRevokeFailed": "Failed to revoke public link",
       "copyFailed": "Copy failed — select and copy the link manually",
       "identityRequired": "Set up your encryption keys in Settings before sharing",
-      "missingFriendKey": "This friend's keys aren't synced yet; try again in a moment"
+      "missingFriendKey": "This friend's keys aren't synced yet; try again in a moment",
+      "remainingKeysMissing": "Can't remove access until everyone else's keys are synced; try again in a moment"
     },
     "removeAction": "Remove {name}"
   },

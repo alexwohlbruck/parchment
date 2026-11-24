@@ -103,7 +103,7 @@ function openShareEnvelope(collection: Collection) {
       recipientPrivateKey,
       senderPublicKey: importPublicKey(sender.friendEncryptionKey),
     })
-    if (!share.key) return
+    if (!share.key || share.collectionId !== collection.id) return
     const keysStore = useCollectionKeysStore()
     const version = share.keyVersion ?? 1
     if (keysStore.get(collection.id)?.version !== version) {

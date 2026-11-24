@@ -363,20 +363,19 @@ async function onRemove(row: AccessRow) {
       const { data: pointsResp } = await api.get(
         `/library/collections/${props.collection.id}/encrypted-points`,
       )
-      const remainingShares = activeShares.value
-        .filter(s => s.id !== row.shareId)
-        .map(s => {
-          const friend = friends.value.find(
-            f => f.friendHandle === s.recipientHandle,
-          )
-          if (!friend?.friendEncryptionKey) return null
-          return {
-            id: s.id,
-            recipientHandle: s.recipientHandle,
-            recipientEncryptionKey: friend.friendEncryptionKey,
-          }
-        })
-        .filter((x): x is NonNullable<typeof x> => x !== null)
+      const remaining = activeShares.value.filter(s => s.id !== row.shareId)
+      const remainingShares = remaining.flatMap(s => {
+        const key = friends.value.find(
+          f => f.friendHandle === s.recipientHandle,
+        )?.friendEncryptionKey
+        return key
+          ? [{ id: s.id, recipientHandle: s.recipientHandle, recipientEncryptionKey: key }]
+          : []
+      })
+      if (remainingShares.length !== remaining.length) {
+        toast.error(t('sharing.errors.remainingKeysMissing'))
+        return
+      }
 
       await rotateCollectionKey({
         collection: props.collection,

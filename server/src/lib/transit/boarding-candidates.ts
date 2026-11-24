@@ -74,6 +74,9 @@ export const MAX_LATE_MINUTES = 60
 export const MAX_CANDIDATES = 8
 
 const departuresOf = (boards: Board[]) => boards.flatMap((b) => b.departures ?? [])
+
+/** A run's id without its `{date}_{time}_` prefix, which a realtime-only run stamps with each stop's own time. */
+export const runKey = (tripId: string) => tripId.replace(/^\d{8}_\d{2}:\d{2}_/, '')
 const timeOf = (d: BoardDeparture) => Date.parse(d.arrivalTime || d.departureTime)
 
 export function boardingCandidates(input: {
@@ -100,9 +103,10 @@ export function boardingCandidates(input: {
   for (const stop of input.later) {
     for (const d of departuresOf(stop.boards)) {
       if (d.cancelled) continue
-      const calls = callsByTrip.get(d.tripId) ?? new Map<string, number>()
+      const key = runKey(d.tripId)
+      const calls = callsByTrip.get(key) ?? new Map<string, number>()
       if (!calls.has(stop.stopId)) calls.set(stop.stopId, timeOf(d))
-      callsByTrip.set(d.tripId, calls)
+      callsByTrip.set(key, calls)
     }
   }
 
@@ -110,9 +114,10 @@ export function boardingCandidates(input: {
   const out: BoardingCandidate[] = []
   for (const d of departuresOf(input.board)) {
     const at = Date.parse(d.departureTime)
-    if (d.cancelled || seen.has(d.tripId) || Number.isNaN(at) || at < from || at > to) continue
-    seen.add(d.tripId)
-    const known = callsByTrip.get(d.tripId)
+    const key = runKey(d.tripId)
+    if (d.cancelled || seen.has(key) || Number.isNaN(at) || at < from || at > to) continue
+    seen.add(key)
+    const known = callsByTrip.get(key)
     const calls = input.later.flatMap((stop) => {
       const time = known?.get(stop.stopId)
       return time != null && time > at ? [{ stopId: stop.stopId, time: new Date(time).toISOString() }] : []

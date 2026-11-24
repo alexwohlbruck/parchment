@@ -54,8 +54,8 @@ async function rerouteFromSavedAreas(params: { position: LngLat; destination: Ln
   const mode = SERVER_MODES[params.mode]
   if (mode === 'driving') return null
   const response = await planOffline({
-    origin: params.position,
-    destination: params.destination,
+    origin: { lng: params.position.lng, lat: params.position.lat },
+    destination: { lng: params.destination.lng, lat: params.destination.lat },
     selectedMode: mode === 'cycling' ? 'biking' : 'walking',
     departAfter: Date.now(),
   })

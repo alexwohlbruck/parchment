@@ -1,4 +1,5 @@
 import { describe, test, expect, beforeEach, vi } from 'vitest'
+import { isProxy, reactive } from 'vue'
 import { NetworkErrorKind, tagNetworkError } from '@/lib/network-errors'
 
 const post = vi.fn()
@@ -38,6 +39,15 @@ describe('requestReroute', () => {
 
     expect(planOffline.mock.calls[0][0]).toMatchObject({ origin: from, destination: to, selectedMode: 'biking' })
     expect(segment).toEqual({ ...offlineSegment, mode: 'biking' })
+  })
+
+  test('hands the worker plain coordinates, since a reactive route cannot be cloned', async () => {
+    post.mockRejectedValue(networkError(NetworkErrorKind.Offline))
+    await requestReroute({ position: reactive({ ...from }), heading: null, destination: reactive({ ...to }), mode: 'walking' })
+
+    const { origin, destination } = planOffline.mock.calls[0][0]
+    expect([isProxy(origin), isProxy(destination)]).toEqual([false, false])
+    expect(() => structuredClone({ origin, destination })).not.toThrow()
   })
 
   test('keeps the server error when no saved area covers the leg', async () => {

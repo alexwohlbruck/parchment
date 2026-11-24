@@ -18,6 +18,16 @@
 * In 3D, road names and one-way arrows on bridges sit on the bridge instead of on the water or ground below.
 * Expanding the sheet while saving an offline map no longer shrinks the area you framed.
 
+## [0.25.1-1] - 2026-11-23
+
+### Changed
+
+* On phones, dialogs open just tall enough for their content, and you can drag them up to full height.
+
+### Fixed
+
+* On phones, the feedback form and other sheets opened from the account menu no longer close right after opening.
+
 ## [0.25.1] - 2026-11-23
 
 ### Fixed

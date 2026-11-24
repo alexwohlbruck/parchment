@@ -228,6 +228,12 @@ const IS_TRANSIT_POI = isTransitPoi()
  */
 const DARK_OVERRIDES = {
   oneway_icon_color: 'hsl(0, 0%, 42%)',
+  // MapTiler's night water ink is a shade off the water it names.
+  river_labels_text_color: 'hsl(205, 48%, 62%)',
+  ocean_labels_text_color: 'hsl(205, 48%, 62%)',
+  ocean_labels_text_color_2: 'hsl(205, 48%, 62%)',
+  lake_labels_text_color: 'hsl(205, 48%, 62%)',
+  ferry_text_color: 'hsl(205, 48%, 62%)',
   sand_fill_color: 'hsl(42, 19%, 30%)',
 }
 
@@ -962,6 +968,28 @@ function addCommercialLanduse(layers) {
   })
 }
 
+const POND_TEXT_SIZE = ['interpolate', ['linear'], ['zoom'], 14, 11, 18, 14]
+
+/** Average advance of a lettered water name, in ems, tracking included. */
+const POND_EM_PER_CHAR = 0.62
+
+/**
+ * Whether the name fits inside its lake. The tiles measure the lake across and
+ * down through the label point, in pixels at zoom 14 (`room_x`, `room_y`);
+ * tiles from before that measure carry neither and always pass.
+ */
+function pondNameFits() {
+  const scale = ['^', 2, ['-', ['zoom'], 14]]
+  const chars = ['length', ['coalesce', ['get', 'name:en'], ['get', 'name']]]
+  return ['any',
+    ['!', ['has', 'room_x']],
+    ['all',
+      ['>=', ['*', ['get', 'room_x'], scale], ['+', ['*', chars, POND_TEXT_SIZE, POND_EM_PER_CHAR], 8]],
+      ['>=', ['*', ['get', 'room_y'], scale], ['*', POND_TEXT_SIZE, 1.6]],
+    ],
+  ]
+}
+
 /**
  * Names for the lakes the tiles give a point instead of a centreline, which
  * is every pond and small lake. MapTiler's lake layer reads lines only.
@@ -975,15 +1003,17 @@ function addPondLabels(layers) {
     source: SOURCE,
     'source-layer': 'water_name',
     minzoom: 14,
-    filter: ['all', ['==', '$type', 'Point'], ['==', 'class', 'lake'], ['has', 'name']],
+    filter: ['all',
+      ['==', ['geometry-type'], 'Point'],
+      ['==', ['get', 'class'], 'lake'],
+      ['has', 'name'],
+      pondNameFits(),
+    ],
     layout: {
       'text-field': lake.layout['text-field'],
       'text-font': lake.layout['text-font'],
-      'text-max-width': 6,
-      'text-size': ['interpolate', ['linear'], ['zoom'], 14, 11, 18, 14],
-      // A pond's label point is often where its park's pin sits too.
-      'text-variable-anchor': ['center', 'top', 'bottom', 'right', 'left'],
-      'text-radial-offset': 0.8,
+      'text-max-width': 40,
+      'text-size': POND_TEXT_SIZE,
     },
     paint: { ...lake.paint },
   })
@@ -1164,15 +1194,15 @@ function singleFont(node) {
 
 /**
  * MapTiler's Roboto weights, mapped onto the Geist stacks `build-glyphs.mjs`
- * generates. Italic has no Geist face and comes out upright; see that script.
+ * generates.
  */
 const GEIST_DEFAULT = 'Geist Regular'
 const GEIST = {
   'Roboto Regular': 'Geist Regular',
   'Roboto Medium': 'Geist Medium',
   'Roboto Bold': 'Geist Bold',
-  'Roboto Italic': 'Geist Regular',
-  'Roboto Condensed Italic': 'Geist Regular',
+  'Roboto Italic': 'Geist Italic',
+  'Roboto Condensed Italic': 'Geist Italic',
 }
 
 /**
@@ -1520,6 +1550,12 @@ const TIGHT_LEADING = 1.05
  * `POI_LAYOUT` / `POI_PAINT`, since every one of them takes the same
  * treatment. `Station` appears only for the two things that differ.
  */
+/**
+ * A lake's name sits on the lake, so its halo is the water itself: it lifts
+ * the name off shorelines and wakes without a pale smear around it.
+ */
+const WATER_HALO = { 'text-halo-color': '@water_fill_color', 'text-halo-width': 1.2, 'text-halo-blur': 0.4 }
+
 const TYPOGRAPHY = {
   // ── streets ──────────────────────────────────────────────────────────
   'Road labels': {
@@ -1623,12 +1659,12 @@ const TYPOGRAPHY = {
     paint: { 'text-halo-blur': 0.6 },
   },
   'Lake labels': {
-    layout: { 'text-letter-spacing': 0.14 },
-    paint: { 'text-halo-width': 1.6, 'text-halo-blur': 0.6 },
+    layout: { 'text-letter-spacing': 0.1 },
+    paint: WATER_HALO,
   },
   'Pond labels': {
-    layout: { 'text-letter-spacing': 0.1 },
-    paint: { 'text-halo-width': 1.4, 'text-halo-blur': 0.6 },
+    layout: { 'text-letter-spacing': 0.06 },
+    paint: WATER_HALO,
   },
   'Ocean labels': {
     layout: { 'text-letter-spacing': 0.12 },

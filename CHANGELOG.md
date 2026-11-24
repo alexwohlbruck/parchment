@@ -6,7 +6,8 @@
 
 ### Fixed
 
-* Ponds and smaller lakes now show their names on the map.
+* Ponds and smaller lakes now show their names, when the name fits inside the water.
+* Water names are set in italic, in every map style.
 
 ## [0.26.0] - 2026-11-24
 

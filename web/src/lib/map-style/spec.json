@@ -7816,7 +7816,7 @@
      ]
     ],
     "text-font": [
-     "Geist Regular"
+     "Geist Italic"
     ],
     "text-letter-spacing": 0.16,
     "text-max-width": 5,
@@ -7872,7 +7872,7 @@
     "symbol-placement": "point",
     "text-field": "{name:en}",
     "text-font": [
-     "Geist Regular"
+     "Geist Italic"
     ],
     "text-max-width": 5,
     "text-size": [
@@ -8022,17 +8022,129 @@
     "all",
     [
      "==",
-     "$type",
+     [
+      "geometry-type"
+     ],
      "Point"
     ],
     [
      "==",
-     "class",
+     [
+      "get",
+      "class"
+     ],
      "lake"
     ],
     [
      "has",
      "name"
+    ],
+    [
+     "any",
+     [
+      "!",
+      [
+       "has",
+       "room_x"
+      ]
+     ],
+     [
+      "all",
+      [
+       ">=",
+       [
+        "*",
+        [
+         "get",
+         "room_x"
+        ],
+        [
+         "^",
+         2,
+         [
+          "-",
+          [
+           "zoom"
+          ],
+          14
+         ]
+        ]
+       ],
+       [
+        "+",
+        [
+         "*",
+         [
+          "length",
+          [
+           "coalesce",
+           [
+            "get",
+            "name:en"
+           ],
+           [
+            "get",
+            "name"
+           ]
+          ]
+         ],
+         [
+          "interpolate",
+          [
+           "linear"
+          ],
+          [
+           "zoom"
+          ],
+          14,
+          11,
+          18,
+          14
+         ],
+         0.62
+        ],
+        8
+       ]
+      ],
+      [
+       ">=",
+       [
+        "*",
+        [
+         "get",
+         "room_y"
+        ],
+        [
+         "^",
+         2,
+         [
+          "-",
+          [
+           "zoom"
+          ],
+          14
+         ]
+        ]
+       ],
+       [
+        "*",
+        [
+         "interpolate",
+         [
+          "linear"
+         ],
+         [
+          "zoom"
+         ],
+         14,
+         11,
+         18,
+         14
+        ],
+        1.6
+       ]
+      ]
+     ]
     ]
    ],
    "layout": {
@@ -8048,9 +8160,9 @@
      ]
     ],
     "text-font": [
-     "Geist Regular"
+     "Geist Italic"
     ],
-    "text-max-width": 6,
+    "text-max-width": 40,
     "text-size": [
      "interpolate",
      [
@@ -8064,21 +8176,13 @@
      18,
      14
     ],
-    "text-variable-anchor": [
-     "center",
-     "top",
-     "bottom",
-     "right",
-     "left"
-    ],
-    "text-radial-offset": 0.8,
-    "text-letter-spacing": 0.1
+    "text-letter-spacing": 0.06
    },
    "paint": {
     "text-color": "@lake_labels_text_color",
-    "text-halo-color": "@lake_labels_text_halo_color",
-    "text-halo-width": 1.4,
-    "text-halo-blur": 0.6
+    "text-halo-color": "@water_fill_color",
+    "text-halo-width": 1.2,
+    "text-halo-blur": 0.4
    }
   },
   {
@@ -8101,9 +8205,9 @@
      ]
     ],
     "text-font": [
-     "Geist Regular"
+     "Geist Italic"
     ],
-    "text-letter-spacing": 0.14,
+    "text-letter-spacing": 0.1,
     "text-max-width": 5,
     "text-size": {
      "stops": [
@@ -8125,9 +8229,9 @@
    },
    "paint": {
     "text-color": "@lake_labels_text_color",
-    "text-halo-color": "@lake_labels_text_halo_color",
-    "text-halo-width": 1.6,
-    "text-halo-blur": 0.6
+    "text-halo-color": "@water_fill_color",
+    "text-halo-width": 1.2,
+    "text-halo-blur": 0.4
    },
    "filter": [
     "all",

@@ -130,6 +130,8 @@ export class PhotorealisticLayer implements CustomLayerInterface {
     tiles.update()
 
     renderer.resetState()
+    // The mesh carries its own ground; tested against the terrain's, its streets sink under it wherever the two disagree.
+    renderer.clearDepth()
     renderer.render(this.scene, this.camera)
     // Labels are drawn after the mesh; without this a tower would cut through them.
     renderer.clearDepth()

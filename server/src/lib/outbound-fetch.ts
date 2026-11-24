@@ -70,6 +70,21 @@ function allowsNonPublic(hostname: string): boolean {
   return process.env.NODE_ENV !== 'production' && LOOPBACK_NAMES.has(hostname)
 }
 
+async function resolvePublicAddresses(
+  hostname: string,
+): Promise<Array<{ address: string; family: number }>> {
+  const host = hostname.replace(/^\[|\]$/g, '').toLowerCase()
+  const family = isIP(host)
+  const entries = family
+    ? [{ address: host, family }]
+    : await lookup(host, { all: true })
+  if (allowsNonPublic(host)) return entries
+  if (entries.length === 0 || entries.some((e) => isNonPublicAddress(e.address))) {
+    throw new OutboundAddressError(host)
+  }
+  return entries
+}
+
 /**
  * Resolve the URL's host and throw unless every address it resolves to is
  * public. Set OUTBOUND_ALLOW_PRIVATE=true to reach private networks (local
@@ -77,19 +92,18 @@ function allowsNonPublic(hostname: string): boolean {
  */
 export async function assertPublicUrl(url: string | URL): Promise<void> {
   const { hostname } = new URL(url)
-  const host = hostname.replace(/^\[|\]$/g, '').toLowerCase()
-  if (allowsNonPublic(host)) return
-  const addresses = isIP(host)
-    ? [host]
-    : (await lookup(host, { all: true })).map((entry) => entry.address)
-  if (addresses.length === 0 || addresses.some(isNonPublicAddress)) {
-    throw new OutboundAddressError(host)
-  }
+  if (allowsNonPublic(hostname.replace(/^\[|\]$/g, '').toLowerCase())) return
+  await resolvePublicAddresses(hostname)
 }
 
-/** Axios options for a request to a host someone else chose. */
+/**
+ * Axios options for a request to a host someone else chose. `lookup` re-checks
+ * the address axios actually connects to, so a DNS answer that changes after
+ * assertPublicUrl (rebinding) cannot reach a private network.
+ */
 export const outboundRequestConfig = {
   maxRedirects: 0,
   maxContentLength: OUTBOUND_MAX_BYTES,
   maxBodyLength: OUTBOUND_MAX_BYTES,
+  lookup: resolvePublicAddresses,
 } as const

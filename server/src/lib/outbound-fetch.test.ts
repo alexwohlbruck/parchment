@@ -1,5 +1,10 @@
 import { describe, test, expect, afterEach } from 'bun:test'
-import { assertPublicUrl, isNonPublicAddress, OutboundAddressError } from './outbound-fetch'
+import {
+  assertPublicUrl,
+  isNonPublicAddress,
+  OutboundAddressError,
+  outboundRequestConfig,
+} from './outbound-fetch'
 
 describe('isNonPublicAddress', () => {
   test.each([
@@ -68,5 +73,28 @@ describe('assertPublicUrl', () => {
   test('allows a public literal address', async () => {
     process.env.OUTBOUND_ALLOW_PRIVATE = 'false'
     await expect(assertPublicUrl('https://1.1.1.1/')).resolves.toBeUndefined()
+  })
+})
+
+describe('outboundRequestConfig.lookup', () => {
+  const previous = { ...process.env }
+  afterEach(() => {
+    process.env.OUTBOUND_ALLOW_PRIVATE = previous.OUTBOUND_ALLOW_PRIVATE
+    process.env.NODE_ENV = previous.NODE_ENV
+  })
+
+  test('refuses a private address at connect time', async () => {
+    process.env.OUTBOUND_ALLOW_PRIVATE = 'false'
+    process.env.NODE_ENV = 'production'
+    await expect(outboundRequestConfig.lookup('localhost')).rejects.toThrow(
+      OutboundAddressError,
+    )
+  })
+
+  test('returns the addresses it validated', async () => {
+    process.env.OUTBOUND_ALLOW_PRIVATE = 'false'
+    await expect(outboundRequestConfig.lookup('1.1.1.1')).resolves.toEqual([
+      { address: '1.1.1.1', family: 4 },
+    ])
   })
 })

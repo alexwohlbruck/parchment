@@ -1510,6 +1510,7 @@
     "cancel": "Cancelar",
     "done": "Listo",
     "locationSharing": "Compartir ubicación",
+    "remoteLocationUnavailable": "Aún no disponible con amigos de otros servidores",
     "countOne": "{n} amigo",
     "countMany": "{n} amigos",
     "invitations": {
@@ -3647,6 +3648,7 @@
     "errors": {
       "loadFailed": "No se pudieron cargar los recursos compartidos",
       "createFailed": "No se pudo compartir",
+      "notFriends": "Solo puedes compartir con tus amigos",
       "revokeFailed": "No se pudo eliminar el acceso",
       "roleChangeFailed": "No se pudo cambiar el rol",
       "publicLinkFailed": "No se pudo crear el enlace público",

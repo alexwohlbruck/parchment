@@ -52,6 +52,9 @@ const getEncryptedLocationsFromFriends = mock(async (_userId: string) => [
 ])
 
 mock.module('../services/friends.service', () => ({ isFriend }))
+mock.module('../services/federation.service', () => ({
+  isLocalHandle: (handle: string) => !handle.toLowerCase().endsWith('@remote.test'),
+}))
 mock.module('../services/location-e2ee.service', () => ({
   getLocationSharingConfigs,
   setLocationSharingConfig,
@@ -160,6 +163,23 @@ describe('POST /location/e2ee/config', () => {
     expect(setLocationSharingConfig).not.toHaveBeenCalled()
   })
 
+  test('refuses to share with a friend on another server', async () => {
+    const res = await req(app).post('/location/e2ee/config', {
+      body: { friendHandle: 'bob@remote.test', enabled: true },
+    })
+
+    expect(res.status).toBe(400)
+    expect(setLocationSharingConfig).not.toHaveBeenCalled()
+  })
+
+  test('still lets sharing with a remote friend be turned off', async () => {
+    const res = await req(app).post('/location/e2ee/config', {
+      body: { friendHandle: 'bob@remote.test', enabled: false },
+    })
+
+    expect(res.status).toBe(200)
+  })
+
   test('400s on a malformed handle', async () => {
     const res = await req(app).post('/location/e2ee/config', {
       body: { friendHandle: 'not a handle', enabled: true },
@@ -234,6 +254,15 @@ describe('POST /location/e2ee/update — authorization gates', () => {
       stored: false,
       reason: 'not-a-friend',
     })
+    expect(storeEncryptedLocation).not.toHaveBeenCalled()
+  })
+
+  test('refuses to store for a friend on another server', async () => {
+    const res = await req(app).post('/location/e2ee/update', {
+      body: { locations: [broadcast('bob@remote.test')] },
+    })
+
+    expect(res.body.results[0]).toMatchObject({ stored: false })
     expect(storeEncryptedLocation).not.toHaveBeenCalled()
   })
 

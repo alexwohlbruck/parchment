@@ -19,6 +19,8 @@ import type { Friendship } from '@/services/friends.service'
 import type { FriendLocation } from '@/composables/friends/useFriendLocations'
 import { useLocationClock } from '@/composables/friends/useLocationClock'
 import { isLocationStale } from '@/lib/friends/friend-location'
+import { handleDomain, isRemoteHandle } from '@/lib/identity/handle'
+import { useIdentityStore } from '@/stores/identity.store'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -36,6 +38,13 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+
+const identityStore = useIdentityStore()
+const sharingUnavailable = computed(
+  () =>
+    !props.locationConfig?.enabled &&
+    isRemoteHandle(props.friend.friendHandle, handleDomain(identityStore.handle ?? '')),
+)
 
 const emit = defineEmits<{
   remove: [friend: Friendship]
@@ -176,7 +185,13 @@ function openFriendDetail() {
         }}</span>
       </div>
 
-      <div class="flex items-center gap-2">
+      <span
+        v-if="sharingUnavailable"
+        class="text-xs text-muted-foreground text-right"
+      >
+        {{ t('friends.remoteLocationUnavailable') }}
+      </span>
+      <div v-else class="flex items-center gap-2">
         <Switch
           :model-value="locationConfig?.enabled ?? false"
           @update:model-value="(v: boolean) => emit('toggleLocation', friend.friendHandle, v)"

@@ -23,8 +23,6 @@ import { mapCandidate } from '@/lib/directions/trip-response'
 import { withCuratedTripColors } from '@/services/layers/features/portolan/portolan-bullets'
 import { isOffline } from '@/lib/connectivity'
 import { getNetworkErrorKind, isRetriableNetworkError } from '@/lib/network-errors'
-import { i18n } from '@/lib/i18n'
-import { stepText } from '@/lib/guidance/instructions/instruction-text'
 import { hasOfflineRegions, planOffline } from '@/services/offline/offline-engine.service'
 import { OFFLINE_SOURCE_ID } from '@/lib/offline/packages'
 import {
@@ -243,10 +241,6 @@ function directionsService() {
       requestId: request.requestId,
     })
     if (!response?.trips.length) return null
-    const t = (i18n.global as unknown as { t: (key: string, named?: Record<string, unknown>) => string }).t
-    for (const { trip } of response.trips) {
-      for (const segment of trip.segments) for (const step of segment.instructions) step.text = stepText(step, t)
-    }
     return { ...response, request, metadata: { ...response.metadata, providers: [OFFLINE_SOURCE_ID] } }
   }
 

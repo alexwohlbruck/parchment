@@ -7,10 +7,12 @@
 ### Changed
 
 * When your bike share station fills up or runs out of bikes, pick another from a list. If you don't tap one, the closest is chosen after 10 seconds.
+* Places suggested during navigation show on the map like its own points of interest, numbered to match the list.
 
 ### Fixed
 
 * Bike share station checks no longer stop partway through a ride.
+* Tapping a suggested place on the map during navigation now adds it to your route instead of closing the list.
 
 ## [0.25.1] - 2026-11-23
 

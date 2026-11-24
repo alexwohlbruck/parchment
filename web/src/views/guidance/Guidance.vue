@@ -6,7 +6,7 @@ import { AppRoute } from '@/router'
 import { useResponsive } from '@/lib/utils'
 import GuidancePhoneLayout from '@/components/guidance/layouts/GuidancePhoneLayout.vue'
 import GuidanceDashLayout from '@/components/guidance/layouts/GuidanceDashLayout.vue'
-import { GUIDANCE_CONTEXT, type GuidancePanelKind } from '@/components/guidance/context'
+import { GUIDANCE_CONTEXT, MAP_PANELS, type GuidancePanelKind } from '@/components/guidance/context'
 import { useAlternativeRoutes } from '@/composables/guidance/useAlternativeRoutes'
 import { useBetterItinerary } from '@/composables/guidance/useBetterItinerary'
 import { useMissedRecovery } from '@/composables/guidance/useMissedRecovery'
@@ -51,7 +51,6 @@ const vehicleSwitch = useVehicleSwitch()
 
 const panel = ref<GuidancePanelKind | null>(null)
 const openedFrom = ref<GuidancePanelKind | null>(null)
-const MAP_PANELS = new Set<GuidancePanelKind>(['search', 'routes', 'destination', 'parking', 'docks'])
 
 function openPanel(next: GuidancePanelKind) {
   openedFrom.value = panel.value

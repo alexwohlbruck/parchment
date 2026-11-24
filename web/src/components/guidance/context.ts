@@ -11,6 +11,9 @@ import type { FreeMode } from '@/lib/guidance/free-roam'
 
 export type GuidancePanelKind = 'menu' | 'steps' | 'search' | 'routes' | 'destination' | 'parking' | 'docks'
 
+/** Panels that mark places on the map, so the map is framed around them. */
+export const MAP_PANELS: ReadonlySet<GuidancePanelKind> = new Set(['search', 'routes', 'destination', 'parking', 'docks'])
+
 export interface GuidanceContext {
   camera: ReturnType<typeof useGuidanceCamera>
   routeLine: ReturnType<typeof useGuidanceRouteLine>

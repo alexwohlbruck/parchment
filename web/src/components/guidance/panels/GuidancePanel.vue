@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronLeftIcon, XIcon } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,7 @@ import DockPanel from './DockPanel.vue'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { parkingTitle } from '../parking-copy'
 import { useGuidanceContext, type GuidancePanelKind } from '../context'
+import type { LngLat } from '@/types/map.types'
 
 const props = defineProps<{
   kind: GuidancePanelKind
@@ -42,10 +43,20 @@ const title = computed(() => {
 })
 
 const header = computed(() => props.kind !== 'menu' || props.menuHeader)
+
+/** The sheet grows to fit a list as it fills in; frame once it has. */
+const SHEET_SETTLE_MS = 350
+const root = ref<HTMLElement | null>(null)
+async function frame(places: LngLat[]) {
+  await nextTick()
+  await new Promise(resolve => setTimeout(resolve, SHEET_SETTLE_MS))
+  const sheet = root.value?.closest('[data-vaul-drawer]') ?? root.value
+  camera.overview(places, sheet?.getBoundingClientRect().top)
+}
 </script>
 
 <template>
-  <div>
+  <div ref="root">
     <div v-if="header" class="mb-3 flex items-center gap-1">
       <Button
         size="icon"
@@ -61,10 +72,10 @@ const header = computed(() => props.kind !== 'menu' || props.menuHeader)
     </div>
     <GuidanceMenu v-if="kind === 'menu'" />
     <GuidanceSteps v-else-if="kind === 'steps'" />
-    <AheadSearch v-else-if="kind === 'search'" :metric="metric" @done="closePanel(true)" @found="camera.overview()" />
+    <AheadSearch v-else-if="kind === 'search'" :metric="metric" @done="closePanel(true)" @found="frame" />
     <RoutesPanel v-else-if="kind === 'routes'" :alternatives="alternatives" @done="closePanel(true)" />
     <DestinationSearch v-else-if="kind === 'destination'" @done="closePanel(true)" />
-    <ParkingPanel v-else-if="kind === 'parking'" @done="closePanel(true)" @found="camera.overview()" />
-    <DockPanel v-else-if="kind === 'docks'" @done="closePanel(true)" @found="camera.overview()" />
+    <ParkingPanel v-else-if="kind === 'parking'" @done="closePanel(true)" @found="frame" />
+    <DockPanel v-else-if="kind === 'docks'" @done="closePanel(true)" @found="frame" />
   </div>
 </template>

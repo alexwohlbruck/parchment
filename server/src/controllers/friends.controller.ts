@@ -14,6 +14,7 @@ import {
 import { resolveHandle } from '../services/federation.service'
 import { parseHandle } from '../lib/crypto'
 import { i18nPlugin } from '../lib/i18n/plugin'
+import { byUser, rateLimitHandler } from '../middleware/rate-limit.middleware'
 
 const app = new Elysia({ prefix: '/friends' }).use(i18nPlugin)
 
@@ -35,6 +36,15 @@ function envelopeOf(body: { nonce?: string; timestamp?: string }) {
     ? { nonce: body.nonce, timestamp: body.timestamp }
     : undefined
 }
+
+const inviteRateLimit = rateLimitHandler(
+  { name: 'friend-invite', limit: 20, windowMs: 60 * 60_000 },
+  byUser,
+)
+const resolveRateLimit = rateLimitHandler(
+  { name: 'friend-resolve', limit: 30 },
+  byUser,
+)
 
 /**
  * Get all friends
@@ -105,6 +115,7 @@ app.use(permissions(PermissionId.SOCIAL_WRITE)).post(
     return { invitation: result.invitation }
   },
   {
+    beforeHandle: inviteRateLimit,
     body: t.Object({
       handle: t.String({ maxLength: 320 }),
       ...signedEnvelope,
@@ -286,8 +297,9 @@ app.use(permissions(PermissionId.SOCIAL_READ)).get(
     }
   },
   {
+    beforeHandle: resolveRateLimit,
     params: t.Object({
-      handle: t.String(),
+      handle: t.String({ maxLength: 960 }),
     }),
     response: {
       200: t.Object({
@@ -300,6 +312,7 @@ app.use(permissions(PermissionId.SOCIAL_READ)).get(
       }),
       400: t.Object({ message: t.String() }),
       404: t.Object({ message: t.String() }),
+      429: t.Object({ message: t.String() }),
     },
     detail: {
       tags: ['Friends'],

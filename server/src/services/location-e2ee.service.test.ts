@@ -196,10 +196,12 @@ describe('Location Sharing Configuration', () => {
       mockInsertQuery.insert.mockReturnValue(mockInsertQuery)
       mockInsertQuery.values.mockReturnValue(mockInsertQuery)
 
+      mockDb.delete.mockClear()
       const config = await setLocationSharingConfig('user-123', 'alice@other.server', {
         enabled: true,
       })
 
+      expect(mockDb.delete).not.toHaveBeenCalled()
       expect(config.friendHandle).toBe('alice@other.server')
       expect(config.enabled).toBe(true)
     })
@@ -241,11 +243,13 @@ describe('Location Sharing Configuration', () => {
       mockUpdateQuery.set.mockReturnValue(mockUpdateQuery)
       mockUpdateQuery.where.mockReturnValue(mockUpdateQuery)
 
+      mockDb.delete.mockClear()
       const config = await setLocationSharingConfig('user-123', 'alice@other.server', {
         enabled: false,
       })
 
       expect(config.enabled).toBe(false)
+      expect(mockDb.delete).toHaveBeenCalledTimes(1)
     })
   })
 

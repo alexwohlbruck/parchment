@@ -54,6 +54,9 @@ const updateUserAlias = mock(
   async (_userId: string, _alias: string) =>
     ({ success: true }) as { success: boolean; error?: string },
 )
+const isAliasAvailable = mock(
+  async (_alias: string, _exceptUserId?: string) => true,
+)
 const updateUserKeys = mock(
   async (_userId: string, _signing: string, _encryption: string) => undefined,
 )
@@ -67,6 +70,8 @@ const updateUserDisplayProfile = mock(async (_userId: string, _patch: any) => ({
 }))
 mock.module('../services/user.service', () => ({
   updateUserAlias,
+  isAliasAvailable,
+  getUserHandle: mock(async () => null),
   updateUserKeys,
   getUserIdentity,
   updateUserDisplayProfile,
@@ -404,34 +409,15 @@ describe('PATCH /users/me/alias', () => {
 })
 
 describe('GET /users/alias/check', () => {
-  test('reports an unused alias as available', async () => {
-    dbMock.queueSelect([])
-
-    const res = await req(app).get('/users/alias/check', {
-      query: { alias: 'freealias' },
-    })
-
-    expect(res.body).toEqual({ available: true })
-  })
-
-  test('reports another user’s alias as taken', async () => {
-    dbMock.queueSelect([{ id: 'someone-else' }])
+  test('asks the service, exempting the caller’s own alias', async () => {
+    isAliasAvailable.mockImplementationOnce(async () => false)
 
     const res = await req(app).get('/users/alias/check', {
       query: { alias: 'takenalias' },
     })
 
     expect(res.body).toEqual({ available: false })
-  })
-
-  test('treats the caller’s own current alias as available', async () => {
-    dbMock.queueSelect([{ id: TEST_USER.id }])
-
-    const res = await req(app).get('/users/alias/check', {
-      query: { alias: 'myalias' },
-    })
-
-    expect(res.body).toEqual({ available: true })
+    expect(isAliasAvailable).toHaveBeenCalledWith('takenalias', TEST_USER.id)
   })
 
   test('reports an invalid alias as unavailable without querying', async () => {

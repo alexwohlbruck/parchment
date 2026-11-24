@@ -15,6 +15,7 @@ import { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { buildHandle } from './federation.service'
 import { emit } from './realtime/emit'
 import { generateId } from '../util'
+import { purgeHandle, repointHandle } from './handle-references.service'
 
 function lower(email: AnyPgColumn): SQL {
   return sql`lower(${email})`
@@ -56,27 +57,50 @@ export async function getUserHandle(userId: string): Promise<string | null> {
 }
 
 /**
+ * Aliases are compared case-insensitively for availability, so `Bob` can't
+ * be registered next to `bob` and pass for them in a friend list.
+ */
+export async function isAliasAvailable(
+  alias: string,
+  exceptUserId?: string,
+): Promise<boolean> {
+  const [existing] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(lower(users.alias), alias.toLowerCase()))
+    .limit(1)
+  return !existing || existing.id === exceptUserId
+}
+
+/**
  * Update a user's alias (username)
  */
 export async function updateUserAlias(
   userId: string,
   alias: string,
 ): Promise<{ success: boolean; error?: string }> {
-  // Check if alias is already taken
-  const existing = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.alias, alias))
-    .limit(1)
-
-  if (existing[0] && existing[0].id !== userId) {
+  if (!(await isAliasAvailable(alias, userId))) {
     return { success: false, error: 'Alias is already taken' }
   }
 
-  await db
-    .update(users)
-    .set({ alias, updatedAt: new Date() })
-    .where(eq(users.id, userId))
+  await db.transaction(async (tx) => {
+    const [current] = await tx
+      .select({ alias: users.alias })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1)
+    await tx
+      .update(users)
+      .set({ alias, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+    if (current?.alias === alias) return
+
+    const newHandle = buildHandle(alias)
+    await purgeHandle(tx, newHandle)
+    if (current?.alias) {
+      await repointHandle(tx, buildHandle(current.alias), newHandle)
+    }
+  })
 
   await emit.userProfile(
     'user:profile-updated',

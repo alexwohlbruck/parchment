@@ -82,6 +82,8 @@ const {
   getInvitations,
   updateFriendKeys,
   isFriend,
+  acceptFriendInvitation,
+  removeFriend,
 } = await import('./friends.service')
 
 beforeEach(() => {
@@ -292,6 +294,24 @@ describe('sendFriendInvitation — local recipient', () => {
     })
   })
 
+  test('gives both invitation rows an expiry about 30 days out', async () => {
+    resolved = { handle: 'carol@parchment.test', signingKey: 'k' }
+    dbMock.queueSelect([])
+    dbMock.queueSelect([])
+    dbMock.queueSelect([{ id: 'carol-user-id' }])
+    dbMock.setReturningRows([{ id: 'generated-id' }])
+
+    await sendFriendInvitation('user-1', 'carol@parchment.test', 'sig')
+
+    const day = 24 * 60 * 60 * 1000
+    for (const row of dbMock.inserted as Array<{ expiresAt: Date }>) {
+      const ttl = row.expiresAt.getTime() - Date.now()
+      expect(ttl).toBeGreaterThan(29 * day)
+      expect(ttl).toBeLessThanOrEqual(30 * day)
+    }
+    expect(dbMock.inserted).toHaveLength(2)
+  })
+
   test('fails when the local recipient row is missing', async () => {
     resolved = { handle: 'carol@parchment.test', signingKey: 'k' }
     dbMock.queueSelect([])
@@ -440,5 +460,56 @@ describe('isFriend', () => {
     dbMock.queueSelect([])
 
     expect(await isFriend('user-1', 'bob@peer.test')).toBe(false)
+  })
+})
+
+describe('acceptFriendInvitation', () => {
+  const invitation = {
+    id: 'inv-1',
+    fromHandle: 'carol@parchment.test',
+    toHandle: 'alice@parchment.test',
+    localUserId: 'user-1',
+    direction: 'incoming',
+    status: 'pending',
+  }
+
+  test('befriends a local sender on both sides', async () => {
+    resolved = { handle: 'carol@parchment.test', signingKey: 'cs', encryptionKey: 'ce' }
+    dbMock.queueSelect([invitation])
+    dbMock.queueSelect([{ id: 'carol-id' }])
+    dbMock.queueReturning([{ id: 'inv-1' }])
+
+    const result = await acceptFriendInvitation('user-1', 'inv-1', 'sig')
+
+    expect(result.success).toBe(true)
+    expect(dbMock.inserted).toEqual([
+      expect.objectContaining({ userId: 'user-1', friendHandle: 'carol@parchment.test' }),
+      expect.objectContaining({ userId: 'carol-id', friendHandle: 'alice@parchment.test' }),
+    ])
+    expect(sendFederationMessage).not.toHaveBeenCalled()
+  })
+
+  test('creates nothing when a concurrent accept already claimed the invite', async () => {
+    resolved = { handle: 'carol@parchment.test', signingKey: 'cs', encryptionKey: 'ce' }
+    dbMock.queueSelect([invitation])
+    dbMock.queueSelect([{ id: 'carol-id' }])
+    dbMock.queueReturning([])
+
+    const result = await acceptFriendInvitation('user-1', 'inv-1', 'sig')
+
+    expect(result).toEqual({ success: false, error: 'Invitation not found' })
+    expect(dbMock.insertCount).toBe(0)
+  })
+})
+
+describe('removeFriend', () => {
+  test('deletes both sides of a local friendship', async () => {
+    dbMock.queueSelect([{ id: 'f-1' }])
+    dbMock.queueSelect([{ id: 'carol-id' }])
+
+    const result = await removeFriend('user-1', 'carol@parchment.test')
+
+    expect(result.success).toBe(true)
+    expect(dbMock.deleteCount).toBe(2)
   })
 })

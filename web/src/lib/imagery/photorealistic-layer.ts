@@ -31,6 +31,8 @@ export interface PhotorealisticOptions {
   /** The map's own ground at a point: terrain height where terrain is on, otherwise sea level. */
   groundAt: (lng: number, lat: number) => number
   onCredits: (credits: string | null) => void
+  /** The user's session, which the proxy needs; read per frame so a new sign-in is picked up. */
+  auth: () => RequestInit
 }
 
 /**
@@ -123,6 +125,7 @@ export class PhotorealisticLayer implements CustomLayerInterface {
     this.camera.projectionMatrix.fromArray(projection)
     this.camera.projectionMatrixInverse.copy(this.camera.projectionMatrix).invert()
 
+    tiles.fetchOptions = this.options.auth()
     const canvas = map.getCanvas()
     tiles.setResolution(this.camera, canvas.clientWidth, canvas.clientHeight)
     tiles.update()

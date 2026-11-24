@@ -19,6 +19,8 @@ import { IntegrationId } from '../types/integration.types'
 import { resolveBarrelmanConfig, resolveLandmarksConfig } from '../services/barrelman.service'
 import { logError } from '../lib/logger'
 import { ESRI_TILE_HOST } from '../services/integrations/esri-integration'
+import { permissions } from '../middleware/auth.middleware'
+import { PermissionId } from '../types/auth.types'
 
 const app = new Elysia({ prefix: '/proxy' })
 
@@ -126,7 +128,8 @@ const GOOGLE_3D_PATH = /^(root\.json|datasets\/[\w-]+\/files\/[\w.-]+\.(json|glb
 /** Upstream headers passed on; Google requires clients to honour its caching ones. */
 const GOOGLE_3D_HEADERS = ['content-type', 'cache-control', 'etag', 'expires', 'last-modified']
 
-app.get(
+// Its own instance, so the premium guard covers only these tiles.
+const google3d = new Elysia().use(permissions(PermissionId.PREMIUM_PHOTOREALISTIC_3D)).get(
   '/google/3dtiles/*',
   async ({ params, request }) => {
     const path = params['*']
@@ -167,10 +170,11 @@ app.get(
       tags: ['Proxy'],
       summary: 'Proxy Google Photorealistic 3D Tiles',
       description:
-        'The root tileset and every tileset and glTF under it, with the Google Maps integration key attached server-side. Caching headers are passed through unchanged.',
+        'The root tileset and every tileset and glTF under it, with the Google Maps integration key attached server-side. Caching headers are passed through unchanged. Requires the photorealistic 3D permission.',
     },
   },
 )
+app.use(google3d)
 
 // Proxy route for Loom tile service
 app.get(

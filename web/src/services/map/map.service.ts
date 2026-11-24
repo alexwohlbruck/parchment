@@ -78,16 +78,13 @@ import { useCollectionsStore } from '@/stores/library/collections.store'
 import { api } from '@/lib/api'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
-import { resolveImageryStack } from '@/lib/imagery/imagery-stack'
+import { availableImagery, resolveImageryStack } from '@/lib/imagery/imagery-stack'
 
 
 function mapService() {
   const mapStore = useMapStore()
   const layersStore = useLayersStore()
   const layersService = useLayersService()
-  const imageryStack = computed(() =>
-    resolveImageryStack(mapStore.settings.satelliteImagery ?? [], layersStore.layers),
-  )
   const placePolygonLayerService = usePlacePolygonLayerService()
   const searchResultsLayerService = useSearchResultsLayerService()
   const markerLayersService = useMarkerLayersService()
@@ -103,6 +100,12 @@ function mapService() {
   const integrationsStore = useIntegrationsStore()
   const themeStore = useThemeStore()
   const authService = useAuthService()
+  const imageryStack = computed(() =>
+    resolveImageryStack(
+      mapStore.settings.satelliteImagery ?? [],
+      availableImagery(layersStore.layers, authService.hasPermission(PermissionId.PREMIUM_PHOTOREALISTIC_3D)),
+    ),
+  )
   const { settings } = storeToRefs(mapStore)
   const { layers } = storeToRefs(layersStore)
   const { accentColor, isDark } = storeToRefs(themeStore)

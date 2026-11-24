@@ -6,7 +6,9 @@ import { useRouter } from 'vue-router'
 import draggable from 'vuedraggable'
 import { useMapStore } from '@/stores/map.store'
 import { useLayersStore } from '@/stores/layers.store'
-import { isImageryLayer } from '@/lib/imagery/imagery-stack'
+import { availableImagery } from '@/lib/imagery/imagery-stack'
+import { useAuthService } from '@/services/auth.service'
+import { PermissionId } from '@/types/auth.types'
 import { AppRoute } from '@/router'
 import { SettingsItem } from '@/components/settings'
 import { Button } from '@/components/ui/button'
@@ -25,8 +27,11 @@ const router = useRouter()
 const mapStore = useMapStore()
 const { settings } = storeToRefs(mapStore)
 const { layers } = storeToRefs(useLayersStore())
+const authService = useAuthService()
 
-const imageryLayers = computed(() => layers.value.filter(isImageryLayer))
+const imageryLayers = computed(() =>
+  availableImagery(layers.value, authService.hasPermission(PermissionId.PREMIUM_PHOTOREALISTIC_3D)),
+)
 const stackIds = computed(() => settings.value.satelliteImagery ?? [])
 
 const stack = computed(() =>

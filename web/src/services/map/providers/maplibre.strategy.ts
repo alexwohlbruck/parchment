@@ -100,6 +100,7 @@ import {
 } from '@/lib/map-style'
 import { imageryStyle, isImageryStyleId, photorealisticSource, type ImagerySource } from '@/lib/imagery/imagery-stack'
 import type { PhotorealisticLayer } from '@/lib/imagery/photorealistic-layer'
+import { apiFetchAuth } from '@/lib/api'
 import { isTransitPoi } from '@/lib/map-style/transit-poi.mjs'
 import { combineFilters } from '@/lib/map-style/combine-filters'
 import { registerPoiBadges, type BadgeHost } from '@/lib/map-style/poi-badge'
@@ -1648,6 +1649,7 @@ export class MaplibreStrategy extends MapStrategy {
       url,
       groundAt: (lng, lat) => this.groundHeight(lng, lat) ?? 0,
       onCredits: credits => mapEventBus.emit('imagery:credits', credits),
+      auth: apiFetchAuth,
     })
     this.photorealistic = { url, layer }
     map.addLayer(layer, firstAboveImagery(map))

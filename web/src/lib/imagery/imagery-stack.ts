@@ -15,12 +15,19 @@ export const isImageryStyleId = (id: string) => id.startsWith(PREFIX)
 
 const IMAGERY_SOURCE_TYPES = new Set(['raster', '3d-tiles'])
 
-export function isImageryLayer(layer: Layer): boolean {
+function sourceType(layer: Layer): string | undefined {
   const source = layer.configuration?.source
-  return (
-    layer.type === LayerType.IMAGERY &&
-    typeof source === 'object' &&
-    IMAGERY_SOURCE_TYPES.has(source?.type)
+  return typeof source === 'object' ? source?.type : undefined
+}
+
+export function isImageryLayer(layer: Layer): boolean {
+  return layer.type === LayerType.IMAGERY && IMAGERY_SOURCE_TYPES.has(sourceType(layer) ?? '')
+}
+
+/** The imagery a user may pick; Photorealistic 3D is a premium source. */
+export function availableImagery(layers: readonly Layer[], photorealistic: boolean): Layer[] {
+  return layers.filter(
+    l => isImageryLayer(l) && (photorealistic || sourceType(l) !== '3d-tiles'),
   )
 }
 

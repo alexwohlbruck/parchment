@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { LayerType, type Layer } from '@/types/map.types'
-import { imageryStyle, photorealisticSource, resolveImageryStack } from './imagery-stack'
+import { availableImagery, imageryStyle, photorealisticSource, resolveImageryStack } from './imagery-stack'
 
 function layer(id: string, type = LayerType.IMAGERY, sourceType = 'raster'): Layer {
   return {
@@ -34,5 +34,14 @@ describe('imageryStyle', () => {
     const style = imageryStyle(resolveImageryStack(['top', 'fallback'], [layer('top'), layer('fallback')]))
     expect(style.layers.map(l => l.id)).toEqual(['imagery:fallback', 'imagery:top'])
     expect(Object.keys(style.sources)).toEqual(['imagery:top', 'imagery:fallback'])
+  })
+})
+
+describe('availableImagery', () => {
+  const layers = [layer('a'), layer('mesh', LayerType.IMAGERY, '3d-tiles'), layer('overlay', LayerType.CUSTOM)]
+
+  it('holds Photorealistic 3D back from users without it', () => {
+    expect(availableImagery(layers, false).map(l => l.id)).toEqual(['a'])
+    expect(availableImagery(layers, true).map(l => l.id)).toEqual(['a', 'mesh'])
   })
 })

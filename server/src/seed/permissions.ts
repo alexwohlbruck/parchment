@@ -129,6 +129,11 @@ export const permissions: {
     description: 'Ask on the system model with the Premium allowance (ASK_QUESTIONS_PREMIUM)',
   },
   {
+    id: PermissionId.PREMIUM_PHOTOREALISTIC_3D,
+    name: 'Photorealistic 3D',
+    description: 'Google Photorealistic 3D Tiles as a satellite imagery source',
+  },
+  {
     id: PermissionId.ASK_BASIC,
     name: 'Ask (Basic)',
     description: 'Ask on the system model with the Basic allowance (ASK_QUESTIONS_BASIC)',

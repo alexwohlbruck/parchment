@@ -3,6 +3,7 @@ import { permissions } from '../middleware/auth.middleware'
 import { PermissionId } from '../types/auth.types'
 import { makeUserRateLimit } from '../middleware/rate-limit.middleware'
 import { isFriend } from '../services/friends.service'
+import { parseHandle } from '../lib/crypto'
 import * as locationE2eeService from '../services/location-e2ee.service'
 import { i18nPlugin } from '../lib/i18n/plugin'
 
@@ -104,6 +105,13 @@ app.use(permissions(PermissionId.LOCATION_SHARING)).post(
       return status(401, { message: t('errors.auth.authenticationRequired') })
     }
 
+    if (!parseHandle(body.friendHandle)) {
+      return status(400, { message: t('errors.friends.invalidHandle') })
+    }
+    if (!(await isFriend(user.id, body.friendHandle))) {
+      return status(404, { message: t('errors.notFound.user') })
+    }
+
     const config = await locationE2eeService.setLocationSharingConfig(
       user.id,
       body.friendHandle,
@@ -114,12 +122,15 @@ app.use(permissions(PermissionId.LOCATION_SHARING)).post(
   },
   {
     body: t.Object({
-      friendHandle: t.String(),
+      friendHandle: t.String({ maxLength: 320 }),
       enabled: t.Optional(t.Boolean()),
     }),
     detail: {
       tags: ['Location'],
       summary: 'Set location sharing configuration for a friend',
+      description:
+        'The handle must be an accepted friend. Turning sharing off also ' +
+        'deletes the location held for that friend and clears their marker.',
     },
   },
 )

@@ -74,6 +74,10 @@ export async function setLocationSharingConfig(
 ): Promise<LocationSharingConfig> {
   const existing = await getLocationSharingConfigForFriend(userId, friendHandle)
 
+  if (config.enabled === false) {
+    await clearStoredLocation(userId, friendHandle)
+  }
+
   if (existing) {
     const [updated] = await db
       .update(locationSharingConfig)
@@ -125,7 +129,20 @@ export async function disableLocationSharing(
     )
     .returning()
 
-  // Also delete cached encrypted location
+  await clearStoredLocation(userId, friendHandle)
+
+  return result.length > 0
+}
+
+/**
+ * Drop the ciphertext held for one friend and tell them to remove the
+ * marker. The emit is best-effort: the row is gone either way, and the
+ * friend's next reconnect refetch converges.
+ */
+async function clearStoredLocation(
+  userId: string,
+  friendHandle: string,
+): Promise<void> {
   await db
     .delete(encryptedLocations)
     .where(
@@ -135,17 +152,12 @@ export async function disableLocationSharing(
       ),
     )
 
-  // Tell the recipient to drop the marker. Best-effort; if the lookup or
-  // emit fails the row is still gone and the next reconnect refetch will
-  // converge state.
   void publishLocationCleared(userId, friendHandle).catch((err) => {
     logger.error(
       { err, userId, friendHandle },
       'Failed to publish location:cleared realtime event',
     )
   })
-
-  return result.length > 0
 }
 
 async function publishLocationCleared(
@@ -357,6 +369,14 @@ export async function getEncryptedLocationsFromFriends(
       })
       .from(encryptedLocations)
       .leftJoin(users, eq(users.id, encryptedLocations.userId))
+      .innerJoin(
+        locationSharingConfig,
+        and(
+          eq(locationSharingConfig.userId, encryptedLocations.userId),
+          eq(locationSharingConfig.friendHandle, encryptedLocations.forFriendHandle),
+          eq(locationSharingConfig.enabled, true),
+        ),
+      )
       .where(eq(encryptedLocations.forFriendHandle, userHandle)),
   ])
 

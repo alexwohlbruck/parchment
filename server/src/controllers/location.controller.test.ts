@@ -149,6 +149,26 @@ describe('POST /location/e2ee/config', () => {
     expect(setLocationSharingConfig.mock.calls[0][1]).toBe('Alice@Peer.TEST')
   })
 
+  test('refuses a handle that is not a friend', async () => {
+    isFriend.mockImplementationOnce(async () => false)
+
+    const res = await req(app).post('/location/e2ee/config', {
+      body: { friendHandle: 'stranger@peer.test', enabled: true },
+    })
+
+    expect(res.status).toBe(404)
+    expect(setLocationSharingConfig).not.toHaveBeenCalled()
+  })
+
+  test('400s on a malformed handle', async () => {
+    const res = await req(app).post('/location/e2ee/config', {
+      body: { friendHandle: 'not a handle', enabled: true },
+    })
+
+    expect(res.status).toBe(400)
+    expect(setLocationSharingConfig).not.toHaveBeenCalled()
+  })
+
   test('422s without a friend handle', async () => {
     const res = await req(app).post('/location/e2ee/config', {
       body: { enabled: true },

@@ -2678,6 +2678,7 @@
       },
       "activeVehicles": "{count} {type} active",
       "selectVehicle": "Select a {type}",
+      "closestVehicle": "Closest",
       "everyNMin": "Every {n} min",
       "stops": "Stops",
       "alerts": {

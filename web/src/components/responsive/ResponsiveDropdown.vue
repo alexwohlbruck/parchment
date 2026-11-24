@@ -126,10 +126,16 @@ interface SubmenuStackEntry {
 
 const submenuStack = ref<SubmenuStackEntry[]>([])
 
+// A chosen item has moved on, often to a sheet of its own. Focus returning to
+// the trigger would count as an outside interaction there and close it.
+const restoreFocus = ref(true)
+
 // Clear submenu stack when main menu closes
 watch(internalOpen, isOpen => {
   if (!isOpen) {
     submenuStack.value = []
+  } else {
+    restoreFocus.value = true
   }
 })
 
@@ -190,6 +196,7 @@ function handleItemClick(item: MenuItem, event?: Event) {
 
   // Only close menu if keepOpen is not set
   if (!item.keepOpen) {
+    restoreFocus.value = false
     submenuStack.value = []
     handleOpenChange(false)
   }
@@ -241,6 +248,7 @@ watch(internalOpen, open => {
       :show-drag-handle="showDragHandle"
       :show-close-button="showCloseButton"
       :dismissable="true"
+      :restore-focus="restoreFocus"
       :track-obstructing="false"
       obstructing-key="responsive-dropdown"
       @update:open="handleOpenChange"
@@ -368,6 +376,7 @@ watch(internalOpen, open => {
         :show-drag-handle="showDragHandle"
         :show-close-button="false"
         :dismissable="true"
+        :restore-focus="restoreFocus"
         :track-obstructing="false"
         :obstructing-key="`responsive-dropdown-submenu-${index}`"
         @update:open="(val: boolean) => handleSubmenuOpenChange(index, val)"

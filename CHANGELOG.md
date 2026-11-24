@@ -11,6 +11,7 @@
 * Transit rides in offline directions now show their line colour in the trip timeline.
 * In 3D, road names and one-way arrows on bridges sit on the bridge instead of on the water or ground below.
 * Expanding the sheet while saving an offline map no longer shrinks the area you framed.
+* On phones, the feedback form and other sheets opened from the account menu no longer close right after opening.
 
 ## [0.25.1] - 2026-11-23
 

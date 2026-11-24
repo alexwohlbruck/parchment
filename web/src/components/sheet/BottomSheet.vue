@@ -140,6 +140,8 @@ const props = withDefaults(
     peekHeight?: number | string
     modal?: boolean
     dismissable?: boolean
+    /** Hand focus back to what opened the sheet when it closes. */
+    restoreFocus?: boolean
     open?: boolean
     showDragHandle?: boolean
     showCloseButton?: boolean
@@ -207,6 +209,7 @@ const props = withDefaults(
     adjustMapPadding: false,
     zIndexOffset: 0,
     respectSafeArea: true,
+    restoreFocus: true,
   },
 )
 
@@ -967,6 +970,7 @@ function handleAnimationEnd(open: boolean) {
       />
       <DrawerContent
         ref="drawerContentRef"
+        @close-auto-focus="(e: Event) => !props.restoreFocus && e.preventDefault()"
         :class="
           cn(
             'flex flex-col',

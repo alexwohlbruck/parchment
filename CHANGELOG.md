@@ -4,7 +4,7 @@
 
 ### Changed
 
-* A sheet opened over another now pushes the one beneath it back, so it's clear which one you're using. Tap the one behind to close the one on top.
+* A menu or dialog opened over a sheet now tucks that sheet behind it and dims the map, so it's clear what you're using. Tap outside to close it.
 
 ### Fixed
 

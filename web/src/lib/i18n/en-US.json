@@ -1757,7 +1757,16 @@
       "keysSynced": "Keys synced",
       "syncFailed": "Couldn't sync keys",
       "removeTitle": "Remove {name}?",
-      "directions": "Directions"
+      "directions": "Directions",
+      "keyChangedTitle": "{name}'s keys changed",
+      "keyChangedDescription": "Their phone, or someone pretending to be them, has new keys. Nothing is shared with them until you compare this number with theirs.",
+      "safetyNumber": "Safety number",
+      "safetyNumberDescription": "Matches the number on {name}'s phone if your connection is secure.",
+      "trustNewKeys": "Numbers match",
+      "markVerified": "Mark as verified",
+      "verified": "Verified",
+      "keysTrusted": "Keys trusted",
+      "loadFailed": "Couldn't load this friend"
     }
   },
   "dashboard": {
@@ -3818,7 +3827,8 @@
       "publicLinkRevokeFailed": "Failed to revoke public link",
       "copyFailed": "Copy failed — select and copy the link manually",
       "identityRequired": "Set up your encryption keys in Settings before sharing",
-      "missingFriendKey": "This friend's keys aren't synced yet; try again in a moment"
+      "missingFriendKey": "This friend's keys aren't synced yet; try again in a moment",
+      "friendKeysChanged": "{name}'s keys changed. Check them on their profile before sharing"
     },
     "removeAction": "Remove {name}"
   },

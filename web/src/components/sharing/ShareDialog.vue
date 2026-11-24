@@ -26,6 +26,7 @@ import { useCollectionsService } from '@/services/library/collections.service'
 import { sealCollectionShare } from '@/lib/identity/collection-share'
 
 import { useFriendsStore } from '@/stores/friends.store'
+import { useFriendKeyPinsStore } from '@/stores/friends/friend-key-pins.store'
 import { useIdentityStore } from '@/stores/identity.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useServerUrl, api } from '@/lib/api'
@@ -243,6 +244,13 @@ async function addShare(friendHandle: string, role: ShareRole = 'viewer') {
     toast.error(t('sharing.errors.missingFriendKey'))
     return
   }
+  const trusted = await useFriendKeyPinsStore().trustedKeys(friend)
+  if (!trusted) {
+    toast.error(t('sharing.errors.friendKeysChanged', {
+      name: friend.friendName || friendHandle.split('@')[0],
+    }))
+    return
+  }
 
   mutating.value = true
   try {
@@ -262,7 +270,7 @@ async function addShare(friendHandle: string, role: ShareRole = 'viewer') {
         keyVersion: props.collection.metadataKeyVersion ?? 1,
       },
       ownerPrivateKey: encryptionPrivateKey.value,
-      recipientPublicKey: importPublicKey(friend.friendEncryptionKey),
+      recipientPublicKey: importPublicKey(trusted.encryptionKey),
     })
 
     // Build the v2 federation envelope when the recipient is remote. The

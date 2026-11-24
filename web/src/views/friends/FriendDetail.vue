@@ -4,6 +4,11 @@ import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useFriendsStore } from '@/stores/friends.store'
+import { useFriendKeyPinsStore } from '@/stores/friends/friend-key-pins.store'
+import { deriveSafetyNumber } from '@/lib/identity/key-pinning'
+import { exportPublicKey } from '@/lib/identity/federation-crypto'
+import { useLocationClock } from '@/composables/friends/useLocationClock'
+import { isLocationStale } from '@/lib/friends/friend-location'
 import { useIdentityStore } from '@/stores/identity.store'
 import { useFriendLocations } from '@/composables/friends/useFriendLocations'
 import { useE2eeLocationBroadcast } from '@/composables/friends/useE2eeLocationBroadcast'
@@ -29,6 +34,8 @@ import {
   BatteryIcon,
   BatteryChargingIcon,
   ArrowRightIcon,
+  ShieldAlertIcon,
+  ShieldCheckIcon,
 } from 'lucide-vue-next'
 import CopyButton from '@/components/CopyButton.vue'
 import {
@@ -57,6 +64,8 @@ const props = defineProps<{
 const router = useRouter()
 const { t } = useI18n()
 const friendsStore = useFriendsStore()
+const pinsStore = useFriendKeyPinsStore()
+const now = useLocationClock()
 const identityStore = useIdentityStore()
 const appService = useAppService()
 const { removeFriend } = useRemoveFriend()
@@ -123,10 +132,58 @@ const displayName = computed(() => {
   )
 })
 
-const isLocationFresh = computed(() => {
-  if (!friendLocation.value) return false
-  return Date.now() - friendLocation.value.updatedAt.getTime() < 5 * 60_000
+const isLocationFresh = computed(
+  () =>
+    !!friendLocation.value &&
+    !isLocationStale(friendLocation.value.updatedAt, now.value.getTime()),
+)
+
+const lastSeenAgo = computed(() => {
+  void now.value
+  return friendLocation.value
+    ? formatTimeAgo(friendLocation.value.location.timestamp)
+    : ''
 })
+
+const { signingPublicKey } = storeToRefs(identityStore)
+const pin = computed(() =>
+  friend.value ? pinsStore.statusFor(friend.value.friendHandle) : undefined,
+)
+const keysChanged = computed(() => pin.value?.status === 'mismatch')
+const safetyNumber = computed(() => {
+  const mine = signingPublicKey.value
+  const theirs = friend.value?.friendSigningKey
+  if (!mine || !theirs) return null
+  try {
+    return deriveSafetyNumber(exportPublicKey(mine), theirs)
+  } catch {
+    return null
+  }
+})
+
+watch(
+  () => friend.value && `${friend.value.friendSigningKey}|${friend.value.friendEncryptionKey}`,
+  () => {
+    if (friend.value) void pinsStore.check(friend.value)
+  },
+  { immediate: true },
+)
+
+async function trustNewKeys() {
+  if (!friend.value) return
+  try {
+    await pinsStore.acceptKeys(friend.value)
+    appService.toast.success(t('friends.detail.keysTrusted'))
+    await locationBroadcast.refreshAndBroadcast()
+    await friendLocations.fetchLocations()
+  } catch (error) {
+    appService.toast.error(t('friends.detail.syncFailed'), { cause: error })
+  }
+}
+
+async function markVerified() {
+  if (friend.value) await pinsStore.markVerified(friend.value)
+}
 
 function getDirections() {
   if (!friendLocation.value) return
@@ -176,9 +233,11 @@ async function toggleLocationSharing() {
   isSavingConfig.value = true
   try {
     const newEnabled = !locationConfig.value.enabled
-    await locationService.setE2eeConfig(friend.value.friendHandle, {
-      enabled: newEnabled,
-    })
+    if (newEnabled) {
+      await locationService.setE2eeConfig(friend.value.friendHandle, { enabled: true })
+    } else {
+      await locationService.disableE2eeSharing(friend.value.friendHandle)
+    }
     locationConfig.value.enabled = newEnabled
     await locationBroadcast.refreshAndBroadcast()
 
@@ -217,8 +276,13 @@ async function handleRemoveFriend() {
 }
 
 onMounted(async () => {
-  await identityStore.initialize()
-  await friendsStore.loadAll()
+  try {
+    await identityStore.initialize()
+    await friendsStore.loadAll()
+  } catch (error) {
+    // The cached list still renders; only a missing friend redirects.
+    console.warn('Failed to refresh friends:', error)
+  }
   await loadLocationConfig()
   await friendLocations.fetchLocations()
   isLoading.value = false
@@ -280,7 +344,7 @@ watch([isLoading, friend], ([loading, f]) => {
           />
           {{ isLocationFresh ? t('friends.detail.recentlySeen') : t('friends.detail.lastSeen') }}
           &middot;
-          {{ formatTimeAgo(friendLocation.location.timestamp) }}
+          {{ lastSeenAgo }}
         </div>
       </div>
 
@@ -319,6 +383,29 @@ watch([isLoading, friend], ([loading, f]) => {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+    </div>
+
+    <div
+      v-if="keysChanged"
+      class="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 space-y-2.5"
+    >
+      <div class="flex items-start gap-2.5">
+        <ShieldAlertIcon class="size-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+        <div class="space-y-1">
+          <p class="text-sm font-medium">
+            {{ t('friends.detail.keyChangedTitle', { name: displayName }) }}
+          </p>
+          <p class="text-xs text-muted-foreground">
+            {{ t('friends.detail.keyChangedDescription') }}
+          </p>
+        </div>
+      </div>
+      <p v-if="safetyNumber" class="text-center font-mono text-base tabular-nums">
+        {{ safetyNumber }}
+      </p>
+      <Button size="sm" class="w-full" @click="trustNewKeys">
+        {{ t('friends.detail.trustNewKeys') }}
+      </Button>
     </div>
 
     <!-- Location details -->
@@ -409,6 +496,20 @@ watch([isLoading, friend], ([loading, f]) => {
           <div class="flex items-center gap-2">
             <KeyIcon class="size-3.5 text-muted-foreground" />
             <p class="font-medium text-sm">{{ t('friends.detail.security') }}</p>
+          </div>
+          <div v-if="safetyNumber && !keysChanged" class="space-y-1">
+            <p class="text-[10px] text-muted-foreground">{{ t('friends.detail.safetyNumber') }}</p>
+            <p class="font-mono text-sm tabular-nums">{{ safetyNumber }}</p>
+            <p class="text-[10px] text-muted-foreground">
+              {{ t('friends.detail.safetyNumberDescription', { name: displayName }) }}
+            </p>
+            <p v-if="pin?.verified" class="flex items-center gap-1 text-xs text-forest-700 dark:text-forest-400">
+              <ShieldCheckIcon class="size-3.5" />
+              {{ t('friends.detail.verified') }}
+            </p>
+            <Button v-else size="sm" variant="outline" class="w-full mt-1" @click="markVerified">
+              {{ t('friends.detail.markVerified') }}
+            </Button>
           </div>
           <div class="space-y-1">
             <p class="text-[10px] text-muted-foreground">{{ t('friends.detail.encryptionKey') }}</p>

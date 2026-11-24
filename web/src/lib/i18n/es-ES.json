@@ -1675,7 +1675,16 @@
       "syncKeys": "Sincronizar claves",
       "syncingKeys": "Sincronizando claves…",
       "keysSynced": "Claves sincronizadas",
-      "syncFailed": "No se pudieron sincronizar las claves"
+      "syncFailed": "No se pudieron sincronizar las claves",
+      "keyChangedTitle": "Las claves de {name} cambiaron",
+      "keyChangedDescription": "Su teléfono, o alguien que se hace pasar por esa persona, tiene claves nuevas. No se comparte nada hasta que compares este número con el suyo.",
+      "safetyNumber": "Número de seguridad",
+      "safetyNumberDescription": "Coincide con el número del teléfono de {name} si tu conexión es segura.",
+      "trustNewKeys": "Los números coinciden",
+      "markVerified": "Marcar como verificado",
+      "verified": "Verificado",
+      "keysTrusted": "Claves de confianza",
+      "loadFailed": "No se pudo cargar este amigo"
     }
   },
   "dashboard": {
@@ -3638,7 +3647,8 @@
       "publicLinkRevokeFailed": "No se pudo revocar el enlace público",
       "copyFailed": "Error al copiar — selecciona y copia el enlace manualmente",
       "identityRequired": "Configura tus claves de cifrado en Ajustes antes de compartir",
-      "missingFriendKey": "Las claves de este amigo aún no están sincronizadas; inténtalo en un momento"
+      "missingFriendKey": "Las claves de este amigo aún no están sincronizadas; inténtalo en un momento",
+      "friendKeysChanged": "Las claves de {name} cambiaron. Revísalas en su perfil antes de compartir"
     },
     "removeAction": "Quitar a {name}"
   },

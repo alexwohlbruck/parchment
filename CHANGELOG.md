@@ -3,7 +3,7 @@
 ### Added
 
 * Choose which imagery the satellite map uses, add your own, and order them so lower sources fill in where higher ones have no coverage.
-* Add Google's photorealistic 3D imagery to the satellite map to see cities as 3D models you can tilt around.
+* Add Google's photorealistic 3D imagery to the satellite map with Premium, to see cities as 3D models you can tilt around. In hybrid with 3D terrain, street names follow its bridges.
 
 ### Changed
 

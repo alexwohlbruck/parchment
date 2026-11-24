@@ -3722,6 +3722,11 @@
       "usage": {
         "title": "This month"
       }
+    },
+    "sync": {
+      "title": "Where this setting lives",
+      "synced": "All your devices",
+      "deviceOnly": "Only this device"
     }
   },
   "notes": {

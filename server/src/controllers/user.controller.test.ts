@@ -77,6 +77,9 @@ mock.module('../services/realtime/emit', () => ({
   emit: { userProfile: emitUserProfile },
 }))
 
+const publish = mock((..._args: unknown[]) => undefined)
+mock.module('../services/realtime/event-bus.service', () => ({ publish }))
+
 const resetUserIdentity = mock(async (_userId: string) => undefined)
 mock.module('../services/identity-reset.service', () => ({ resetUserIdentity }))
 
@@ -154,6 +157,7 @@ beforeEach(() => {
   permissions = [PermissionId.USERS_UPDATE]
   callerRoles = [{ id: 'user' }]
   getPermissions.mockClear()
+  publish.mockClear()
   getRoles.mockClear()
   createSession.mockClear()
   sendMail.mockClear()
@@ -662,6 +666,20 @@ describe('preferences', () => {
     })
   })
 
+  test("pushes a change to the user's other clients, tagged with its origin", async () => {
+    const res = await req(app).put('/users/me/preferences', {
+      body: { unitSystem: 'imperial', origin: 'tab-1' },
+    })
+
+    expect(res.status).toBe(200)
+    expect(updateUserPreferences).toHaveBeenCalledWith(TEST_USER.id, { unitSystem: 'imperial' })
+    expect(publish).toHaveBeenCalledWith(
+      'preferences:updated',
+      { ...res.body, origin: 'tab-1' },
+      { localUserIds: [TEST_USER.id], remoteHandles: [] },
+    )
+  })
+
   test('updates only the supplied fields', async () => {
     const res = await req(app).put('/users/me/preferences', {
       body: { unitSystem: 'imperial' },
@@ -678,6 +696,7 @@ describe('preferences', () => {
 
     expect(res.status).toBe(200)
     expect(updateUserPreferences).not.toHaveBeenCalled()
+    expect(publish).not.toHaveBeenCalled()
     expect(getOrCreateUserPreferences).toHaveBeenCalledWith(TEST_USER.id)
   })
 

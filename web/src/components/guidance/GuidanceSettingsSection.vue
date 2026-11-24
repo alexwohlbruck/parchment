@@ -23,6 +23,7 @@ const premium = usePremiumNavigation()
   <SettingsSection id="guidance" :title="$t('guidance.settings.title')">
     <SettingsItem
       :title="$t('guidance.settings.cameraMode')"
+      sync-key="navigation.guidance.cameraMode"
       :icon="CameraIcon"
     >
       <Select v-model="preferences.cameraMode">
@@ -38,6 +39,7 @@ const premium = usePremiumNavigation()
     </SettingsItem>
     <SettingsItem
       :title="$t('guidance.settings.bearingMode')"
+      sync-key="navigation.guidance.bearingMode"
       :icon="ScanEyeIcon"
     >
       <Select v-model="preferences.bearingMode">
@@ -52,6 +54,7 @@ const premium = usePremiumNavigation()
     </SettingsItem>
     <SettingsItem
       :title="$t('guidance.settings.speedDisplay')"
+      sync-key="navigation.guidance.speedDisplay"
       :description="$t('guidance.settings.speedDisplayDescription')"
       :icon="GaugeIcon"
     >
@@ -69,6 +72,7 @@ const premium = usePremiumNavigation()
     <SettingsItem
       v-if="premium"
       :title="$t('guidance.settings.autoSwitchDocks')"
+      sync-key="navigation.guidance.autoSwitchDocks"
       :description="$t('guidance.settings.autoSwitchDocksDescription')"
       :icon="BikeIcon"
     >
@@ -80,6 +84,7 @@ const premium = usePremiumNavigation()
     <SpeechSettings />
     <SettingsItem
       :title="$t('guidance.settings.adaptiveSpeech')"
+      sync-key="navigation.guidance.adaptiveSpeech"
       :description="$t('guidance.settings.adaptiveSpeechDescription')"
       :icon="FastForwardIcon"
     >
@@ -90,6 +95,7 @@ const premium = usePremiumNavigation()
   <SettingsSection
     id="location-marker"
     :title="$t('guidance.vehicle.title')"
+    sync-key="navigation.guidance.vehicle"
     :description="$t('guidance.vehicle.description')"
   >
     <MarkerSetting v-for="mode in PUCK_MODES" :key="mode" :mode="mode" />

@@ -3543,6 +3543,11 @@
       "usage": {
         "title": "Este mes"
       }
+    },
+    "sync": {
+      "title": "Dónde se guarda este ajuste",
+      "synced": "Todos tus dispositivos",
+      "deviceOnly": "Solo este dispositivo"
     }
   },
   "notes": {

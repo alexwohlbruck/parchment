@@ -7,7 +7,7 @@ import { stationStepIcon } from '@/lib/transit/station/step-icons'
 import { formatDurationShort } from '@/lib/time-format'
 import type { StationWalk } from '@server/types/station-guidance.types'
 import { stationSignText, type StationSign } from '@/lib/transit/station/station-signs'
-import { stationStepText, type PlatformSpot } from '@/lib/transit/station/station-walks'
+import { levelChangeText, stationStepText, type PlatformSpot } from '@/lib/transit/station/station-walks'
 
 const props = withDefaults(defineProps<{ walk: StationWalk; sign?: StationSign | null; spot?: PlatformSpot | null; timed?: boolean }>(), { timed: true })
 const { t } = useI18n()
@@ -19,13 +19,7 @@ const signText = computed(() => (props.sign ? stationSignText(props.sign, t) : n
 
 function note(step: { levelChange: number | null; landmark: string | null; instruction: string }) {
   const landmark = step.landmark && !step.instruction.includes(step.landmark) ? step.landmark : null
-  return [levels(step.levelChange), landmark].filter(Boolean).join(' · ')
-}
-
-function levels(change: number | null) {
-  if (!change) return null
-  const n = Math.abs(change)
-  return change > 0 ? t('directions.station.levelUp', { n }, n) : t('directions.station.levelDown', { n }, n)
+  return [levelChangeText(step.levelChange, t), landmark].filter(Boolean).join(' · ')
 }
 </script>
 

@@ -14,12 +14,13 @@ type TFn = (key: string, named?: Record<string, unknown>) => string
 
 // ── Durations ──────────────────────────────────────────────────────────────
 
-/** `2h 5m` / `5m`. Dense form, for timelines and trip summaries. */
+/** `2h 5m` / `2h` / `5m`. Dense form, for timelines and trip summaries. */
 export function formatDurationCompact(seconds: number): string {
   if (seconds > 0 && seconds < 60) return '<1m'
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
-  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`
+  if (!hours) return `${minutes}m`
+  return minutes ? `${hours}h ${minutes}m` : `${hours}h`
 }
 
 /** `2 hr 5 min` / `5 min`. Roomier form, for detail views. */

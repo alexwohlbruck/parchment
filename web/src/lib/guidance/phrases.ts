@@ -113,6 +113,8 @@ export function announcementText(announcement: Announcement, metric: boolean, t:
     }
     case 'border':
       return t('guidance.voice.welcome', { region: announcement.region })
+    case 'station-step':
+      return announcement.text
     case 'vehicle-question':
       return t(`guidance.transit.whichVehicle.${announcement.vehicle}`)
     case 'arrived':

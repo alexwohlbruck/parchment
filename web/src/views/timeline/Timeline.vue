@@ -5,24 +5,30 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import localizedFormat from 'dayjs/plugin/localizedFormat'
-import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-vue-next'
+import { HistoryIcon } from 'lucide-vue-next'
 import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
 import { Button } from '@/components/ui/button'
+import { Chip } from '@/components/ui/chip'
+import { EmptyState } from '@/components/ui/empty-state'
+import { SectionHeader } from '@/components/ui/section-header'
 import { Spinner } from '@/components/ui/spinner'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useTimelineStore } from '@/stores/timeline.store'
 import { useMapService } from '@/services/map/map.service'
-import type { LocationHistoryStop, LocationHistoryEntry } from '@server/types/location-history.types'
+import type { LocationHistoryStop } from '@server/types/location-history.types'
 import { IntegrationId } from '@server/types/integration.types'
 import TimelineStopRow from '@/components/timeline/TimelineStopRow.vue'
 import TimelineSegmentRow from '@/components/timeline/TimelineSegmentRow.vue'
 import DailyDistanceChart from '@/components/timeline/DailyDistanceChart.vue'
-import TimelineDatePicker from '@/components/timeline/TimelineDatePicker.vue'
+import TimelineRangeNav from '@/components/timeline/TimelineRangeNav.vue'
 import TimelineNoIntegration from '@/components/timeline/TimelineNoIntegration.vue'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
 import UpgradeBanner from '@/components/subscription/UpgradeBanner.vue'
 import { StatTile } from '@/components/ui/stat'
+import { formatDurationCompact } from '@/lib/time-format'
+import { distancePrecision, groupEntriesByDay, summarizeEntries } from '@/lib/timeline/timeline-days'
+import { useUnits } from '@/composables/useUnits'
 
 const authService = useAuthService()
 const canAccessTimeline = computed(() => authService.hasPermission(PermissionId.LOCATION_SHARING))
@@ -35,6 +41,9 @@ const router = useRouter()
 const integrationsStore = useIntegrationsStore()
 const timelineStore = useTimelineStore()
 const mapService = useMapService()
+const { formatDistance: formatUnits } = useUnits()
+const formatDistance = (meters: number) =>
+  formatUnits(meters, { precision: distancePrecision(meters) })
 
 const { range, entries, dailyStats, loading, error } = storeToRefs(timelineStore)
 
@@ -43,49 +52,23 @@ function applyRange(start: Date, end: Date) {
   timelineStore.setRange({ start, end, mode: 'range' })
 }
 
-const isToday = computed(() => {
-  const d = dayjs(range.value.start)
-  return (
-    d.isSame(dayjs(), 'day') &&
-    dayjs(range.value.end).isSame(dayjs(), 'day') &&
-    range.value.end.getTime() - range.value.start.getTime() < 36 * 3600 * 1000
-  )
-})
+const presets = [
+  { unit: 'day', label: 'timeline.today' },
+  { unit: 'week', label: 'timeline.thisWeek' },
+  { unit: 'month', label: 'timeline.thisMonth' },
+] as const
 
-const isThisWeek = computed(() => {
-  const a = dayjs().startOf('week')
-  const b = dayjs().endOf('week')
-  return (
-    dayjs(range.value.start).isSame(a, 'day') &&
-    dayjs(range.value.end).isSame(b, 'day')
-  )
-})
+type PresetUnit = (typeof presets)[number]['unit']
 
-const isThisMonth = computed(() => {
-  const a = dayjs().startOf('month')
-  const b = dayjs().endOf('month')
+function isPreset(unit: PresetUnit): boolean {
   return (
-    dayjs(range.value.start).isSame(a, 'day') &&
-    dayjs(range.value.end).isSame(b, 'day')
+    dayjs(range.value.start).isSame(dayjs().startOf(unit), 'day') &&
+    dayjs(range.value.end).isSame(dayjs().endOf(unit), 'day')
   )
-})
-
-function setToday() {
-  const start = dayjs().startOf('day').toDate()
-  const end = dayjs().endOf('day').toDate()
-  applyRange(start, end)
 }
 
-function setThisWeek() {
-  const start = dayjs().startOf('week').toDate()
-  const end = dayjs().endOf('week').toDate()
-  applyRange(start, end)
-}
-
-function setThisMonth() {
-  const start = dayjs().startOf('month').toDate()
-  const end = dayjs().endOf('month').toDate()
-  applyRange(start, end)
+function setPreset(unit: PresetUnit) {
+  applyRange(dayjs().startOf(unit).toDate(), dayjs().endOf(unit).toDate())
 }
 
 function shiftRange(direction: 1 | -1) {
@@ -103,109 +86,30 @@ function shiftRange(direction: 1 | -1) {
   )
 }
 
-// ── Pickers ───────────────────────────────────────────────────────────────
-const rangeStart = computed({
-  get: () => range.value.start,
-  set: (next: Date) => {
-    const newStart = dayjs(next).startOf('day').toDate()
-    const delta = newStart.getTime() - range.value.start.getTime()
-    const newEnd = new Date(range.value.end.getTime() + delta)
-    applyRange(newStart, newEnd)
-  },
-})
-
-const rangeEnd = computed({
-  get: () => range.value.end,
-  set: (next: Date) => {
-    let newEnd = dayjs(next).endOf('day').toDate()
-    if (newEnd.getTime() < range.value.start.getTime()) {
-      newEnd = dayjs(range.value.start).endOf('day').toDate()
-    }
-    applyRange(range.value.start, newEnd)
-  },
-})
-
-// ── Subtitle ────────────────────────────────────────────────────────────
-const subtitle = computed(() => {
-  return dayjs(range.value.start).format('dddd, MMM D')
-})
-
-// ── Day summary ──────────────────────────────────────────────────────────
-const summary = computed(() => {
-  let stops = 0
-  let distanceM = 0
-  let movingS = 0
-  for (const e of entries.value) {
-    if (e.type === 'stop') stops++
-    else {
-      distanceM += e.distance
-      movingS += e.duration
-    }
-  }
-  return { stops, distanceM, movingS }
-})
-
-const distanceLabel = computed(() => {
-  const km = summary.value.distanceM / 1000
-  if (km < 1) return `${Math.round(summary.value.distanceM)} m`
-  return `${km.toFixed(km < 10 ? 1 : 0)} km`
-})
-
-const movingTimeLabel = computed(() => {
-  const totalMin = Math.round(summary.value.movingS / 60)
-  if (totalMin < 60) return `${totalMin} min`
-  const hours = Math.floor(totalMin / 60)
-  const min = totalMin % 60
-  return min === 0 ? `${hours}h` : `${hours}h ${min}m`
-})
-
-// ── Group entries by day ────────────────────────────────────────────────
-interface DayGroup {
-  key: string
-  label: string
-  dateMeta: string
-  entries: LocationHistoryEntry[]
-  stops: number
-  distanceKm: string
+function pickDay(day: Date) {
+  applyRange(dayjs(day).startOf('day').toDate(), dayjs(day).endOf('day').toDate())
 }
 
-const dayGroups = computed<DayGroup[]>(() => {
-  if (entries.value.length === 0) return []
+// ── Summary ─────────────────────────────────────────────────────────────
+const summary = computed(() => summarizeEntries(entries.value))
 
-  const groups = new Map<string, LocationHistoryEntry[]>()
-  for (const entry of entries.value) {
-    const time = entry.type === 'stop' ? entry.startTime : entry.startTime
-    const key = dayjs(time).format('YYYY-MM-DD')
-    if (!groups.has(key)) groups.set(key, [])
-    groups.get(key)!.push(entry)
-  }
+const isSingleDay = computed(() => dayjs(range.value.start).isSame(range.value.end, 'day'))
 
-  const today = dayjs().format('YYYY-MM-DD')
-  const yesterday = dayjs().subtract(1, 'day').format('YYYY-MM-DD')
+const dayGroups = computed(() => groupEntriesByDay(entries.value, range.value.start))
 
-  return Array.from(groups.entries()).map(([key, dayEntries]) => {
-    let label: string
-    if (key === today) label = 'Today'
-    else if (key === yesterday) label = 'Yesterday'
-    else label = dayjs(key).format('ddd, MMM D')
+function dayLabel(key: string): string {
+  const day = dayjs(key)
+  if (day.isSame(dayjs(), 'day')) return t('timeline.today')
+  if (day.isSame(dayjs().subtract(1, 'day'), 'day')) return t('timeline.yesterday')
+  return day.format('ddd, MMM D')
+}
 
-    const stops = dayEntries.filter(e => e.type === 'stop').length
-    const distM = dayEntries
-      .filter((e): e is Extract<LocationHistoryEntry, { type: 'segment' }> => e.type === 'segment')
-      .reduce((sum, s) => sum + s.distance, 0)
-    const km = distM / 1000
-    const distanceKm = km < 1 ? `${Math.round(distM)} m` : `${km.toFixed(km < 10 ? 1 : 0)} km`
-
-    return {
-      key,
-      label,
-      dateMeta: `${dayjs(key).format('MMM D')} · ${stops} ${stops === 1 ? 'place' : 'places'} · ${distanceKm}`,
-      entries: dayEntries,
-      stops,
-      distanceKm,
-    }
-  })
-})
+function dayMeta(group: { places: number; distance: number }): string {
+  const parts: string[] = []
+  if (group.places) parts.push(t('timeline.placeCount', { n: group.places }, group.places))
+  if (group.distance) parts.push(formatDistance(group.distance))
+  return parts.join(' · ')
+}
 
 // ── Map sync ─────────────────────────────────────────────────────────────
 function focusStop(stop: LocationHistoryStop) {
@@ -216,9 +120,7 @@ function focusStop(stop: LocationHistoryStop) {
 }
 
 function pickFromChart(date: string) {
-  const start = dayjs(date).startOf('day').toDate()
-  const end = dayjs(date).endOf('day').toDate()
-  applyRange(start, end)
+  pickDay(dayjs(date).toDate())
 }
 
 // ── Lifecycle ────────────────────────────────────────────────────────────
@@ -266,236 +168,94 @@ onBeforeUnmount(() => {
   <TimelineNoIntegration v-else-if="!integrationsStore.isLocationHistoryActive" />
 
   <PanelLayout v-else>
-    <!-- Header -->
-    <div class="mb-1">
-      <h1 class="text-2xl font-semibold">
-        {{ t('timeline.title') }}
-      </h1>
-      <p class="text-sm text-muted-foreground">{{ subtitle }}</p>
-    </div>
+    <h1 class="text-2xl font-semibold mb-3">{{ t('timeline.title') }}</h1>
 
-    <!-- Stat cards -->
-    <div
-      v-if="summary.stops > 0 || summary.distanceM > 0"
-      class="grid grid-cols-3 gap-2 my-3"
-    >
-      <StatTile label="Places" :value="summary.stops" />
-      <StatTile label="Distance" :value="distanceLabel" />
-      <StatTile label="Active" :value="movingTimeLabel" />
-    </div>
+    <TimelineRangeNav
+      :start="range.start"
+      :end="range.end"
+      class="-mx-1.5"
+      @shift="shiftRange"
+      @pick-day="pickDay"
+    />
 
-    <!-- Daily distance chart -->
-    <div v-if="dailyStats.length > 0" class="-mx-3 mb-3">
-      <DailyDistanceChart
-        :stats="dailyStats"
-        :range-start="dayjs(range.start).format('YYYY-MM-DD')"
-        :range-end="dayjs(range.end).format('YYYY-MM-DD')"
-        @select="pickFromChart"
+    <div class="flex gap-1.5 mt-2">
+      <Chip
+        v-for="preset in presets"
+        :key="preset.unit"
+        variant="toggle"
+        size="sm"
+        :label="t(preset.label)"
+        :model-value="isPreset(preset.unit)"
+        @update:model-value="setPreset(preset.unit)"
       />
     </div>
 
-    <!-- Shortcut chips -->
-    <div class="flex gap-1.5 mb-3">
-      <Button
-        :variant="isToday ? 'default' : 'outline'"
-        size="sm"
-        class="h-7 text-xs flex-1"
-        @click="setToday"
-      >
-        {{ t('timeline.today') }}
-      </Button>
-      <Button
-        :variant="isThisWeek ? 'default' : 'outline'"
-        size="sm"
-        class="h-7 text-xs flex-1"
-        @click="setThisWeek"
-      >
-        {{ t('timeline.thisWeek') }}
-      </Button>
-      <Button
-        :variant="isThisMonth ? 'default' : 'outline'"
-        size="sm"
-        class="h-7 text-xs flex-1"
-        @click="setThisMonth"
-      >
-        {{ t('timeline.thisMonth') }}
-      </Button>
+    <DailyDistanceChart
+      v-if="dailyStats.length > 0"
+      class="-mx-3 mt-3"
+      :stats="dailyStats"
+      :range-start="dayjs(range.start).format('YYYY-MM-DD')"
+      :range-end="dayjs(range.end).format('YYYY-MM-DD')"
+      @select="pickFromChart"
+    />
+
+    <div v-if="!loading && entries.length > 0" class="grid grid-cols-3 gap-2 mt-3">
+      <StatTile :label="t('timeline.stats.places')" :value="summary.places" />
+      <StatTile :label="t('timeline.stats.distance')" :value="formatDistance(summary.distance)" />
+      <StatTile :label="t('timeline.stats.moving')" :value="formatDurationCompact(summary.moving)" />
     </div>
 
-    <!-- Range pickers + prev/next -->
-    <div class="flex items-center gap-1 mb-4">
-      <Button
-        variant="ghost"
-        size="icon"
-        class="h-8 w-8 shrink-0"
-        @click="shiftRange(-1)"
-      >
-        <ChevronLeftIcon class="w-4 h-4" />
-      </Button>
-      <div class="grid grid-cols-2 gap-2 flex-1 min-w-0">
-        <TimelineDatePicker v-model="rangeStart" class="h-8 text-sm" />
-        <TimelineDatePicker v-model="rangeEnd" class="h-8 text-sm" />
-      </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        class="h-8 w-8 shrink-0"
-        @click="shiftRange(1)"
-      >
-        <ChevronRightIcon class="w-4 h-4" />
-      </Button>
-    </div>
-
-    <!-- Body -->
-    <div class="flex-1 -mx-4">
+    <div class="flex-1 mt-4">
       <div v-if="loading" class="flex justify-center py-12">
         <Spinner />
       </div>
-      <div
+      <EmptyState
         v-else-if="error"
-        class="text-center py-12 text-sm text-destructive"
+        :icon="HistoryIcon"
+        variant="inline"
+        :title="t('timeline.loadFailed')"
       >
-        {{ t('timeline.loadFailed') }}
-        <router-link
+        <Button
           v-if="integrationsStore.isIntegrationDegraded(IntegrationId.DAWARICH)"
-          to="/settings/integrations"
-          class="block mt-1.5 text-muted-foreground underline underline-offset-2 hover:text-foreground"
+          size="sm"
+          variant="outline"
+          as-child
         >
-          {{ t('timeline.checkIntegration') }}
-        </router-link>
-      </div>
-      <div
+          <router-link to="/settings/integrations">{{ t('timeline.checkIntegration') }}</router-link>
+        </Button>
+      </EmptyState>
+      <EmptyState
         v-else-if="entries.length === 0"
-        class="text-center py-12 text-sm text-muted-foreground"
-      >
-        {{ t('timeline.noEvents') }}
-      </div>
-      <template v-else>
-        <template v-for="group in dayGroups" :key="group.key">
-          <!-- Day header -->
-          <div class="flex items-center justify-between px-4 pt-3.5 pb-1.5">
-            <span class="text-lg font-semibold">{{ group.label }}</span>
-            <span class="text-[11px] text-muted-foreground tabular-nums">{{ group.dateMeta }}</span>
-          </div>
+        :icon="HistoryIcon"
+        variant="inline"
+        :title="t('timeline.noEvents')"
+      />
+      <div v-else class="space-y-4">
+        <section v-for="group in dayGroups" :key="group.key">
+          <SectionHeader
+            v-if="!isSingleDay"
+            :title="dayLabel(group.key)"
+            class="mb-1"
+          >
+            <template #trailing>
+              <span class="text-xs text-muted-foreground tabular-nums shrink-0">{{ dayMeta(group) }}</span>
+            </template>
+          </SectionHeader>
 
-          <!-- Timeline rail -->
-          <div class="tl-rail">
-            <template v-for="(entry, i) in group.entries" :key="entry.id">
+          <ol class="relative">
+            <span class="absolute left-[9.5px] top-4 bottom-4 w-px bg-border" aria-hidden="true" />
+            <template v-for="entry in group.entries" :key="entry.id">
               <TimelineStopRow
                 v-if="entry.type === 'stop'"
                 :stop="entry"
-                :is-last="i === group.entries.length - 1"
+                :day="group.key"
                 @select="focusStop"
               />
-              <TimelineSegmentRow v-else :segment="entry" />
+              <TimelineSegmentRow v-else :segment="entry" :day="group.key" />
             </template>
-          </div>
-        </template>
-      </template>
+          </ol>
+        </section>
+      </div>
     </div>
   </PanelLayout>
 </template>
-
-<style scoped>
-.tl-rail {
-  position: relative;
-  margin: 0 16px;
-  padding-left: 24px;
-}
-
-.tl-rail::before {
-  content: "";
-  position: absolute;
-  left: 8px;
-  top: 8px;
-  bottom: 8px;
-  width: 0.5px;
-  background: var(--color-border);
-}
-
-:deep(.tl-event) {
-  position: relative;
-  padding: 8px 0 14px;
-  cursor: default;
-}
-
-:deep(.tl-event)::before {
-  content: "";
-  position: absolute;
-  left: -21px;
-  top: 14px;
-  width: 11px;
-  height: 11px;
-  border-radius: 999px;
-  background: var(--color-background);
-  border: 1.5px solid var(--color-muted-foreground);
-}
-
-:deep(.tl-event[data-kind="place"])::before {
-  border-color: var(--color-primary);
-  background: var(--color-primary);
-}
-
-:deep(.tl-event[data-kind="travel"])::before {
-  border-color: var(--color-border);
-  background: var(--color-background);
-}
-
-:deep(.tl-event .time) {
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 11px;
-  color: var(--color-muted-foreground);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
-}
-
-:deep(.tl-event .title) {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--color-foreground);
-  margin-top: 1px;
-  letter-spacing: -0.005em;
-}
-
-:deep(.tl-event[data-kind="travel"] .title) {
-  color: var(--color-muted-foreground);
-  font-weight: 500;
-}
-
-:deep(.tl-event .meta) {
-  font-size: 11px;
-  color: var(--color-muted-foreground);
-  margin-top: 2px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-:deep(.tl-event .meta > *) {
-  white-space: nowrap;
-}
-
-:deep(.tl-event .meta .dot) {
-  width: 2px;
-  height: 2px;
-  background: var(--color-muted-foreground);
-  opacity: 0.4;
-  border-radius: 999px;
-}
-
-:deep(.tl-event .meta .meta-mode) {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-weight: 500;
-}
-
-:deep(.tl-event[data-kind="place"]) {
-  cursor: pointer;
-}
-
-:deep(.tl-event[data-kind="place"]:hover .title) {
-  color: var(--color-primary);
-}
-</style>

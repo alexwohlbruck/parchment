@@ -52,10 +52,12 @@ export type Announcement =
   | { kind: 'border'; region: string }
   /** `vehicle` names the mode, as in "Which train are you on?". */
   | { kind: 'vehicle-question'; vehicle: string }
+  /** A step inside a station, read as its card words it. */
+  | { kind: 'station-step'; text: string }
 
-/** Turn prompts and welcomes are guidance; everything else is an alert, spoken in "alerts only" too. */
+/** Turn prompts, station steps and welcomes are guidance; everything else is an alert, spoken in "alerts only" too. */
 export function isAlert(announcement: Announcement): boolean {
-  return announcement.kind !== 'maneuver' && announcement.kind !== 'border'
+  return announcement.kind !== 'maneuver' && announcement.kind !== 'station-step' && announcement.kind !== 'border'
 }
 
 const PREPARE_SEC = 115

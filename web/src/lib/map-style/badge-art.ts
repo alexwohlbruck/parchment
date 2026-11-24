@@ -23,7 +23,8 @@ export type BadgePlate = 'disc' | 'tile'
 const PLATE_PREFIX: Record<BadgePlate, string> = { disc: 'badge-', tile: 'tile-' }
 
 export interface BadgeIcon {
-  pack: MapIconPack
+  /** `number` letters `name` onto the plate in place of an icon. */
+  pack: MapIconPack | 'number'
   name: string
   plate?: BadgePlate
 }
@@ -44,8 +45,8 @@ function canvas2d(width: number, height: number) {
 async function bakeArt({ pack, name, plate = 'disc' }: BadgeIcon, ratio: number): Promise<SdfSource | null> {
   const size = Math.round(MARKER_PLATE_SIZE * ratio)
   const glyphSize = Math.round(size * MARKER_GLYPH_RATIO)
-  const glyph = await glyphBitmap(pack, name, '#000', glyphSize)
-  if (!glyph) return null
+  const glyph = pack === 'number' ? null : await glyphBitmap(pack, name, '#000', glyphSize)
+  if (!glyph && pack !== 'number') return null
 
   const pad = SDF_BUFFER * ratio
   const side = size + pad * 2
@@ -58,8 +59,15 @@ async function bakeArt({ pack, name, plate = 'disc' }: BadgeIcon, ratio: number)
   else ctx.arc(side / 2, side / 2, size / 2, 0, Math.PI * 2)
   ctx.fill()
   ctx.globalCompositeOperation = 'destination-out'
-  const at = pad + Math.round((size - glyphSize) / 2)
-  ctx.drawImage(glyph, at, at, glyphSize, glyphSize)
+  if (glyph) {
+    const at = pad + Math.round((size - glyphSize) / 2)
+    ctx.drawImage(glyph, at, at, glyphSize, glyphSize)
+  } else {
+    ctx.font = `700 ${Math.round(glyphSize * 1.05)}px 'Geist Sans', system-ui, sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(name, side / 2, side / 2 + ratio * 0.5)
+  }
 
   const rgba = ctx.getImageData(0, 0, side, side).data
   const alpha = new Uint8Array(side * side)

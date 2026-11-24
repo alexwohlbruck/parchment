@@ -60,9 +60,11 @@ export function calculateFitPadding(
   visibleArea: Rect,
   viewportWidth: number,
   viewportHeight: number,
+  /** Keep only the minimum breathing room, for a visible area already cramped by obstructions. */
+  tight = false,
 ): Padding {
   const clamp = (v: number) =>
-    Math.max(MIN_MARGIN, Math.min(MAX_MARGIN, v))
+    tight ? MIN_MARGIN : Math.max(MIN_MARGIN, Math.min(MAX_MARGIN, v))
   const marginX = clamp(viewportWidth * MARGIN_X_FRACTION)
   const marginY = clamp(viewportHeight * MARGIN_Y_FRACTION)
 
@@ -139,5 +141,15 @@ export function calculateCameraPadding(
       bottom: cap(halfH, containerHeight - (visibleArea.y + visibleArea.height)),
     },
     isFullyVisible: false,
+  }
+}
+
+/** MapLibre adds the map's own padding to a fit's, so take it back out of padding measured from the viewport. */
+export function beyondMapPadding(fit: Padding, map: Partial<Padding>): Padding {
+  return {
+    top: Math.max(0, fit.top - (map.top ?? 0)),
+    right: Math.max(0, fit.right - (map.right ?? 0)),
+    bottom: Math.max(0, fit.bottom - (map.bottom ?? 0)),
+    left: Math.max(0, fit.left - (map.left ?? 0)),
   }
 }

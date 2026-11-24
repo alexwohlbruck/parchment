@@ -12172,6 +12172,10 @@
                       {
                         "const": "notes",
                         "type": "string"
+                      },
+                      {
+                        "const": "imagery",
+                        "type": "string"
                       }
                     ]
                   },
@@ -12279,6 +12283,10 @@
                       {
                         "const": "notes",
                         "type": "string"
+                      },
+                      {
+                        "const": "imagery",
+                        "type": "string"
                       }
                     ]
                   },
@@ -12385,6 +12393,10 @@
                       },
                       {
                         "const": "notes",
+                        "type": "string"
+                      },
+                      {
+                        "const": "imagery",
                         "type": "string"
                       }
                     ]
@@ -12521,6 +12533,10 @@
                       {
                         "const": "notes",
                         "type": "string"
+                      },
+                      {
+                        "const": "imagery",
+                        "type": "string"
                       }
                     ]
                   },
@@ -12626,6 +12642,10 @@
                       {
                         "const": "notes",
                         "type": "string"
+                      },
+                      {
+                        "const": "imagery",
+                        "type": "string"
                       }
                     ]
                   },
@@ -12730,6 +12750,10 @@
                       },
                       {
                         "const": "notes",
+                        "type": "string"
+                      },
+                      {
+                        "const": "imagery",
                         "type": "string"
                       }
                     ]
@@ -16644,6 +16668,53 @@
           "Places"
         ],
         "summary": "Get nearest street-level image to a coordinate",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/proxy/esri/{service}/{z}/{y}/{x}": {
+      "get": {
+        "operationId": "getProxyEsriByServiceByZByYByX",
+        "tags": [
+          "Proxy"
+        ],
+        "summary": "Proxy Esri basemap tiles",
+        "description": "Raster tiles from ArcGIS Location Platform, with the Esri integration key attached server-side. `service` is `world-imagery`.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "service",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "z",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "y",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "x",
+            "required": true
+          }
+        ],
         "responses": {
           "200": {}
         }

@@ -77,7 +77,7 @@ async function resolvePublicAddresses(
   const family = isIP(host)
   const entries = family
     ? [{ address: host, family }]
-    : await lookup(host, { all: true })
+    : (await lookup(host, { all: true })).sort((a, b) => a.family - b.family)
   if (allowsNonPublic(host)) return entries
   if (entries.length === 0 || entries.some((e) => isNonPublicAddress(e.address))) {
     throw new OutboundAddressError(host)

@@ -354,6 +354,23 @@ describe('DawarichAdapter', () => {
       expect(segments[0].id).toContain('-track-2')
     })
 
+    test('lists an entry that crosses midnight once', () => {
+      const overnight = makeJourney({
+        track_id: 7,
+        started_at: '2026-04-25T23:39:00-04:00',
+        ended_at: '2026-04-26T00:40:00-04:00',
+      })
+      const day = makeTimeline([overnight]).days[0]
+      const result = adapter.toLocationHistory({
+        timeline: { days: [{ ...day, date: '2026-04-25' }, day] },
+        geometryByTrackId: new Map(),
+        range,
+        timezone: 'America/New_York',
+        instanceUrl: 'https://x.test',
+      })
+      expect(result.entries.map((e) => e.id)).toEqual(['dawarich-track-7'])
+    })
+
     test('merges consecutive same-place stops into one continuous stay', () => {
       const result = adapter.toLocationHistory({
         timeline: makeTimeline([

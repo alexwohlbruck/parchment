@@ -24,6 +24,7 @@
 * Places suggested during navigation look like the map's own places, numbered to match the list.
 * The satellite map now shows sharp USGS aerial photos across the contiguous US, with Esri imagery everywhere else.
 * Satellite and hybrid maps no longer draw 3D trees, street furniture, landmarks or raised bridges over the photos, and hybrid shows street names without drawing the streets.
+* The timeline is easier to scan: each trip leads with how you got there and how far, distances follow your unit setting, and one date control replaces the two pickers.
 
 ### Fixed
 
@@ -32,6 +33,7 @@
 * Tapping a suggested place on the map during navigation now adds it to your route instead of closing the list.
 * Transit rides in offline directions now show their line colour in the trip timeline.
 * Tapping the basemap that's already selected keeps it, instead of switching to the standard map.
+* Your timeline no longer lists a drive twice when it crosses midnight.
 * In 3D, road names and one-way arrows on bridges sit on the bridge instead of on the water or ground below.
 * Expanding the sheet while saving an offline map no longer shrinks the area you framed.
 * The list of upcoming trains during navigation no longer skips trains that only appear in live data.

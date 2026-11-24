@@ -209,6 +209,7 @@
         "name": "Search",
         "description": "Search for places, businesses, and amenities",
         "keywords": "find locate",
+        "bookmarked": "Bookmarked",
         "arguments": {
           "places": {
             "name": "Places"

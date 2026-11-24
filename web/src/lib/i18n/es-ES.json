@@ -207,6 +207,7 @@
       "search": {
         "name": "Buscar lugares",
         "description": "Buscar lugares, negocios y servicios",
+        "bookmarked": "Guardado",
         "arguments": {
           "places": {
             "name": "Lugares"

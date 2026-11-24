@@ -54,6 +54,7 @@ import { migrateLegacyAvatars } from './services/avatar.service'
 import { startLocationRetentionSweep } from './services/location-e2ee.service'
 import { clearProductCache } from './services/subscription.service'
 import { bootstrapRealtime } from './services/realtime/bootstrap'
+import { startSessionWatchdog } from './services/realtime/session-watchdog.service'
 import { syncPermissionsAndRoles } from './seed/sync-permissions'
 import { i18nPlugin } from './lib/i18n/plugin'
 import { translatorFor } from './lib/i18n/translate'
@@ -177,6 +178,7 @@ async function main() {
   )
 
   startLocationRetentionSweep()
+  startSessionWatchdog()
 
   try {
     logger.debug('i18n configured')

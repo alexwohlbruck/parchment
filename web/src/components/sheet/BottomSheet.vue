@@ -128,6 +128,7 @@ import { X } from 'lucide-vue-next'
 import { handleVaulRelease } from '@/lib/vaul-chrome-workaround'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 import { useThemeStore } from '@/stores/theme.store'
+import { useSheetStackStore } from '@/stores/sheet-stack.store'
 
 const props = withDefaults(
   defineProps<{
@@ -271,6 +272,54 @@ const { registerDismissing, unregisterDismissing, isDismissing } =
   useDrawerCoordination()
 const drawerId =
   props.parentId || `drawer-${Math.random().toString(36).substr(2, 9)}`
+
+// ==================== NESTING ====================
+//
+// A sheet opened over another pushes the one beneath back: it shrinks, lifts
+// and dims, and stops taking input until the sheet above it closes. The
+// recess is applied to a wrapper around the drawer so it composes with the
+// transform Vaul drives on the drawer itself.
+
+const NESTED_INSET = 16
+const NESTED_LIFT = 12
+const NESTED_DIM = 0.3
+const NESTED_EASE = 'cubic-bezier(0.32, 0.72, 0, 1)'
+
+const sheetStack = useSheetStackStore()
+watch(
+  () => props.open,
+  open => {
+    if (!open) return sheetStack.remove(drawerId)
+    sheetStack.push({
+      id: drawerId,
+      layer: props.zIndexOffset,
+      dismiss: () => props.dismissable && emit('update:open', false),
+    })
+  },
+  { immediate: true },
+)
+onUnmounted(() => sheetStack.remove(drawerId))
+
+const depth = computed(() => sheetStack.depthOf(drawerId))
+const recessed = computed(() => depth.value > 0)
+
+// Shrink about the sheet's visible top edge, so it stays put and only narrows.
+const recessOrigin = ref(0)
+watch(recessed, isRecessed => {
+  if (isRecessed) recessOrigin.value = sheet.value?.getBoundingClientRect().top ?? 0
+})
+
+const recessStyle = computed(() => {
+  const width = windowWidth.value || 1
+  const scale = Math.max(0, width - NESTED_INSET * 2 * depth.value) / width
+  return {
+    zIndex: 40 + props.zIndexOffset,
+    transformOrigin: `50% ${recessOrigin.value}px`,
+    scale: String(scale),
+    translate: `0 ${-NESTED_LIFT * depth.value}px`,
+    transition: `scale 0.5s ${NESTED_EASE}, translate 0.5s ${NESTED_EASE}`,
+  }
+})
 
 // ==================== HELPERS ====================
 
@@ -796,7 +845,7 @@ useHotkeys([
     handler: () => {
       // A map tool mid-shape owns Escape — see the map tools store.
       if (mapToolsStore.escapeCapture) return
-      if (props.dismissable) emit('update:open', false)
+      if (props.dismissable && !recessed.value) emit('update:open', false)
     },
   },
 ])
@@ -968,6 +1017,7 @@ function handleAnimationEnd(open: boolean) {
         :class="cn('fixed bg-black/40 inset-0')"
         :style="{ zIndex: 30 + props.zIndexOffset }"
       />
+      <div class="pointer-events-none fixed inset-0" :style="recessStyle">
       <DrawerContent
         ref="drawerContentRef"
         @close-auto-focus="(e: Event) => !props.restoreFocus && e.preventDefault()"
@@ -976,7 +1026,7 @@ function handleAnimationEnd(open: boolean) {
             'flex flex-col',
             props.floating
               ? 'pointer-events-none'
-              : 'bg-background rounded-t-md shadow-lg border-t',
+              : 'pointer-events-auto bg-background rounded-t-md shadow-lg border-t',
             props.fitContent
               ? 'fixed bottom-0 left-0 right-0 max-h-[calc(100dvh-env(safe-area-inset-top))]'
               : 'min-h-full absolute top-0 bottom-0 left-0 right-0',
@@ -1129,8 +1179,26 @@ function handleAnimationEnd(open: boolean) {
               }"
             ></div>
           </div>
+
+          <!-- Covers a recessed sheet: dims it, takes its input, and a tap on it
+               closes the sheet on top, as a tap on a backdrop would. -->
+          <div
+            data-vaul-no-drag
+            class="absolute inset-0 z-[60] bg-black"
+            :class="[
+              recessed ? 'pointer-events-auto' : 'pointer-events-none',
+              !props.floating && 'rounded-t-md',
+            ]"
+            :style="{
+              opacity: recessed ? NESTED_DIM : 0,
+              transition: `opacity 0.5s ${NESTED_EASE}`,
+            }"
+            @pointerdown.stop
+            @click="sheetStack.dismissTop()"
+          />
         </div>
       </DrawerContent>
+      </div>
     </DrawerPortal>
   </DrawerRoot>
 </template>

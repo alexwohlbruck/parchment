@@ -4,6 +4,8 @@
 
 ### Changed
 
+* A sheet opened over another now pushes the one beneath it back, so it's clear which one you're using. Tap the one behind to close the one on top.
+
 ### Fixed
 
 ## [0.26.0] - 2026-11-24

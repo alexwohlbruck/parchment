@@ -119,13 +119,20 @@ export async function buildSearchSuggestions(
     }
   }
 
+  const bookmarksStore = useBookmarksStore()
+  const bookmarkedPlaceIds = new Set(
+    bookmarksStore.bookmarks.map(getBookmarkPlaceId).filter(Boolean),
+  )
+
   const recentPlaceToEntry = (e: RecentPlaceEntry): RecentEntry => ({
     at: e.at,
     identity: recentPlaceIdentity(e),
     option: {
       value: e.id,
       name: e.title,
-      description: e.subtitle,
+      description: bookmarkedPlaceIds.has(e.id)
+        ? [t('palette.commands.search.bookmarked'), e.subtitle].filter(Boolean).join(' · ')
+        : e.subtitle,
       iconName: e.icon || 'MapPin',
       iconPack: (e.iconPack || 'lucide') as 'lucide' | 'maki',
       iconColor: getCategoryColor(
@@ -165,7 +172,6 @@ export async function buildSearchSuggestions(
     void recentsStore.ensurePlacesHydrated()
 
     // Frequents: Home / Work / School / custom, rendered as tiles.
-    const bookmarksStore = useBookmarksStore()
     const frequentItems = bookmarksStore.bookmarks
       .filter(b => b.frequentType)
       .slice(0, 8)
@@ -283,7 +289,7 @@ export async function buildSearchSuggestions(
         lat,
         lng,
       }, signal)
-    const results = searchResults
+    const mapped = searchResults
       .map(result => {
         // Brand suggestion ("See all McDonald's locations"): encode the
         // key + name so the action can browse it; own group + icon.
@@ -356,6 +362,26 @@ export async function buildSearchSuggestions(
           }
         }
 
+        // A bookmark comes back under its own id; open and dedupe it as
+        // the place it saves.
+        if (result.type === 'bookmark') {
+          const bookmark = bookmarksStore.getBookmarkById(result.id)
+          const placeId = (bookmark && getBookmarkPlaceId(bookmark)) || result.id
+          return {
+            identity: `place:${placeId}`,
+            bookmarked: true,
+            option: {
+              value: placeId,
+              name: result.title,
+              description: result.description,
+              iconName: result.icon || 'Bookmark',
+              iconPack: result.iconPack || 'lucide',
+              iconColor: getCategoryColor('default', isDark.value),
+              group: 'places',
+            },
+          }
+        }
+
         const itemValue = result.type === 'category'
           ? `category:${result.id}`
           : result.id
@@ -378,8 +404,16 @@ export async function buildSearchSuggestions(
           },
         }
       })
-      // Drop live results already surfaced in the Recents section.
-      .filter(r => !recentIdentities.has(r.identity))
+    const bookmarkIdentities = new Set(
+      mapped.filter(r => r.bookmarked).map(r => r.identity),
+    )
+    const results = mapped
+      // Drop live results already surfaced in the Recents section, and
+      // plain place hits for a place that is also a bookmark result.
+      .filter(r =>
+        !recentIdentities.has(r.identity) &&
+        (r.bookmarked || !bookmarkIdentities.has(r.identity)),
+      )
       .map(r => r.option)
 
     return [

@@ -19,6 +19,7 @@
 
 ### Fixed
 
+* A bookmarked place now shows once in search, marked as bookmarked, and opening it from search takes you to the place.
 * Bike share station checks no longer stop partway through a ride.
 * Tapping a suggested place on the map during navigation now adds it to your route instead of closing the list.
 * Transit rides in offline directions now show their line colour in the trip timeline.

@@ -44,8 +44,6 @@ const PEER_EVENT_TYPES = new Set([
   'encrypted-point:created',
   'encrypted-point:updated',
   'encrypted-point:deleted',
-  'location:updated',
-  'location:cleared',
   'user:profile-updated',
 ])
 

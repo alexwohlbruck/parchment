@@ -3,6 +3,7 @@
 ### Added
 
 * While driving or biking, find parking or a bike rack near your destination and get walking directions from the spot you pick.
+* Group directions by trip type from the view menu, so walk-and-transit trips stand apart from bike-and-transit ones.
 
 ### Changed
 
@@ -11,6 +12,9 @@
 ### Fixed
 
 * Bike share station checks no longer stop partway through a ride.
+* Transit rides in offline directions now show their line colour in the trip timeline.
+* In 3D, road names and one-way arrows on bridges sit on the bridge instead of on the water or ground below.
+* Expanding the sheet while saving an offline map no longer shrinks the area you framed.
 
 ## [0.25.1] - 2026-11-23
 

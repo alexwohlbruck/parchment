@@ -168,7 +168,7 @@ export function gtfsRouteType(type: number): TransitRouteType {
   return 'bus'
 }
 
-const hex = (color?: string) => (color ? `#${color.replace(/^#/, '')}` : undefined)
+const bareHex = (color?: string) => color?.replace(/^#/, '') || undefined
 
 function rideSegment(tt: Timetable, leg: Extract<JourneyLeg, { kind: 'ride' }>): TripSegment {
   const pattern = tt.pkg.patterns[leg.pattern]
@@ -188,8 +188,8 @@ function rideSegment(tt: Timetable, leg: Extract<JourneyLeg, { kind: 'ride' }>):
   })
   const geometry = stops.map(s => s.location)
   const distance = geometry.slice(1).reduce((sum, c, i) => sum + approxMeters(geometry[i].lng, geometry[i].lat, c.lng, c.lat), 0)
-  const color = hex(route.color)
-  const textColor = hex(route.textColor)
+  const color = bareHex(route.color)
+  const textColor = bareHex(route.textColor)
   const [departureStop, arrivalStop] = [stops[0], stops.at(-1)!]
   return {
     segmentIndex: 0,

@@ -53,6 +53,8 @@ export const useDirectionsStore = defineStore('directions', () => {
 
   /** How suggestions are drawn: the time-scaled timeline, or a plain list. */
   const tripView = ref<TripView>(loadTripView())
+  /** Suggestions under a heading per trip type, rather than one ranked list. */
+  const groupTrips = ref(localStorage.getItem('groupTrips') === 'true')
   const navigationPreferences = useNavigationPreferencesStore()
 
   /** This search's own ranking; null follows the rider's default. */
@@ -105,6 +107,10 @@ export const useDirectionsStore = defineStore('directions', () => {
 
   watch(tripView, newVal => {
     localStorage.setItem('tripView', newVal)
+  })
+
+  watch(groupTrips, newVal => {
+    localStorage.setItem('groupTrips', String(newVal))
   })
 
   function setDirections(directions_: Directions) {
@@ -182,6 +188,7 @@ export const useDirectionsStore = defineStore('directions', () => {
     waypoints,
     selectedMode,
     tripView,
+    groupTrips,
     sortPreference,
     effectiveSort,
     departureTime,

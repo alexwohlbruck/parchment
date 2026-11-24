@@ -9,6 +9,7 @@
 * Choose which imagery the satellite map uses, add your own, and order them so lower sources fill in where higher ones have no coverage.
 * Add Google's photorealistic 3D imagery to the satellite map with Premium, to see cities as 3D models you can tilt around. In hybrid with 3D terrain, street names follow its bridges.
 * A line's vehicle list shows how far each one is from you and marks the closest.
+* If a friend's encryption keys change, their profile warns you and shows a safety number to compare. Nothing is shared with them until you confirm it matches.
 
 ### Changed
 
@@ -19,6 +20,9 @@
 
 ### Fixed
 
+* Turning off location sharing from a friend's profile now removes your last position from their map.
+* Friends' markers turn grey once their location is old, instead of looking live until the next update.
+* Your location keeps reaching friends while the friends layer is hidden, and stops as soon as you turn sharing off.
 * Bike share station checks no longer stop partway through a ride.
 * Tapping a suggested place on the map during navigation now adds it to your route instead of closing the list.
 * Transit rides in offline directions now show their line colour in the trip timeline.

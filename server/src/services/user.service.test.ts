@@ -97,6 +97,27 @@ describe('getUserHandle', () => {
 })
 
 describe('updateUserAlias', () => {
+  test('moves rows that name the old handle onto the new one', async () => {
+    dbMock.queueSelect([])
+    dbMock.queueSelect([{ alias: 'oldname' }])
+
+    await updateUserAlias('user-1', 'alice')
+
+    expect(dbMock.updated).toContainEqual({ friendHandle: expect.stringMatching(/^alice@/) })
+    expect(dbMock.updated).toContainEqual({ senderHandle: expect.stringMatching(/^alice@/) })
+    expect(dbMock.deleteCount).toBeGreaterThan(0)
+  })
+
+  test('leaves references alone when the alias is unchanged', async () => {
+    dbMock.queueSelect([{ id: 'user-1' }])
+    dbMock.queueSelect([{ alias: 'alice' }])
+
+    await updateUserAlias('user-1', 'alice')
+
+    expect(dbMock.updateCount).toBe(1)
+    expect(dbMock.deleteCount).toBe(0)
+  })
+
   test('accepts a free alias and writes it', async () => {
     dbMock.queueSelect([])
 

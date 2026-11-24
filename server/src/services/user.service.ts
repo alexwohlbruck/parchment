@@ -15,6 +15,7 @@ import { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { buildHandle } from './federation.service'
 import { emit } from './realtime/emit'
 import { generateId } from '../util'
+import { purgeHandle, repointHandle } from './handle-references.service'
 
 function lower(email: AnyPgColumn): SQL {
   return sql`lower(${email})`
@@ -82,10 +83,24 @@ export async function updateUserAlias(
     return { success: false, error: 'Alias is already taken' }
   }
 
-  await db
-    .update(users)
-    .set({ alias, updatedAt: new Date() })
-    .where(eq(users.id, userId))
+  await db.transaction(async (tx) => {
+    const [current] = await tx
+      .select({ alias: users.alias })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1)
+    await tx
+      .update(users)
+      .set({ alias, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+    if (current?.alias === alias) return
+
+    const newHandle = buildHandle(alias)
+    await purgeHandle(tx, newHandle)
+    if (current?.alias) {
+      await repointHandle(tx, buildHandle(current.alias), newHandle)
+    }
+  })
 
   await emit.userProfile(
     'user:profile-updated',

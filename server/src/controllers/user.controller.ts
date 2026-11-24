@@ -23,6 +23,7 @@ import { PermissionId } from '../types/auth.types'
 import {
   updateUserAlias,
   isAliasAvailable,
+  getUserHandle,
   updateUserKeys,
   getUserIdentity,
   updateUserDisplayProfile,
@@ -30,6 +31,7 @@ import {
 import { emit } from '../services/realtime/emit'
 import { publish } from '../services/realtime/event-bus.service'
 import { resetUserIdentity } from '../services/identity-reset.service'
+import { purgeHandle } from '../services/handle-references.service'
 import {
   getUserKmVersion,
   commitRotation,
@@ -780,7 +782,11 @@ app.group('', (admin) =>
         }
 
         await lucia.invalidateUserSessions(params.id)
-        await db.delete(users).where(eq(users.id, params.id))
+        const handle = await getUserHandle(params.id)
+        await db.transaction(async (tx) => {
+          if (handle) await purgeHandle(tx, handle)
+          await tx.delete(users).where(eq(users.id, params.id))
+        })
 
         return status(204)
       },

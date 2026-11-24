@@ -71,6 +71,7 @@ const updateUserDisplayProfile = mock(async (_userId: string, _patch: any) => ({
 mock.module('../services/user.service', () => ({
   updateUserAlias,
   isAliasAvailable,
+  getUserHandle: mock(async () => null),
   updateUserKeys,
   getUserIdentity,
   updateUserDisplayProfile,

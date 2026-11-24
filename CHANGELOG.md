@@ -16,6 +16,9 @@
 * Places suggested during navigation look like the map's own places, numbered to match the list.
 * The satellite map now shows sharp USGS aerial photos across the contiguous US, with Esri imagery everywhere else.
 * Satellite and hybrid maps no longer draw 3D trees, street furniture, landmarks or raised bridges over the photos, and hybrid shows street names without drawing the streets.
+* Your recovery key is now 24 words that are easier to write down and type back in. An older recovery key still works, and you'll be asked once to save the words.
+* Deleting a passkey tells you when it's one that can unlock your encrypted data on a new device, and when it's the only one.
+* Passkeys from more password managers can unlock your encrypted data, since adding one now checks a second time before giving up.
 
 ### Fixed
 

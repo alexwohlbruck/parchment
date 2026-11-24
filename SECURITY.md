@@ -551,8 +551,9 @@ Five tiers, in order of fallback:
 4. **Device-to-device transfer** — existing-device-assisted pairing
    with SAS digit comparison + sender-signed handshake + ≤60s server
    relay + one-shot sealed-seed delivery, via `/device-transfer/*`.
-5. **Typed base64 recovery key** (last resort) — the user prints or
-   password-manager-saves the 32-byte seed as base64.
+5. **Typed recovery words** (last resort) — the user writes down or
+   password-manager-saves the 32-byte seed as 24 BIP-39 words. Keys
+   saved before this, the same seed as base64, are still accepted.
 6. **Identity reset** (nuclear) — `POST /users/me/identity/reset` with
    typed confirmation. Deletes every user-encrypted row and nulls the
    federation identity. All previously-encrypted data is gone forever;

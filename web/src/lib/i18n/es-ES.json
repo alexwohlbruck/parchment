@@ -1577,7 +1577,8 @@
       "warning": {
         "keepOpen": "Mantén esta pestaña abierta hasta que termine.",
         "tapEach": "Cualquier clave de acceso que no toques antes de finalizar no funcionará para recuperación después — ten al menos una clave de acceso o tu clave de recuperación a mano.",
-        "failsSafe": "Si la rotación falla a mitad, nada cambia en el servidor."
+        "failsSafe": "Si la rotación falla a mitad, nada cambia en el servidor.",
+        "newRecoveryKey": "Recibirás una nueva clave de recuperación al final. La anterior deja de funcionar."
       },
       "action": "Rotar claves",
       "runningTitle": "Rotando claves",
@@ -1588,7 +1589,10 @@
       "failedTitle": "La rotación falló",
       "failedFallback": "La rotación falló",
       "close": "Cerrar",
-      "slotWarning": "La clave de acceso {id}… no se volvió a asegurar ({reason}). Ya no funcionará para recuperación — elimínala y agrégala de nuevo.",
+      "recoveryKeyTitle": "Guarda tu nueva clave de recuperación",
+      "recoveryKeyDescription": "Tu clave de recuperación anterior deja de funcionar al terminar. Guarda esta en un lugar seguro.",
+      "recoveryKeySaved": "Ya la guardé",
+      "slotWarning": "La clave de acceso {id}… no se pudo volver a asegurar ({reason}), así que ya no puede desbloquear tus claves. Elimínala y agrégala de nuevo.",
       "unknownReason": "desconocido",
       "progress": {
         "preparing": "Preparando…",
@@ -1599,6 +1603,7 @@
         "resealingSlot": "Toca tu clave de acceso para volver a asegurar el slot {index} de {total}",
         "committing": "Finalizando — guardando todo a la vez…",
         "storingSeed": "Actualizando este dispositivo…",
+        "confirmingRecoveryKey": "Esperando a que guardes tu nueva clave de recuperación",
         "done": "Hecho — ahora en la versión de clave {version}"
       }
     },

@@ -25,10 +25,12 @@ import type { DerivedKeys } from '@/lib/identity/federation-crypto'
 import {
   rotateMasterKey,
   RotationConflictError,
+  RotationCancelledError,
   type RotationPhase,
 } from '@/lib/identity/km-rotation'
 import { getSeed } from '@/lib/identity/key-storage'
 import { flushAllPendingRevocations } from '@/services/revocations.service'
+import { useFriendsStore } from '@/stores/friends.store'
 
 /**
  * True if the given error is a user-cancelled WebAuthn prompt (closed
@@ -554,12 +556,14 @@ export const useIdentityStore = defineStore('identity', () => {
    *
    * The `onProgress` callback drives the Settings rotation dialog.
    */
-  async function rotateKeys(options?: {
+  async function rotateKeys(options: {
     onProgress?: (phase: RotationPhase) => void
+    confirmRecoveryKey: (recoveryKey: string) => Promise<boolean>
   }): Promise<{
     success: boolean
     error?: string
     conflict?: boolean
+    cancelled?: boolean
     slotResults?: Array<{ credentialId: string; ok: boolean; reason?: string }>
   }> {
     const authStore = useAuthStore()
@@ -572,6 +576,14 @@ export const useIdentityStore = defineStore('identity', () => {
     if (!oldSeed) {
       return { success: false, error: 'No local seed to rotate' }
     }
+    if (isStale.value) {
+      return {
+        success: false,
+        error: 'Your keys changed on another device. Unlock them here first.',
+      }
+    }
+    const friendsStore = useFriendsStore()
+    await friendsStore.loadAll().catch(() => {})
 
     // Fetch current kmVersion for the CAS advance. If the server 404s
     // here something is badly off (user deleted out from under us) —
@@ -599,7 +611,11 @@ export const useIdentityStore = defineStore('identity', () => {
         oldSeed,
         currentKmVersion,
         assertPasskeyForSlot: authService.assertExistingPasskeyForPrf,
-        onProgress: options?.onProgress,
+        friendEncryptionKey: handle =>
+          friendsStore.friends.find(f => f.friendHandle === handle)
+            ?.friendEncryptionKey,
+        confirmRecoveryKey: options.confirmRecoveryKey,
+        onProgress: options.onProgress,
       })
 
       // Refresh store state with the new keys. Public-key re-registration
@@ -610,6 +626,9 @@ export const useIdentityStore = defineStore('identity', () => {
     } catch (err) {
       if (err instanceof RotationConflictError) {
         return { success: false, conflict: true, error: err.message }
+      }
+      if (err instanceof RotationCancelledError) {
+        return { success: false, cancelled: true, error: err.message }
       }
       return {
         success: false,

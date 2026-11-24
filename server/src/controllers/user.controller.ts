@@ -34,6 +34,8 @@ import {
   getUserKmVersion,
   commitRotation,
   RotationConflict,
+  RotationIncomplete,
+  RotationBlocked,
 } from '../services/km-rotation.service'
 import {
   getOrCreateUserPreferences,
@@ -1144,6 +1146,17 @@ app.use(requireAuth).get(
  * slot → CAS advance). If the CAS failed after those PUTs, the server
  * already had the loser's public keys and mixed data.
  */
+const rotationRecord = t.Object({
+  id: t.String(),
+  metadataEncrypted: t.Optional(t.String()),
+  bodyEncrypted: t.Optional(t.String()),
+})
+const rotationEnvelope = t.Object({
+  id: t.String(),
+  encryptedData: t.String(),
+  nonce: t.String(),
+})
+
 app.use(requireAuth).post(
   '/me/km-version/commit',
   async ({ user, body, status }) => {
@@ -1155,12 +1168,24 @@ app.use(requireAuth).post(
         encryptionKey: body.encryptionKey,
         blobs: body.blobs,
         collections: body.collections,
+        routes: body.routes,
+        canvases: body.canvases,
+        shares: body.shares,
+        incomingShares: body.incomingShares,
+        friendPins: body.friendPins,
         slots: body.slots,
+        recoveryKeyConfirmed: body.recoveryKeyConfirmed,
       })
       return { kmVersion: nextKmVersion }
     } catch (err) {
       if (err instanceof RotationConflict) {
         return status(409, { message: err.message })
+      }
+      if (err instanceof RotationIncomplete) {
+        return status(422, { message: err.message, missing: err.missing })
+      }
+      if (err instanceof RotationBlocked) {
+        return status(422, { message: err.message })
       }
       throw err
     }
@@ -1189,6 +1214,19 @@ app.use(requireAuth).post(
           }),
         ),
       ),
+      routes: t.Optional(t.Array(rotationRecord)),
+      canvases: t.Optional(t.Array(rotationRecord)),
+      shares: t.Optional(t.Array(rotationEnvelope)),
+      incomingShares: t.Optional(t.Array(rotationEnvelope)),
+      friendPins: t.Optional(
+        t.Array(
+          t.Object({
+            friendHandle: t.String(),
+            encryptedPin: t.String(),
+            nonce: t.String(),
+          }),
+        ),
+      ),
       slots: t.Optional(
         t.Array(
           t.Object({
@@ -1199,14 +1237,19 @@ app.use(requireAuth).post(
           }),
         ),
       ),
+      recoveryKeyConfirmed: t.Optional(t.Boolean()),
     }),
     detail: {
       tags: ['Users', 'KmRotation'],
       description:
-        'Atomic rotation commit. Applies new public keys, re-encrypted ' +
-        'blobs, re-encrypted collection envelopes, and re-sealed slots ' +
-        'in a single transaction gated by a CAS on kmVersion. 409 on ' +
-        'conflict — nothing is written.',
+        'Atomic rotation commit. Applies new public keys and every record ' +
+        're-encrypted under the new seed (blobs, collections and points, ' +
+        'routes, canvases, share envelopes both ways, friend pins, passkey ' +
+        'slots) in one transaction gated by a CAS on kmVersion. Slots not ' +
+        're-sealed are deleted. 409 when another device rotated first; 422 ' +
+        'when a seed-derived record is missing, a private collection is ' +
+        'shared with another server, or neither a slot nor a confirmed ' +
+        'recovery key would unlock the new keys. Nothing is written on error.',
     },
   },
 )

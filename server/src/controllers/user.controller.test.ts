@@ -86,6 +86,12 @@ const resetUserIdentity = mock(async (_userId: string) => undefined)
 mock.module('../services/identity-reset.service', () => ({ resetUserIdentity }))
 
 class RotationConflict extends Error {}
+class RotationIncomplete extends Error {
+  constructor(readonly missing: string[]) {
+    super('missing')
+  }
+}
+class RotationBlocked extends Error {}
 const getUserKmVersion = mock(
   async (_userId: string) => 3 as number | null,
 )
@@ -94,6 +100,8 @@ mock.module('../services/km-rotation.service', () => ({
   getUserKmVersion,
   commitRotation,
   RotationConflict,
+  RotationIncomplete,
+  RotationBlocked,
 }))
 
 const getOrCreateUserPreferences = mock(async (_userId: string) => ({
@@ -528,6 +536,27 @@ describe('key rotation', () => {
     })
 
     expect(res.status).toBe(409)
+  })
+
+  test('422s with the missing records when the commit would strand data', async () => {
+    commitRotation.mockRejectedValueOnce(new RotationIncomplete(['route r1']))
+
+    const res = await req(app).post('/users/me/km-version/commit', {
+      body: { expectedCurrent: 3, signingKey: 'sig', encryptionKey: 'enc' },
+    })
+
+    expect(res.status).toBe(422)
+    expect(res.body.missing).toEqual(['route r1'])
+  })
+
+  test('422s when rotation is blocked', async () => {
+    commitRotation.mockRejectedValueOnce(new RotationBlocked('remote share'))
+
+    const res = await req(app).post('/users/me/km-version/commit', {
+      body: { expectedCurrent: 3, signingKey: 'sig', encryptionKey: 'enc' },
+    })
+
+    expect(res.status).toBe(422)
   })
 })
 

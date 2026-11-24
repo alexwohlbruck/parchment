@@ -2927,7 +2927,9 @@
           "completeMessage": "¡Identidad restaurada correctamente!",
           "unknownWord": "«{word}» no es una palabra de recuperación. Revisa la ortografía",
           "wordCount": "Introduce las 24 palabras",
-          "wrongOrder": "Esas palabras no encajan. Revisa su orden"
+          "wrongOrder": "Esas palabras no encajan. Revisa su orden",
+          "oldKey": "Las claves de recuperación antiguas ya no sirven. Abre Parchment en un dispositivo con la sesión iniciada para ver tus 24 palabras",
+          "failed": "No se pudo restaurar. Revisa tu conexión e inténtalo de nuevo"
         },
         "reset": {
           "confirmTitle": "¿Restablecer tu cuenta?",

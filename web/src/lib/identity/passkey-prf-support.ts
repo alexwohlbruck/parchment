@@ -11,7 +11,7 @@
  *   2. `extractPrfOutputFromRegistration()` / `extractPrfOutputFromAssertion()`
  *      — pull the raw 32-byte PRF output from a simplewebauthn ceremony
  *      response. Returns null if the extension didn't fire (caller then
- *      knows to prompt a second ceremony or fall back to recovery key).
+ *      knows to prompt a second ceremony or fall back to recovery words).
  *
  * Note: `@simplewebauthn/browser` exposes `clientExtensionResults` on the
  * `RegistrationResponseJSON` / `AuthenticationResponseJSON` as

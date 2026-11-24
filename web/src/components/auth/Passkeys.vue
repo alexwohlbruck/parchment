@@ -251,6 +251,7 @@ async function enableRecovery(credentialId: string) {
 }
 
 async function deletePasskey(passkeyId: string) {
+  await identityStore.refreshSlotAvailability()
   const risk = passkeyDeleteRisk(
     passkeyId,
     passkeySlotCredentialIds.value,

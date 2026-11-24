@@ -79,7 +79,7 @@ export async function generateNewIdentity(): Promise<{
 }
 
 /**
- * Complete identity setup after user confirms recovery key
+ * Complete identity setup after user confirms the recovery words
  * Stores seed locally and registers public keys with server
  */
 export async function completeIdentitySetup(
@@ -94,7 +94,7 @@ export async function completeIdentitySetup(
   } catch (err) {
     if ((err as { response?: { status?: number } })?.response?.status === 409) {
       throw new Error(
-        'Your account already has keys. Restore them with your recovery key or a passkey instead.',
+        'Your account already has keys. Restore them with your recovery words or a passkey instead.',
       )
     }
     throw err
@@ -556,7 +556,7 @@ export async function unlockSeedWithPasskey(params: {
   if (!prfOutput) {
     throw new Error(
       "This passkey doesn't support PRF, or your browser didn't return " +
-        'a PRF output. Try a different passkey or use your recovery key.',
+        'a PRF output. Try a different passkey or use your recovery words.',
     )
   }
 
@@ -565,7 +565,7 @@ export async function unlockSeedWithPasskey(params: {
   if (!slot) {
     throw new Error(
       'The passkey you tapped has no recovery slot. Use a different ' +
-        'passkey or fall back to the recovery key.',
+        'passkey or use your recovery words.',
     )
   }
 

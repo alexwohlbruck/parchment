@@ -63,7 +63,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const identityStore = useIdentityStore()
 const appService = useAppService()
-const { isLoading, handle, hasAnyPasskeySlot, hasSavedRecoveryWords } =
+const { isLoading, isStale, handle, hasAnyPasskeySlot, hasSavedRecoveryWords } =
   storeToRefs(identityStore)
 
 const isOpen = computed({
@@ -173,14 +173,17 @@ function importError({ problem, word }: RecoveryImportResult) {
       return t('settings.identity.recoveryKey.import.wordCount')
     case 'checksum':
       return t('settings.identity.recoveryKey.import.wrongOrder')
-    default:
+    case 'old-key':
+      return t('settings.identity.recoveryKey.import.oldKey')
+    case 'mismatch':
       return t('settings.identity.recoveryKey.import.invalidKey')
+    default:
+      return t('settings.identity.recoveryKey.import.failed')
   }
 }
 
 function confirmWordsSaved() {
-  identityStore.markRecoveryWordsSaved()
-  toast.success(t('settings.identity.recoveryKey.check.savedToast'))
+  if (identityStore.markRecoveryWordsSaved()) toast.success(t('settings.identity.recoveryKey.check.savedToast'))
   handleClose()
 }
 
@@ -440,7 +443,7 @@ function handleClose() {
         </div>
 
         <div v-else class="flex flex-col gap-4 py-2">
-          <!-- Federation ID — shown above the recovery key when the user
+          <!-- Federation ID — shown above the recovery words when the user
                has set an alias, since they're frequently looked at
                together (share-with-friend + save-for-self). -->
           <div v-if="handle" class="flex flex-col gap-1.5">
@@ -473,7 +476,7 @@ function handleClose() {
           <Button v-if="checkingWords" :disabled="!wordsChecked" @click="confirmWordsSaved">
             {{ t('general.done') }}
           </Button>
-          <Button v-else-if="hasSavedRecoveryWords === false && existingRecoveryWords" @click="checkingWords = true">
+          <Button v-else-if="hasSavedRecoveryWords === false && !isStale && existingRecoveryWords" @click="checkingWords = true">
             {{ t('settings.identity.recoveryKey.check.start') }}
           </Button>
           <Button v-else @click="handleClose">{{ t('general.done') }}</Button>

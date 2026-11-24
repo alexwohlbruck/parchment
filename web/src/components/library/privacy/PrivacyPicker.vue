@@ -6,7 +6,7 @@ import { ITEM_ROW_SURFACES } from '@/components/ui/item-row'
 import type { EncryptionScheme } from '@/types/library.types'
 
 defineProps<{
-  /** False on a device without the recovery key, which can't encrypt. */
+  /** False on a device without the recovery words, which can't encrypt. */
   hasIdentity: boolean
 }>()
 

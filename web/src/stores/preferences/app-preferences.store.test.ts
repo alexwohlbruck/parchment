@@ -95,10 +95,11 @@ describe('app preferences store', () => {
     expect(save).toHaveBeenCalledOnce()
   })
 
-  it('reads an account that never saved its recovery words as unsaved', async () => {
+  it('reads an account that never saved its recovery words as unsaved, without writing that back', async () => {
     useAppPreferencesStore().adopt({ theme: {}, map: {}, general: {}, layerAppearances: {} })
     await settle()
     expect(useIdentityStore().recoveryWordsSavedFor).toBeNull()
+    expect(save).not.toHaveBeenCalled()
   })
 
   it('saves a changed section whole, and only what suits any device', async () => {

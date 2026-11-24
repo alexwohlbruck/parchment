@@ -13,7 +13,7 @@
  *      both are bound to the old encryption key.
  *   6. Re-seal K_m into every existing passkey-PRF slot. One biometric
  *      tap per slot, each scoped to that slot's credentialId.
- *   7. Show the new recovery key and wait for the user to confirm it.
+ *   7. Show the new recovery words and wait for the user to confirm them.
  *   8. Single atomic POST to `/users/me/km-version/commit` with the
  *      full post-rotation state + expectedCurrent (CAS). The server
  *      refuses a commit that misses any seed-derived record.

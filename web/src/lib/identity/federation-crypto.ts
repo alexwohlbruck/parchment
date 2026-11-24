@@ -32,7 +32,7 @@ export interface DerivedKeys {
 
 /**
  * Generate a cryptographically secure 32-byte seed
- * This is the recovery key that users save to their password manager
+ * The recovery words encode this seed
  */
 export function generateSeed(): Uint8Array {
   return crypto.getRandomValues(new Uint8Array(32))

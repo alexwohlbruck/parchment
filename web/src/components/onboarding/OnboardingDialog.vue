@@ -43,7 +43,7 @@ const integrations = useIntegrationsStore()
 const skippingOsm = computed(() => currentStep.value.id === 'openstreetmap' && !integrations.osmProfile)
 const skippingPasskey = computed(() => currentStep.value.id === 'passkey')
 
-// Setting up a recovery key replaces existing keys, so only offer it once the server confirms there are none.
+// Setting up recovery words replaces existing keys, so only offer it once the server confirms there are none.
 const needsKeys = ref(false)
 fetchIdentityFromServer()
   .then(identity => {

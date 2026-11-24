@@ -96,10 +96,11 @@ export const useAppPreferencesStore = defineStore('appPreferences', () => {
       map: () => pickKnown(MAP, mapStore.ownSettings),
       general: () => pickKnown(GENERAL, appStore),
       layerAppearances: () => layerAppearanceStore.chosen,
+      // Sent only once words are confirmed, so loading never writes over another device's.
       security: () =>
-        identityStore.recoveryWordsSavedFor === undefined
-          ? undefined
-          : { recoveryWordsSavedFor: identityStore.recoveryWordsSavedFor },
+        identityStore.recoveryWordsSavedFor
+          ? { recoveryWordsSavedFor: identityStore.recoveryWordsSavedFor }
+          : undefined,
     },
     saveAppPreferences,
   )

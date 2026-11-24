@@ -12,7 +12,10 @@ vi.mock('@/services/identity.service', async importOriginal => ({
 }))
 
 import { useIdentityStore } from './identity.store'
+import { deriveAllKeys, exportPublicKey, generateSeed } from '@/lib/identity/federation-crypto'
 
+const OWN_KEYS = deriveAllKeys(generateSeed())
+const OWN_SIGNING_KEY = exportPublicKey(OWN_KEYS.signing.publicKey)
 const IDENTITY = { handle: 'alice@example.org', signingKey: 'sign-1', encryptionKey: 'enc-1', domain: 'example.org' }
 
 beforeEach(() => {
@@ -38,28 +41,32 @@ describe('identity store', () => {
     expect(store.identityUnavailable).toBe(true)
   })
 
-  test('saved recovery words belong to the signing key they were shown for', async () => {
+  test('saved words are recorded for the key this device holds, and read as unsaved once that key changes', async () => {
     const store = useIdentityStore()
     expect(store.hasSavedRecoveryWords).toBeUndefined()
     await store.initialize()
-
     store.recoveryWordsSavedFor = null
     expect(store.hasSavedRecoveryWords).toBe(false)
 
-    store.markRecoveryWordsSaved()
-    expect(store.recoveryWordsSavedFor).toBe('sign-1')
+    expect(store.markRecoveryWordsSaved()).toBe(false)
+
+    store.localKeys = OWN_KEYS
+    store.identity = { ...IDENTITY, signingKey: OWN_SIGNING_KEY }
+    expect(store.markRecoveryWordsSaved()).toBe(true)
+    expect(store.recoveryWordsSavedFor).toBe(OWN_SIGNING_KEY)
     expect(store.hasSavedRecoveryWords).toBe(true)
 
-    store.identity = { ...IDENTITY, signingKey: 'sign-2' }
+    store.identity = { ...IDENTITY, signingKey: 'rotated-elsewhere' }
     expect(store.hasSavedRecoveryWords).toBe(false)
   })
 
-  test('a device holding outdated keys cannot mark the new words saved', async () => {
+  test('a device holding outdated keys cannot mark its words saved', async () => {
     const store = useIdentityStore()
     await store.initialize()
     store.recoveryWordsSavedFor = null
+    store.localKeys = OWN_KEYS
     store.isStale = true
-    store.markRecoveryWordsSaved()
+    expect(store.markRecoveryWordsSaved()).toBe(false)
     expect(store.recoveryWordsSavedFor).toBeNull()
   })
 })

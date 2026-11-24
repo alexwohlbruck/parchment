@@ -3,7 +3,7 @@ import { wordlist } from '@scure/bip39/wordlists/english.js'
 
 export const RECOVERY_WORD_COUNT = 24
 
-export type RecoveryWordsProblem = 'unknown-word' | 'word-count' | 'checksum'
+export type RecoveryWordsProblem = 'old-key' | 'unknown-word' | 'word-count' | 'checksum'
 
 export class RecoveryWordsError extends Error {
   constructor(
@@ -21,8 +21,12 @@ export function seedToRecoveryWords(seed: Uint8Array): string[] {
 
 const toWords = (input: string) => input.toLowerCase().split(/[^a-z]+/).filter(Boolean)
 
+/** The 44-character base64 key Parchment showed before recovery words, often in groups of 5. */
+const OLD_KEY = /^[A-Za-z0-9+/]{43}=$/
+
 /** The seed from 24 recovery words, however they are numbered or spaced. */
 export function parseRecoveryWords(input: string): Uint8Array {
+  if (OLD_KEY.test(input.replace(/\s+/g, ''))) throw new RecoveryWordsError('old-key')
   const words = toWords(input)
   const unknown = words.find(word => !wordlist.includes(word))
   if (unknown) throw new RecoveryWordsError('unknown-word', unknown)

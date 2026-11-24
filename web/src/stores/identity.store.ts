@@ -23,7 +23,7 @@ import {
 import { useAuthService } from '@/services/auth.service'
 import { useAuthStore } from '@/stores/auth.store'
 import { api } from '@/lib/api'
-import type { DerivedKeys } from '@/lib/identity/federation-crypto'
+import { exportPublicKey, type DerivedKeys } from '@/lib/identity/federation-crypto'
 import {
   rotateMasterKey,
   RotationConflictError,
@@ -157,10 +157,11 @@ export const useIdentityStore = defineStore('identity', () => {
     if (recoveryWordsSavedFor.value === undefined || !identity.value?.signingKey) return undefined
     return recoveryWordsSavedFor.value === identity.value.signingKey
   })
-  function markRecoveryWordsSaved() {
-    // A stale device still holds the previous seed, so its words are the old ones.
-    if (isStale.value || !identity.value?.signingKey) return
-    recoveryWordsSavedFor.value = identity.value.signingKey
+  /** Records that the words for this device's own seed were saved; false when they're outdated. */
+  function markRecoveryWordsSaved(): boolean {
+    if (isStale.value || !localKeys.value) return false
+    recoveryWordsSavedFor.value = exportPublicKey(localKeys.value.signing.publicKey)
+    return true
   }
   
   // Key accessors for encryption
@@ -217,7 +218,7 @@ export const useIdentityStore = defineStore('identity', () => {
   }
 
   /**
-   * Complete setup after user confirms they've saved recovery key
+   * Complete setup after user confirms they've saved their recovery words
    */
   async function completeSetup(): Promise<{ success: boolean; error?: string }> {
     if (!pendingSeed.value || !pendingKeys.value) {
@@ -287,14 +288,14 @@ export const useIdentityStore = defineStore('identity', () => {
   }
 
   /**
-   * Import identity from recovery key
+   * Import identity from recovery words
    */
   async function importFromRecoveryWords(
-    recoveryKey: string,
+    recoveryWords: string,
   ): Promise<RecoveryImportResult> {
     isLoading.value = true
     try {
-      const result = await importIdentityFromRecoveryWords(recoveryKey)
+      const result = await importIdentityFromRecoveryWords(recoveryWords)
 
       if (result.success) {
         hasLocalIdentity.value = true
@@ -332,7 +333,7 @@ export const useIdentityStore = defineStore('identity', () => {
   }
 
   /**
-   * Last-resort reset when the user has lost their recovery key AND has
+   * Last-resort reset when the user has lost their recovery words AND has
    * no working passkey slot AND no other signed-in device to transfer
    * from. Wipes all seed-encrypted data on the server, clears the local
    * seed, and resets store state so the Friends / Settings screens route

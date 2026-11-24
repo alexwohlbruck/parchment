@@ -9,7 +9,7 @@ import type { CanvasScheme } from '@/types/canvas.types'
 
 const props = defineProps<{
   scheme: CanvasScheme
-  /** False on a device that hasn't imported the recovery key. */
+  /** False on a device that hasn't entered the recovery words. */
   hasIdentity: boolean
   /** The live share URL, when one has been minted. */
   shareUrl?: string | null

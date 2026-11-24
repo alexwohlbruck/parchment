@@ -3030,7 +3030,9 @@
           "completeMessage": "Identity restored successfully!",
           "unknownWord": "“{word}” isn't a recovery word. Check the spelling",
           "wordCount": "Enter all 24 words",
-          "wrongOrder": "Those words don't fit together. Check their order"
+          "wrongOrder": "Those words don't fit together. Check their order",
+          "oldKey": "Old recovery keys no longer work. Open Parchment on a device that's still signed in to see your 24 words",
+          "failed": "Couldn't restore. Check your connection and try again"
         },
         "reset": {
           "confirmTitle": "Reset your account?",

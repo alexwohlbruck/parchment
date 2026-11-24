@@ -57,10 +57,10 @@ describe('recovery words', () => {
 })
 
 describe('base64 recovery keys from before the words', () => {
-  test('are not accepted', () => {
+  test('are refused and recognised as old keys, bare or in groups of 5', () => {
     const legacy = bytesToBase64(generateSeed())
-    expect(problemOf(legacy)).not.toBeNull()
-    expect(problemOf(legacy.match(/.{1,5}/g)!.join(' '))).not.toBeNull()
+    expect(problemOf(legacy)).toEqual(['old-key', undefined])
+    expect(problemOf(legacy.match(/.{1,5}/g)!.join(' '))).toEqual(['old-key', undefined])
   })
 
   test('an empty entry asks for all 24 words', () => {

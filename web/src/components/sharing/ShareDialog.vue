@@ -47,6 +47,7 @@ import {
   sign as signEd25519,
 } from '@/lib/identity/federation-crypto'
 import { rotateCollectionKey } from '@/lib/identity/collection-rotation'
+import { isRemoteHandle } from '@/lib/identity/handle'
 import type { Collection, ShareRole } from '@/types/library.types'
 
 /**
@@ -208,19 +209,6 @@ const publicUrl = computed(() => {
   return buildPublicLinkUrl(window.location.origin, publicToken.value)
 })
 
-/**
- * Does this handle live on a server other than our own? If yes, the share
- * will travel over federation and the client must sign an envelope so the
- * remote peer can verify the sender + payload haven't been tampered with.
- */
-function isRemoteHandle(handle: string): boolean {
-  const domain = serverDomain.value
-  if (!domain) return false
-  const [, recipientDomain] = handle.split('@')
-  if (!recipientDomain) return false
-  return recipientDomain !== domain
-}
-
 function showIdentityWarning() {
   toast.warning(t('sharing.errors.identityRequired'), {
     id: 'identity-required',
@@ -280,7 +268,7 @@ async function addShare(friendHandle: string, role: ShareRole = 'viewer') {
     let federationSignature: string | undefined
     let federationNonce: string | undefined
     let federationTimestamp: string | undefined
-    if (isRemoteHandle(friendHandle)) {
+    if (isRemoteHandle(friendHandle, serverDomain.value)) {
       if (!signingPrivateKey.value) {
         showIdentityWarning()
         return
@@ -322,7 +310,12 @@ async function addShare(friendHandle: string, role: ShareRole = 'viewer') {
     emit('changed')
   } catch (err) {
     console.error('Failed to create share', err)
-    toast.error(t('sharing.errors.createFailed'), { cause: err })
+    const notFriends =
+      (err as { response?: { status?: number } })?.response?.status === 403
+    toast.error(
+      t(notFriends ? 'sharing.errors.notFriends' : 'sharing.errors.createFailed'),
+      { cause: err },
+    )
   } finally {
     mutating.value = false
   }

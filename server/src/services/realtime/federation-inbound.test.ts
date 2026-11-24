@@ -86,6 +86,18 @@ describe('authorized delivery', () => {
     expect(publish).not.toHaveBeenCalled()
   })
 
+  test('refuses location events from peers', async () => {
+    const result = await handleIncomingRealtimeEvent(
+      SENDER,
+      'location:updated',
+      {},
+      ['alex'],
+    )
+
+    expect(result.success).toBe(false)
+    expect(publish).not.toHaveBeenCalled()
+  })
+
   test('refuses a non-string recipient alias', async () => {
     const result = await handleIncomingRealtimeEvent(
       SENDER,

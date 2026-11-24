@@ -81,6 +81,11 @@ const friendHandlers = {
 }
 mock.module('./friends.service', () => friendHandlers)
 
+const handleIncomingRealtimeEvent = mock(async () => ({ success: true }))
+mock.module('./realtime/federation-inbound', () => ({
+  handleIncomingRealtimeEvent,
+}))
+
 const {
   getServerDomain,
   buildHandle,
@@ -538,5 +543,46 @@ describe('processFederationMessage — signature', () => {
       expect.objectContaining({ signingKey: 'bob-key' }),
       'client-sig',
     )
+  })
+})
+
+describe('processFederationMessage — server-attested realtime events', () => {
+  const realtimeMessage = {
+    ...v2Message,
+    message_type: 'REALTIME_EVENT',
+    signature: '',
+    payload: {
+      eventType: 'collection:updated',
+      eventPayload: { id: 'c1' },
+      recipientAliases: ['alice'],
+    },
+  }
+
+  test('dispatches a REALTIME_EVENT without a user signature', async () => {
+    http.get.mockResolvedValueOnce({
+      status: 200,
+      data: { handle: 'bob@peer.test', signingKey: 'bob-key' },
+    })
+
+    const result = await processFederationMessage(realtimeMessage)
+
+    expect(result).toEqual({ success: true })
+    expect(verifySignature).not.toHaveBeenCalled()
+    expect(handleIncomingRealtimeEvent).toHaveBeenCalledWith(
+      'bob@peer.test',
+      'collection:updated',
+      { id: 'c1' },
+      ['alice'],
+    )
+  })
+
+  test('still requires a user signature for every other type', async () => {
+    const result = await processFederationMessage({
+      ...v2Message,
+      message_type: 'RESOURCE_SHARE',
+      signature: '',
+    })
+
+    expect(result.error).toBe('Invalid message structure')
   })
 })

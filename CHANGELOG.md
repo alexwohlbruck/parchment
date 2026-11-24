@@ -19,6 +19,8 @@
 * Satellite and hybrid maps no longer draw 3D trees, street furniture, landmarks or raised bridges over the photos, and hybrid shows street names without drawing the streets.
 * Rotating your keys shows your new recovery key before it finishes, since the old one stops working.
 * Resetting your account asks you to confirm it's you with your passkey or an emailed code first.
+* Collections and routes can only be shared with friends.
+* Location sharing with friends on other servers isn't available yet, and the switch says so.
 
 ### Fixed
 
@@ -39,6 +41,7 @@
 * Setting up encryption can no longer replace keys your account already has after a failed connection.
 * A device with outdated keys can no longer overwrite your synced data after you rotate keys elsewhere.
 * A friend's location disappears from your map a day after they last shared it, instead of staying forever.
+* Changes to collections shared with friends on other servers now show up for them right away.
 
 ## [0.25.1-1] - 2026-11-23
 

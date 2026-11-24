@@ -10,6 +10,7 @@ import { exportPublicKey } from '@/lib/identity/federation-crypto'
 import { useLocationClock } from '@/composables/friends/useLocationClock'
 import { isLocationStale } from '@/lib/friends/friend-location'
 import { useIdentityStore } from '@/stores/identity.store'
+import { handleDomain, isRemoteHandle } from '@/lib/identity/handle'
 import { useFriendLocations } from '@/composables/friends/useFriendLocations'
 import { useE2eeLocationBroadcast } from '@/composables/friends/useE2eeLocationBroadcast'
 import { useRemoveFriend } from '@/composables/friends/useRemoveFriend'
@@ -146,6 +147,12 @@ const lastSeenAgo = computed(() => {
 })
 
 const { signingPublicKey } = storeToRefs(identityStore)
+
+const isOnOtherServer = computed(
+  () =>
+    !!friend.value &&
+    isRemoteHandle(friend.value.friendHandle, handleDomain(identityStore.handle ?? '')),
+)
 const pin = computed(() =>
   friend.value ? pinsStore.statusFor(friend.value.friendHandle) : undefined,
 )
@@ -466,13 +473,19 @@ watch([isLoading, friend], ([loading, f]) => {
         <div>
           <p class="text-sm font-medium">{{ t('friends.detail.shareMyLocation') }}</p>
           <p class="text-xs text-muted-foreground">
-            {{ locationConfig?.enabled ? t('friends.detail.sharingEnabled') : t('friends.detail.sharingDisabled') }}
+            {{
+              isOnOtherServer && !locationConfig?.enabled
+                ? t('friends.remoteLocationUnavailable')
+                : locationConfig?.enabled
+                  ? t('friends.detail.sharingEnabled')
+                  : t('friends.detail.sharingDisabled')
+            }}
           </p>
         </div>
       </div>
       <Switch
         :model-value="locationConfig?.enabled ?? false"
-        :disabled="isSavingConfig"
+        :disabled="isSavingConfig || (isOnOtherServer && !locationConfig?.enabled)"
         @update:model-value="toggleLocationSharing"
       />
     </div>

@@ -121,6 +121,15 @@ describe('forwarding', () => {
 })
 
 describe('skipped cases', () => {
+  test('keeps location events on this server', async () => {
+    await federationSubscriber.deliver(
+      { ...event, event: 'location:updated' } as any,
+      { localUserIds: ['u-1'], remoteHandles: ['bea@peer-a.test'] },
+    )
+
+    expect(sendFederationMessage).not.toHaveBeenCalled()
+  })
+
   test('does nothing when there are no remote recipients', async () => {
     await federationSubscriber.deliver(event as any, {
       localUserIds: ['u-1'],

@@ -1590,6 +1590,7 @@
     "cancel": "Cancel",
     "done": "Done",
     "locationSharing": "Location sharing",
+    "remoteLocationUnavailable": "Not available with friends on other servers yet",
     "countOne": "{n} friend",
     "countMany": "{n} friends",
     "invitations": {
@@ -3834,6 +3835,7 @@
     "errors": {
       "loadFailed": "Failed to load shares",
       "createFailed": "Failed to share",
+      "notFriends": "You can only share with friends",
       "revokeFailed": "Failed to remove access",
       "roleChangeFailed": "Failed to change role",
       "publicLinkFailed": "Failed to create public link",

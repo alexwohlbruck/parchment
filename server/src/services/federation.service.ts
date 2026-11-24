@@ -301,17 +301,19 @@ export async function sendFederationMessage(
  * S2S authentication (server signature + replay check) is handled by the
  * inbox controller BEFORE this function is called. Here we verify the
  * client-level (user) signature and dispatch to the appropriate domain
- * service.
+ * service. REALTIME_EVENT carries no user signature: the server signature,
+ * bound to the sender's domain by the inbox, is its only authentication.
  */
 export async function processFederationMessage(
   message: FederationMessage,
 ): Promise<{ success: boolean; error?: string }> {
   const messageType = message.message_type
+  const serverAttested = messageType === 'REALTIME_EVENT'
   if (
     !messageType ||
     !message.from ||
     !message.to ||
-    !message.signature ||
+    (!message.signature && !serverAttested) ||
     !message.nonce ||
     !(message.protocol_version >= 2)
   ) {
@@ -332,36 +334,9 @@ export async function processFederationMessage(
   }
 
   const payload = message.payload ?? {}
-  const signableMessage = buildClientSignableV2({
-    protocol_version: message.protocol_version,
-    message_type: messageType,
-    message_version: message.message_version ?? 1,
-    from: message.from,
-    to: message.to,
-    nonce: message.nonce,
-    timestamp: message.timestamp,
-    payload,
-  })
-
-  let isValid = false
-  try {
-    isValid = verifySignature(
-      signableMessage,
-      message.signature,
-      sender.signingKey,
-    )
-  } catch (err) {
-    if (err instanceof MalformedSignatureInputError) {
-      return {
-        success: false,
-        error: `Malformed signature input: ${(err as Error).message}`,
-      }
-    }
-    throw err
-  }
-
-  if (!isValid) {
-    return { success: false, error: 'Invalid signature' }
+  if (!serverAttested) {
+    const signatureError = verifyClientSignature(message, payload, sender.signingKey)
+    if (signatureError) return { success: false, error: signatureError }
   }
 
   const parsed = parseHandle(message.to)
@@ -451,6 +426,33 @@ export async function processFederationMessage(
         success: false,
         error: `Unsupported message type: ${messageType}`,
       }
+  }
+}
+
+function verifyClientSignature(
+  message: FederationMessage,
+  payload: Record<string, unknown>,
+  signingKey: string,
+): string | null {
+  const signableMessage = buildClientSignableV2({
+    protocol_version: message.protocol_version,
+    message_type: message.message_type,
+    message_version: message.message_version ?? 1,
+    from: message.from,
+    to: message.to,
+    nonce: message.nonce,
+    timestamp: message.timestamp,
+    payload,
+  })
+  try {
+    return verifySignature(signableMessage, message.signature, signingKey)
+      ? null
+      : 'Invalid signature'
+  } catch (err) {
+    if (err instanceof MalformedSignatureInputError) {
+      return `Malformed signature input: ${(err as Error).message}`
+    }
+    throw err
   }
 }
 

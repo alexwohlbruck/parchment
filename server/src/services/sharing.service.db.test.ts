@@ -57,9 +57,7 @@ async function seedUsers() {
   aliceHandle = buildHandle(ALICE_ALIAS)
   bobHandle = buildHandle(BOB_ALIAS)
 
-  // Friendships both ways — createShare doesn't require them but some
-  // downstream helpers (verifyShareFromFriend) do. Not strictly needed
-  // for the flows tested here; keeps the fixture realistic.
+  // createShare only shares with accepted friends.
   await db.insert(friendships).values({
     id: generateId(),
     userId: aliceId,
@@ -146,6 +144,21 @@ describe('createShare', () => {
     expect(incoming.status).toBe('accepted')
     expect(incoming.role).toBe('viewer')
     expect(incoming.senderHandle).toBe(aliceHandle)
+  })
+
+  test('refuses a recipient who is not a friend', async () => {
+    const collectionId = await makeCollection(aliceId)
+
+    await expect(
+      sharingService.createShare({
+        userId: aliceId,
+        recipientHandle: buildHandle(`stranger_${RUN_SUFFIX}`),
+        resourceType: 'collection',
+        resourceId: collectionId,
+        encryptedData: 'ciphertext==',
+        nonce: 'nonce==',
+      }),
+    ).rejects.toBeInstanceOf(sharingService.NotFriendsError)
   })
 
   test('same-server without payload does not create incoming row', async () => {

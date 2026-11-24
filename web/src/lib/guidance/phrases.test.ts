@@ -34,4 +34,17 @@ describe('boarding announcements', () => {
     expect(board({ headsign: 'Inwood-207 St' })).toBe('Board the A toward Inwood-207 St')
     expect(board({})).toBe('Board the A')
   })
+
+  test('say where to stand and what it lines the rider up with', () => {
+    const boarding = { section: 'front', target: { kind: 'exit', name: 'Canal St' }, waitSeconds: null }
+    expect(board({ headsign: 'Far Rockaway', boarding })).toBe('Board the A toward Far Rockaway. Board near the front for the Canal St exit')
+    expect(board({ boarding: { ...boarding, target: { kind: 'transfer', name: '7' } } })).toBe('Board the A. Board near the front for the 7')
+    expect(board({ boarding: { ...boarding, target: null } })).toBe('Board the A. Board near the front')
+  })
+
+  test('with minutes to spare, send the rider along the platform first', () => {
+    const boarding = { section: 'back', target: { kind: 'exit', name: 'Canal St' }, waitSeconds: 270 }
+    expect(board({ boarding })).toBe('Board the A. You have 4 min, walk to the back of the platform for the Canal St exit')
+    expect(board({ boarding: { ...boarding, target: null } })).toBe('Board the A. You have 4 min, walk to the back of the platform')
+  })
 })

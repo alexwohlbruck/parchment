@@ -46,6 +46,7 @@ import { getRouteTypeKey } from '@/lib/transit/transit'
 import { nextRunAfter, type LineRun } from '@/services/transit/transit-departures.service'
 import { guidanceClock } from '@/services/guidance/guidance-clock'
 import { announcementText } from '@/lib/guidance/phrases'
+import { boardingTarget, waitWalkSeconds } from '@/lib/transit/station/boarding'
 import { travelModeAt } from '@/lib/guidance/guidance-display'
 import { speak, releaseSpeech, unlockSpeech, stopSpeech } from '@/services/speech/speech.service'
 import { navigationSpeechRate, speechDuration } from '@/lib/guidance/speech-rate'
@@ -395,7 +396,11 @@ export const useGuidanceStore = defineStore('guidance', () => {
     spokenTransit.add(key)
     const segment = segments.value[stage.segmentIndex]
     const stop = stage.kind === 'riding' || stage.kind === 'missed-stop' ? stage.alight : stage.stop
-    announce({ kind: 'transit', event, line: segment?.lineName ?? '', headsign: segment?.headsign, direction: segment?.directionLabel, stop }, puck.s)
+    const position = segment?.boardingPosition
+    const boarding = stage.kind === 'wait' && position
+      ? { section: position.section, target: boardingTarget(position), waitSeconds: waitWalkSeconds(position, stage.departureMs, nowMs) }
+      : undefined
+    announce({ kind: 'transit', event, line: segment?.lineName ?? '', headsign: segment?.headsign, direction: segment?.directionLabel, stop, boarding }, puck.s)
     if (event === 'alight-now' || event.startsWith('missed')) void hapticImpact('heavy')
   }
 

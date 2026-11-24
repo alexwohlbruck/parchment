@@ -71,8 +71,6 @@ defineExpose({ reset, hasSavedKey, handleConfirm })
         <span class="mt-4 flex items-center justify-center gap-1.5 text-xs text-muted-foreground transition-colors group-hover:text-foreground">
           <component :is="copied ? Check : Copy" class="size-3.5" aria-hidden="true" />
           {{ copied ? t('settings.identity.recoveryKey.view.copied') : t('settings.identity.recoveryKey.view.copyToClipboard') }}
-          <span aria-hidden="true">·</span>
-          {{ t('settings.identity.recoveryKey.setup.masterPasswordHint') }}
         </span>
       </button>
 

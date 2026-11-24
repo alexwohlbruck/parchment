@@ -2858,7 +2858,6 @@
           "importantDescription": "Si pierdes todos tus dispositivos y claves de acceso, estas palabras serán la única forma de restaurar tus datos cifrados.",
           "generating": "Generando...",
           "keyCopiedToast": "Palabras de recuperación copiadas. Pégalas en tu gestor de contraseñas.",
-          "masterPasswordHint": "Guárdalas en tu gestor de contraseñas.",
           "failedFallback": "Error de configuración"
         },
         "passkeyOffer": {

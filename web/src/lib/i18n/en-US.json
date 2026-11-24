@@ -2961,7 +2961,6 @@
           "importantDescription": "If you lose every device and passkey, these words are your only way to restore encrypted data.",
           "generating": "Generating...",
           "keyCopiedToast": "Recovery words copied. Paste them into your password manager.",
-          "masterPasswordHint": "Save them in your password manager.",
           "failedFallback": "Setup failed"
         },
         "passkeyOffer": {

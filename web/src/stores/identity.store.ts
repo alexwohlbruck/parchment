@@ -7,7 +7,7 @@ import {
   completeIdentitySetup,
   importIdentityFromRecoveryKey,
   getLocalIdentity,
-  getRecoveryKey,
+  getRecoveryWords,
   updateAlias as updateAliasService,
   clearLocalIdentity,
   needsIdentitySetup,
@@ -19,6 +19,7 @@ import {
   unlockSeedWithPasskey,
   resetServerIdentity,
   type Identity,
+  type RecoveryImportResult,
 } from '@/services/identity.service'
 import { useAuthService } from '@/services/auth.service'
 import { useAuthStore } from '@/stores/auth.store'
@@ -76,7 +77,7 @@ export const useIdentityStore = defineStore('identity', () => {
   const localKeys = ref<DerivedKeys | null>(null)
   const isLoading = ref(false)
   const hasLocalIdentity = ref(false)
-  const pendingRecoveryKey = ref<string | null>(null)
+  const pendingRecoveryWords = ref<string[] | null>(null)
   const pendingSeed = ref<Uint8Array | null>(null)
   const pendingKeys = ref<DerivedKeys | null>(null)
   // Set of credentialIds that have a wrapped-K_m recovery slot on the
@@ -128,6 +129,23 @@ export const useIdentityStore = defineStore('identity', () => {
   const needsImport = computed(() => 
     !hasLocalIdentity.value && !!identity.value?.signingKey
   )
+
+  /**
+   * The signing key whose recovery words the user showed they kept,
+   * synced with the account. `undefined` until the account's copy has
+   * loaded. New keys (rotation, reset) bring new words, so a stale value
+   * reads as unsaved.
+   */
+  const recoveryWordsSavedFor = ref<string | null>()
+  const hasSavedRecoveryWords = computed(() => {
+    if (recoveryWordsSavedFor.value === undefined || !identity.value?.signingKey) return undefined
+    return recoveryWordsSavedFor.value === identity.value.signingKey
+  })
+  function markRecoveryWordsSaved() {
+    // A stale device still holds the previous seed, so its words are the old ones.
+    if (isStale.value || !identity.value?.signingKey) return
+    recoveryWordsSavedFor.value = identity.value.signingKey
+  }
   
   // Key accessors for encryption
   const signingPrivateKey = computed(() => localKeys.value?.signing.privateKey || null)
@@ -173,16 +191,14 @@ export const useIdentityStore = defineStore('identity', () => {
 
   /**
    * Start the identity setup flow
-   * Generates new seed and keys, returns recovery key for user to save
+   * Generates new seed and keys, and the recovery words for the user to save
    */
-  async function startSetup(): Promise<string> {
-    const { seed, keys, recoveryKey } = await generateNewIdentity()
-    
+  async function startSetup(): Promise<void> {
+    const { seed, keys, recoveryWords } = await generateNewIdentity()
+
     pendingSeed.value = seed
     pendingKeys.value = keys
-    pendingRecoveryKey.value = recoveryKey
-    
-    return recoveryKey
+    pendingRecoveryWords.value = recoveryWords
   }
 
   /**
@@ -204,11 +220,13 @@ export const useIdentityStore = defineStore('identity', () => {
       // the new signingKey before we try to ship any client-signed
       // messages to them.
       identity.value = await fetchIdentityFromServer()
+      // Setup only completes once the user has retyped words from their copy.
+      markRecoveryWordsSaved()
 
       // Clear pending state
       pendingSeed.value = null
       pendingKeys.value = null
-      pendingRecoveryKey.value = null
+      pendingRecoveryWords.value = null
 
       // Fan out any pending RELATIONSHIP_REVOKE messages queued by a
       // prior `resetUserIdentity`. This is what tells friends /
@@ -239,7 +257,7 @@ export const useIdentityStore = defineStore('identity', () => {
   function cancelSetup() {
     pendingSeed.value = null
     pendingKeys.value = null
-    pendingRecoveryKey.value = null
+    pendingRecoveryWords.value = null
   }
 
   /**
@@ -247,28 +265,26 @@ export const useIdentityStore = defineStore('identity', () => {
    */
   async function importFromRecoveryKey(
     recoveryKey: string,
-  ): Promise<{ success: boolean; error?: string }> {
+  ): Promise<RecoveryImportResult> {
     isLoading.value = true
     try {
       const result = await importIdentityFromRecoveryKey(recoveryKey)
-      
+
       if (result.success) {
         hasLocalIdentity.value = true
         localKeys.value = await getLocalIdentity()
         identity.value = await fetchIdentityFromServer()
+        if (result.fromWords) markRecoveryWordsSaved()
       }
-      
+
       return result
     } finally {
       isLoading.value = false
     }
   }
 
-  /**
-   * Get the recovery key for display
-   */
-  async function fetchRecoveryKey(): Promise<string | null> {
-    return getRecoveryKey()
+  async function fetchRecoveryWords(): Promise<string[] | null> {
+    return getRecoveryWords()
   }
 
   /**
@@ -315,7 +331,7 @@ export const useIdentityStore = defineStore('identity', () => {
       hasLocalIdentity.value = false
       pendingSeed.value = null
       pendingKeys.value = null
-      pendingRecoveryKey.value = null
+      pendingRecoveryWords.value = null
       passkeySlotCredentialIds.value = new Set()
       return { success: true }
     } finally {
@@ -333,9 +349,10 @@ export const useIdentityStore = defineStore('identity', () => {
     hasLocalIdentity.value = false
     pendingSeed.value = null
     pendingKeys.value = null
-    pendingRecoveryKey.value = null
+    pendingRecoveryWords.value = null
     passkeySlotCredentialIds.value = new Set()
     isStale.value = false
+    recoveryWordsSavedFor.value = undefined
   }
 
   /**
@@ -680,7 +697,9 @@ export const useIdentityStore = defineStore('identity', () => {
     localKeys,
     isLoading,
     hasLocalIdentity,
-    pendingRecoveryKey,
+    pendingRecoveryWords,
+    recoveryWordsSavedFor,
+    hasSavedRecoveryWords,
     hasAnyPasskeySlot,
     passkeySlotCredentialIds,
     passkeyListVersion,
@@ -706,7 +725,8 @@ export const useIdentityStore = defineStore('identity', () => {
     completeSetup,
     cancelSetup,
     importFromRecoveryKey,
-    fetchRecoveryKey,
+    fetchRecoveryWords,
+    markRecoveryWordsSaved,
     updateAlias,
     clear,
     refreshSlotAvailability,

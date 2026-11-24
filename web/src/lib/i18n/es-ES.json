@@ -499,7 +499,7 @@
         "description": "Cerrar sesión de tu cuenta",
         "keywords": "logout salir cuenta usuario",
         "confirmTitle": "¿Cerrar sesión?",
-        "confirmDescription": "Asegúrate de haber guardado tu clave de recuperación — la necesitarás, o una clave de acceso, para volver a iniciar sesión."
+        "confirmDescription": "Asegúrate de haber guardado tus palabras de recuperación — las necesitarás, o una clave de acceso, para volver a iniciar sesión."
       },
       "ask": {
         "name": "Preguntar",
@@ -1314,7 +1314,7 @@
           "description": "Cifrado de extremo a extremo, así que el servidor no puede leerlo."
         }
       },
-      "needsIdentity": "Necesita tu clave de recuperación en este dispositivo.",
+      "needsIdentity": "Necesita tus palabras de recuperación en este dispositivo.",
       "switchTo": {
         "server-key": "Hacerlo compartible",
         "user-e2ee": "Hacerlo privado"
@@ -1330,7 +1330,7 @@
           },
           "user-e2ee": {
             "title": "¿Hacer privada esta colección?",
-            "description": "Su nombre y sus lugares se cifrarán en este dispositivo. Solo los dispositivos con tu clave de recuperación podrán abrirla, y se revocará cualquier enlace público."
+            "description": "Su nombre y sus lugares se cifrarán en este dispositivo. Solo los dispositivos con tus palabras de recuperación podrán abrirla, y se revocará cualquier enlace público."
           }
         },
         "canvas": {
@@ -1340,7 +1340,7 @@
           },
           "user-e2ee": {
             "title": "¿Hacer privado este lienzo?",
-            "description": "Su nombre y sus capas se cifrarán en este dispositivo. Solo los dispositivos con tu clave de recuperación podrán abrirlo, y se revocará cualquier enlace público."
+            "description": "Su nombre y sus capas se cifrarán en este dispositivo. Solo los dispositivos con tus palabras de recuperación podrán abrirlo, y se revocará cualquier enlace público."
           }
         }
       }
@@ -1554,10 +1554,8 @@
       "set": "Configurar",
       "setupButton": "Configurar identidad",
       "setupDescription": "Configura tu identidad federada para conectar con amigos y compartir datos de forma segura entre servidores de Parchment.",
-      "importButton": "Importar clave de recuperación",
-      "importDescription": "Tu identidad existe en este servidor, pero necesitas importar tu clave de recuperación para usarla en este dispositivo.",
-      "recoveryKey": "Clave de recuperación",
-      "recoveryKeyDescription": "Ver tu clave de recuperación para respaldo",
+      "importButton": "Introducir palabras de recuperación",
+      "importDescription": "Tu identidad existe en este servidor, pero necesitas introducir tus palabras de recuperación para usarla en este dispositivo.",
       "viewKey": "Ver clave",
       "aliasHint": "3-30 caracteres, letras, números y guiones bajos",
       "updateFailed": "Error al actualizar alias",
@@ -1575,8 +1573,9 @@
       "beforeYouContinue": "Antes de continuar",
       "warning": {
         "keepOpen": "Mantén esta pestaña abierta hasta que termine.",
-        "tapEach": "Cualquier clave de acceso que no toques antes de finalizar no funcionará para recuperación después — ten al menos una clave de acceso o tu clave de recuperación a mano.",
-        "failsSafe": "Si la rotación falla a mitad, nada cambia en el servidor."
+        "tapEach": "Cualquier clave de acceso que no toques antes de finalizar no funcionará para recuperación después — ten al menos una clave de acceso a mano.",
+        "failsSafe": "Si la rotación falla a mitad, nada cambia en el servidor.",
+        "newWords": "Tus palabras de recuperación cambiarán. Guardarás las nuevas al terminar."
       },
       "action": "Rotar claves",
       "runningTitle": "Rotando claves",
@@ -1604,32 +1603,17 @@
     "security": {
       "title": "Claves de cifrado",
       "description": "Tus claves privadas cifran tus datos de extremo a extremo",
-      "recoveryKey": "Clave de recuperación",
-      "recoveryKeyDescription": "Un respaldo de tus claves de cifrado. Guárdala para restaurar el acceso si pierdes todos los dispositivos.",
-      "viewKey": "Ver clave",
+      "recoveryKey": "Palabras de recuperación",
+      "recoveryKeyDescription": "Un respaldo de tus claves de cifrado. Guárdalas para restaurar el acceso si pierdes todos los dispositivos.",
+      "viewKey": "Ver palabras",
       "rotateKeys": "Rotar claves de cifrado",
       "rotateKeysDescription": "Genera nuevas claves de cifrado y vuelve a cifrar tus datos con ellas.",
       "rotate": "Rotar",
       "setupAnotherDevice": "Configurar otro dispositivo",
       "setupAnotherDeviceDescription": "Comparte tus claves de cifrado con un teléfono o navegador nuevo para que pueda leer tus datos cifrados.",
-      "setupAction": "Configurar"
-    },
-    "recoveryKey": {
-      "setupTitle": "Configurar identidad",
-      "setupDescription": "Crea tu identidad federada con cifrado de extremo a extremo",
-      "importTitle": "Importar clave de recuperación",
-      "importDescription": "Restaura tu identidad usando tu clave de recuperación",
-      "viewTitle": "Tu clave de recuperación",
-      "viewDescription": "Guarda esta clave de forma segura para recuperar tu identidad en otros dispositivos",
-      "warning": "¡Mantén esta clave en secreto! Cualquiera con esta clave puede acceder a tus datos cifrados.",
-      "copied": "¡Copiado!",
-      "copyKey": "Copiar clave",
-      "confirmSaved": "He guardado mi clave de recuperación de forma segura",
-      "completeSetup": "Completar configuración",
-      "enterKey": "Introduce tu clave de recuperación",
-      "invalidKey": "Formato de clave de recuperación inválido",
-      "importFailed": "Error al importar clave de recuperación",
-      "importKey": "Importar clave"
+      "setupAction": "Configurar",
+      "recoveryKeyUnsavedDescription": "Tu clave de recuperación ahora son 24 palabras. Guárdalas para restaurar el acceso si pierdes todos los dispositivos.",
+      "saveWords": "Guardar palabras"
     },
     "map": {
       "lastSeen": "Visto por última vez",
@@ -2870,20 +2854,17 @@
       "recoveryKey": {
         "setup": {
           "title": "Configurar identidad federada",
-          "description": "Tu clave de recuperación es tu último recurso para volver a entrar si pierdes todos los dispositivos. Guárdala en un lugar seguro — un gestor de contraseñas es ideal. En el siguiente paso te ofreceremos configurar una clave de acceso para la recuperación diaria.",
-          "importantTitle": "Importante",
-          "importantDescription": "Si pierdes todos tus dispositivos y claves de acceso, esta clave será la única forma de restaurar tus datos cifrados.",
-          "keyLabel": "Clave de recuperación",
+          "description": "Tus 24 palabras de recuperación son tu último recurso para volver a entrar si pierdes todos los dispositivos. Anótalas o guárdalas en un gestor de contraseñas. En el siguiente paso te ofreceremos configurar una clave de acceso para la recuperación diaria.",
+          "importantDescription": "Si pierdes todos tus dispositivos y claves de acceso, estas palabras serán la única forma de restaurar tus datos cifrados.",
           "generating": "Generando...",
-          "keyCopiedToast": "Clave de recuperación copiada. Pégala en tu gestor de contraseñas.",
-          "masterPasswordHint": "Guárdala en tu gestor de contraseñas.",
-          "confirmSavedLabel": "He guardado mi clave de recuperación en un lugar seguro.",
+          "keyCopiedToast": "Palabras de recuperación copiadas. Pégalas en tu gestor de contraseñas.",
+          "masterPasswordHint": "Guárdalas en tu gestor de contraseñas.",
           "failedFallback": "Error de configuración"
         },
         "passkeyOffer": {
           "title": "¿Añadir una clave de acceso para recuperación?",
-          "description": "Las claves de acceso te permiten recuperar tu identidad en un nuevo dispositivo con un solo toque, sin necesidad de clave de recuperación. Siempre puedes añadir más desde Configuración.",
-          "alertDescription": "Tu clave de recuperación ya está a salvo. Añadir una clave de acceso es opcional pero muy recomendable.",
+          "description": "Las claves de acceso te permiten recuperar tu identidad en un nuevo dispositivo con un solo toque, sin necesidad de palabras de recuperación. Siempre puedes añadir más desde Configuración.",
+          "alertDescription": "Tus palabras de recuperación ya están a salvo. Añadir una clave de acceso es opcional pero muy recomendable.",
           "existingLabel": "Tu clave de acceso actual",
           "existingHint": "Úsala también para recuperar tus datos.",
           "useExisting": "Usar esta clave de acceso",
@@ -2891,7 +2872,7 @@
           "addPasskey": "Añadir clave de acceso",
           "skipForNow": "Omitir por ahora",
           "cannotUseError": "Esta clave de acceso no se puede usar para recuperación. Prueba añadiendo una nueva.",
-          "enableFailedError": "No se pudo habilitar la recuperación con clave de acceso. Aún puedes terminar la configuración usando tu clave de recuperación."
+          "enableFailedError": "No se pudo habilitar la recuperación con clave de acceso. Aún puedes terminar la configuración usando tus palabras de recuperación."
         },
         "complete": {
           "title": "Identidad configurada",
@@ -2903,18 +2884,21 @@
           "chooseDescription": "Toca una de tus claves de acceso registradas para recuperar tu identidad en este dispositivo.",
           "unlockWithPasskey": "Desbloquear con clave de acceso",
           "pairWithOtherDevice": "Emparejar con tu otro dispositivo",
-          "useRecoveryKeyInstead": "Usar clave de recuperación en su lugar",
+          "useRecoveryKeyInstead": "Usar palabras de recuperación en su lugar",
           "unlockFailed": "No se pudo desbloquear con la clave de acceso",
-          "typeKeyTitle": "Introduce tu clave de recuperación",
-          "typeKeyDescription": "La clave que guardaste al configurar tu cuenta, a menudo en un gestor de contraseñas.",
-          "recoveryKeyLabel": "Clave de recuperación",
-          "recoveryKeyPlaceholder": "Pega tu clave",
-          "invalidKey": "Esa clave no coincide con esta cuenta",
+          "typeKeyTitle": "Introduce tus palabras de recuperación",
+          "typeKeyDescription": "Las 24 palabras que guardaste al configurar tu cuenta. Una clave de recuperación antigua también sirve.",
+          "recoveryKeyLabel": "Palabras de recuperación",
+          "recoveryKeyPlaceholder": "Escribe o pega tus 24 palabras",
+          "invalidKey": "Esas palabras no coinciden con esta cuenta",
           "importAction": "Restaurar",
-          "lostKeyLink": "¿Perdiste tu clave?",
+          "lostKeyLink": "¿Perdiste tus palabras?",
           "usePasskeyInstead": "Usar una clave de acceso",
           "completeTitle": "Identidad restaurada",
-          "completeMessage": "¡Identidad restaurada correctamente!"
+          "completeMessage": "¡Identidad restaurada correctamente!",
+          "unknownWord": "«{word}» no es una palabra de recuperación. Revisa la ortografía",
+          "wordCount": "Introduce las 24 palabras",
+          "wrongOrder": "Esas palabras no encajan. Revisa su orden"
         },
         "reset": {
           "confirmTitle": "¿Restablecer tu cuenta?",
@@ -2924,14 +2908,27 @@
           "failedFallback": "Error al restablecer. Por favor, inténtalo de nuevo."
         },
         "view": {
-          "title": "Tu clave de recuperación",
-          "description": "Un respaldo para tu cuenta. Guárdala en un lugar seguro.",
+          "title": "Tus palabras de recuperación",
+          "description": "Un respaldo para tu cuenta. Guárdalas en un lugar seguro.",
           "federationIdLabel": "Tu ID de federación — compártelo con amigos",
           "keepSecretTitle": "Mantén esto en secreto",
-          "keepSecretDescription": "Cualquiera con esta clave puede iniciar sesión como tú en cualquier dispositivo.",
-          "keyLabel": "Clave de recuperación — guárdala en un gestor de contraseñas o imprímela",
+          "keepSecretDescription": "Cualquiera con estas palabras puede iniciar sesión como tú en cualquier dispositivo.",
+          "keyLabel": "Palabras de recuperación — anótalas o guárdalas en un gestor de contraseñas",
           "copied": "Copiado",
-          "copyToClipboard": "Copiar al portapapeles"
+          "copyToClipboard": "Copiar al portapapeles",
+          "descriptionUnsaved": "Estas 24 palabras sustituyen a tu antigua clave de recuperación. Anótalas y guárdalas en un lugar seguro."
+        },
+        "check": {
+          "prompt": "Escribe estas 3 palabras de tu copia guardada",
+          "wordLabel": "Palabra {number}",
+          "start": "Ya las guardé",
+          "showAgain": "Mostrar mis palabras otra vez",
+          "savedToast": "Palabras de recuperación guardadas"
+        },
+        "prompt": {
+          "title": "Guarda tus 24 palabras de recuperación",
+          "description": "Sustituyen a tu antigua clave de recuperación.",
+          "action": "Guardar palabras"
         }
       },
       "transferDevice": {
@@ -2998,7 +2995,7 @@
         "secondTapToast": "Un toque más para terminar la configuración.",
         "addErrorFallback": "No se pudo añadir la clave de acceso",
         "addSuccess": "Clave de acceso añadida. Puedes usarla en cualquier dispositivo.",
-        "addNoRecoveryFallback": "Clave de acceso añadida, pero no se puede usar para recuperación.",
+        "addNoRecoveryFallback": "Clave de acceso añadida solo para iniciar sesión. No puede desbloquear tus datos cifrados, así que conserva tus palabras de recuperación.",
         "recoveryOnSuccess": "Recuperación activada. Usa esta clave de acceso en cualquier dispositivo.",
         "cannotUseForRecovery": "Esta clave de acceso no se puede usar para recuperación.",
         "recoveryFailedFallback": "No se pudo activar la recuperación.",
@@ -3006,7 +3003,10 @@
         "deleteConfirmDescription": "Ya no podrás usar esta clave de acceso para iniciar sesión en ningún dispositivo.",
         "refreshKeysTitle": "¿Actualizar claves de cuenta?",
         "refreshKeysDescription": "Si este dispositivo se perdió, actualiza para mantener tus datos a salvo. Tocarás tus otras claves de acceso.",
-        "refreshKeysAction": "Actualizar"
+        "refreshKeysAction": "Actualizar",
+        "deleteUnlockDescription": "Ya no iniciarás sesión con esta clave de acceso ni podrás usarla para desbloquear tus datos cifrados en un dispositivo nuevo.",
+        "deleteLastUnlockTitle": "¿Eliminar tu única forma de volver a entrar?",
+        "deleteLastUnlockDescription": "Es la única clave de acceso que puede desbloquear tus datos cifrados en un dispositivo nuevo. Asegúrate antes de tener tus 24 palabras de recuperación, o podrías perder tus lugares guardados."
       },
       "sessions": {
         "columns": {
@@ -3715,8 +3715,8 @@
       "saveFailed": "No se pudo guardar. Prueba con otro nombre."
     },
     "recoveryKey": {
-      "title": "Guarda tu clave de recuperación",
-      "description": "Guarda esta clave para restaurar tus datos cifrados si pierdes el acceso."
+      "title": "Guarda tus palabras de recuperación",
+      "description": "Estas 24 palabras restauran tus datos cifrados si pierdes el acceso."
     },
     "theme": {
       "title": "A tu gusto",

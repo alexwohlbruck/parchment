@@ -149,6 +149,7 @@ function handleClose() {
               <ul class="list-disc pl-4 space-y-1 text-xs mt-1">
                 <li>{{ t('friends.rotateKeys.warning.keepOpen') }}</li>
                 <li>{{ t('friends.rotateKeys.warning.tapEach') }}</li>
+                <li>{{ t('friends.rotateKeys.warning.newWords') }}</li>
                 <li>{{ t('friends.rotateKeys.warning.failsSafe') }}</li>
               </ul>
             </AlertDescription>

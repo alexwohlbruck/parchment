@@ -505,7 +505,7 @@
         "description": "Sign out of your account",
         "keywords": "logout exit account user",
         "confirmTitle": "Sign out?",
-        "confirmDescription": "Make sure you have your recovery key saved — you'll need it or a passkey to sign back in."
+        "confirmDescription": "Make sure you have your recovery words saved — you'll need them or a passkey to sign back in."
       },
       "ask": {
         "name": "Ask",
@@ -1396,7 +1396,7 @@
           "description": "End-to-end encrypted, so the server can’t read it."
         }
       },
-      "needsIdentity": "Needs your recovery key on this device.",
+      "needsIdentity": "Needs your recovery words on this device.",
       "switchTo": {
         "server-key": "Make it shareable",
         "user-e2ee": "Make it private"
@@ -1412,7 +1412,7 @@
           },
           "user-e2ee": {
             "title": "Make this collection private?",
-            "description": "Its name and places will be encrypted on this device. Only devices holding your recovery key will be able to open it, and any public link is revoked."
+            "description": "Its name and places will be encrypted on this device. Only devices holding your recovery words will be able to open it, and any public link is revoked."
           }
         },
         "canvas": {
@@ -1422,7 +1422,7 @@
           },
           "user-e2ee": {
             "title": "Make this canvas private?",
-            "description": "Its name and layers will be encrypted on this device. Only devices holding your recovery key will be able to open it, and any public link is revoked."
+            "description": "Its name and layers will be encrypted on this device. Only devices holding your recovery words will be able to open it, and any public link is revoked."
           }
         }
       }
@@ -1634,10 +1634,8 @@
       "set": "Set",
       "setupButton": "Set up identity",
       "setupDescription": "Set up a handle so friends can find you",
-      "importButton": "Import recovery key",
-      "importDescription": "Your identity exists on this server, but you need to import your recovery key to use it on this device.",
-      "recoveryKey": "Recovery key",
-      "recoveryKeyDescription": "View your recovery key for backup",
+      "importButton": "Enter recovery words",
+      "importDescription": "Your identity exists on this server, but you need to enter your recovery words to use it on this device.",
       "viewKey": "View key",
       "aliasHint": "3-30 characters, letters, numbers, underscores only",
       "updateFailed": "Failed to update alias",
@@ -1655,8 +1653,9 @@
       "beforeYouContinue": "Before you continue",
       "warning": {
         "keepOpen": "Keep this tab open until it finishes.",
-        "tapEach": "Any passkey you don't tap before finishing won't work for recovery afterward — have at least one passkey or your recovery key ready.",
-        "failsSafe": "If rotation fails partway, nothing changes on the server."
+        "tapEach": "Any passkey you don't tap before finishing won't work for recovery afterward — have at least one passkey ready.",
+        "failsSafe": "If rotation fails partway, nothing changes on the server.",
+        "newWords": "Your recovery words will change. You'll save the new ones when it finishes."
       },
       "action": "Rotate keys",
       "runningTitle": "Rotating keys",
@@ -1684,32 +1683,17 @@
     "security": {
       "title": "Encryption keys",
       "description": "Your private keys encrypt your data end-to-end",
-      "recoveryKey": "Recovery key",
-      "recoveryKeyDescription": "A backup of your encryption keys. Save it to restore access if you lose every device.",
-      "viewKey": "View key",
+      "recoveryKey": "Recovery words",
+      "recoveryKeyDescription": "A backup of your encryption keys. Save them to restore access if you lose every device.",
+      "viewKey": "View words",
       "rotateKeys": "Rotate encryption keys",
       "rotateKeysDescription": "Generate new encryption keys and re-encrypt your data under them.",
       "rotate": "Rotate",
       "setupAnotherDevice": "Set up another device",
       "setupAnotherDeviceDescription": "Share your encryption keys with a new phone or browser so it can read your encrypted data.",
-      "setupAction": "Set up"
-    },
-    "recoveryKey": {
-      "setupTitle": "Set up identity",
-      "setupDescription": "Create your federation identity with end-to-end encryption",
-      "importTitle": "Import recovery key",
-      "importDescription": "Restore your identity using your recovery key",
-      "viewTitle": "Your recovery key",
-      "viewDescription": "Save this key securely to recover your identity on other devices",
-      "warning": "Keep this key secret! Anyone with this key can access your encrypted data.",
-      "copied": "Copied",
-      "copyKey": "Copy key",
-      "confirmSaved": "I have saved my recovery key securely",
-      "completeSetup": "Complete setup",
-      "enterKey": "Enter your recovery key",
-      "invalidKey": "Invalid recovery key format",
-      "importFailed": "Failed to import recovery key",
-      "importKey": "Import key"
+      "setupAction": "Set up",
+      "recoveryKeyUnsavedDescription": "Your recovery key is now 24 words. Save them to restore access if you lose every device.",
+      "saveWords": "Save words"
     },
     "map": {
       "lastSeen": "Last seen",
@@ -2973,20 +2957,17 @@
       "recoveryKey": {
         "setup": {
           "title": "Set Up Federation Identity",
-          "description": "Your recovery key is your last-resort way back in if you lose every device. Save it somewhere safe — a password manager is ideal. We'll offer to set up a passkey for everyday recovery in the next step.",
-          "importantTitle": "Important",
-          "importantDescription": "If you lose every device and passkey, this key is your only way to restore encrypted data.",
-          "keyLabel": "Recovery key",
+          "description": "Your 24 recovery words are your last-resort way back in if you lose every device. Write them down or keep them in a password manager. We'll offer to set up a passkey for everyday recovery in the next step.",
+          "importantDescription": "If you lose every device and passkey, these words are your only way to restore encrypted data.",
           "generating": "Generating...",
-          "keyCopiedToast": "Recovery key copied. Paste it into your password manager.",
-          "masterPasswordHint": "Save it in your password manager.",
-          "confirmSavedLabel": "I’ve saved my recovery key somewhere safe.",
+          "keyCopiedToast": "Recovery words copied. Paste them into your password manager.",
+          "masterPasswordHint": "Save them in your password manager.",
           "failedFallback": "Setup failed"
         },
         "passkeyOffer": {
           "title": "Add a passkey for recovery?",
-          "description": "Passkeys let you recover your identity on a new device with a single tap, no recovery key required. You can always add more later from Settings.",
-          "alertDescription": "Your recovery key is already safe. Adding a passkey is optional but strongly recommended.",
+          "description": "Passkeys let you recover your identity on a new device with a single tap, no recovery words required. You can always add more later from Settings.",
+          "alertDescription": "Your recovery words are already safe. Adding a passkey is optional but strongly recommended.",
           "existingLabel": "Your existing passkey",
           "existingHint": "Use it for recovery, too.",
           "useExisting": "Use this passkey",
@@ -2994,7 +2975,7 @@
           "addPasskey": "Add passkey",
           "skipForNow": "Skip for now",
           "cannotUseError": "This passkey can't be used for recovery. Try adding a new one.",
-          "enableFailedError": "Could not enable passkey recovery. You can still finish setup using your recovery key."
+          "enableFailedError": "Could not enable passkey recovery. You can still finish setup using your recovery words."
         },
         "complete": {
           "title": "Identity set up",
@@ -3006,18 +2987,21 @@
           "chooseDescription": "Tap one of your registered passkeys to recover your identity on this device.",
           "unlockWithPasskey": "Unlock with passkey",
           "pairWithOtherDevice": "Pair with your other device",
-          "useRecoveryKeyInstead": "Use recovery key instead",
+          "useRecoveryKeyInstead": "Use recovery words instead",
           "unlockFailed": "Could not unlock with passkey",
-          "typeKeyTitle": "Enter your recovery key",
-          "typeKeyDescription": "The key you saved during setup, often in a password manager.",
-          "recoveryKeyLabel": "Recovery key",
-          "recoveryKeyPlaceholder": "Paste your key",
-          "invalidKey": "That key doesn't match this account",
+          "typeKeyTitle": "Enter your recovery words",
+          "typeKeyDescription": "The 24 words you saved during setup. An older recovery key works too.",
+          "recoveryKeyLabel": "Recovery words",
+          "recoveryKeyPlaceholder": "Type or paste your 24 words",
+          "invalidKey": "Those words don't match this account",
           "importAction": "Restore",
-          "lostKeyLink": "Lost your key?",
+          "lostKeyLink": "Lost your words?",
           "usePasskeyInstead": "Use a passkey",
           "completeTitle": "Identity restored",
-          "completeMessage": "Identity restored successfully!"
+          "completeMessage": "Identity restored successfully!",
+          "unknownWord": "“{word}” isn't a recovery word. Check the spelling",
+          "wordCount": "Enter all 24 words",
+          "wrongOrder": "Those words don't fit together. Check their order"
         },
         "reset": {
           "confirmTitle": "Reset your account?",
@@ -3027,14 +3011,27 @@
           "failedFallback": "Reset failed. Please try again."
         },
         "view": {
-          "title": "Your recovery key",
-          "description": "A backup for your account. Save it somewhere safe.",
+          "title": "Your recovery words",
+          "description": "A backup for your account. Keep them somewhere safe.",
           "federationIdLabel": "Your federation ID — share with friends",
           "keepSecretTitle": "Keep this secret",
-          "keepSecretDescription": "Anyone with this key can sign in as you on any device.",
-          "keyLabel": "Recovery key — save in a password manager or print it",
+          "keepSecretDescription": "Anyone with these words can sign in as you on any device.",
+          "keyLabel": "Recovery words — write them down or save them in a password manager",
           "copied": "Copied",
-          "copyToClipboard": "Copy to clipboard"
+          "copyToClipboard": "Copy to clipboard",
+          "descriptionUnsaved": "These 24 words replace your old recovery key. Write them down and keep them somewhere safe."
+        },
+        "check": {
+          "prompt": "Type these 3 words from your saved copy",
+          "wordLabel": "Word {number}",
+          "start": "I've saved them",
+          "showAgain": "Show my words again",
+          "savedToast": "Recovery words saved"
+        },
+        "prompt": {
+          "title": "Save your 24 recovery words",
+          "description": "They replace your old recovery key.",
+          "action": "Save words"
         }
       },
       "transferDevice": {
@@ -3101,7 +3098,7 @@
         "secondTapToast": "One more tap to finish setup.",
         "addErrorFallback": "Couldn't add passkey",
         "addSuccess": "Passkey added. You can use it on any device.",
-        "addNoRecoveryFallback": "Passkey added, but it can't be used for recovery.",
+        "addNoRecoveryFallback": "Passkey added for sign-in only. It can't unlock your encrypted data, so keep your recovery words safe.",
         "recoveryOnSuccess": "Recovery on. Use this passkey on any device.",
         "cannotUseForRecovery": "This passkey can't be used for recovery.",
         "recoveryFailedFallback": "Couldn't turn on recovery.",
@@ -3109,7 +3106,10 @@
         "deleteConfirmDescription": "You will no longer be able to use this passkey to sign in on any device.",
         "refreshKeysTitle": "Refresh account keys?",
         "refreshKeysDescription": "If this device was lost, refresh to keep your data safe. You'll tap your other passkeys.",
-        "refreshKeysAction": "Refresh"
+        "refreshKeysAction": "Refresh",
+        "deleteUnlockDescription": "You'll no longer sign in with this passkey, or use it to unlock your encrypted data on a new device.",
+        "deleteLastUnlockTitle": "Delete your only way back in?",
+        "deleteLastUnlockDescription": "This is the only passkey that can unlock your encrypted data on a new device. Make sure you have your 24 recovery words first, or you could lose your saved places."
       },
       "sessions": {
         "columns": {
@@ -3903,8 +3903,8 @@
       "saveFailed": "Could not save username. Try a different one."
     },
     "recoveryKey": {
-      "title": "Save your recovery key",
-      "description": "Save this key to restore your encrypted data if you lose access."
+      "title": "Save your recovery words",
+      "description": "These 24 words restore your encrypted data if you lose access."
     },
     "theme": {
       "title": "Make it yours",

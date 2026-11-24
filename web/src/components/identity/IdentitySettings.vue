@@ -37,6 +37,7 @@ const {
   needsImport,
   isLoading,
   isStale,
+  hasSavedRecoveryWords,
   rotateKeysRequestCounter,
 } = storeToRefs(identityStore)
 
@@ -285,11 +286,15 @@ function handleSetupComplete() {
         <!-- Recovery Key -->
         <SettingsItem
           :title="t('friends.security.recoveryKey')"
-          :description="t('friends.security.recoveryKeyDescription')"
+          :description="t(hasSavedRecoveryWords === false ? 'friends.security.recoveryKeyUnsavedDescription' : 'friends.security.recoveryKeyDescription')"
           :icon="Key"
         >
-          <Button variant="outline" size="sm" @click="openViewDialog">
-            {{ t('friends.security.viewKey') }}
+          <Button
+            :variant="hasSavedRecoveryWords === false ? 'default' : 'outline'"
+            size="sm"
+            @click="openViewDialog"
+          >
+            {{ t(hasSavedRecoveryWords === false ? 'friends.security.saveWords' : 'friends.security.viewKey') }}
           </Button>
         </SettingsItem>
 

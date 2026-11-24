@@ -3,8 +3,8 @@
  * 
  * Manages the federation identity lifecycle:
  * - First-time setup (generate seed, derive keys, register with server)
- * - Recovery key display and copy
- * - Import recovery key on new device
+ * - Recovery words display and copy
+ * - Import recovery words on new device
  * - Get current identity for signing requests
  */
 
@@ -12,14 +12,18 @@ import { api } from '@/lib/api'
 import {
   generateSeed,
   deriveAllKeys,
-  exportRecoveryKey,
-  importRecoveryKey,
   exportPublicKey,
   importPublicKey,
   sign,
   buildSignableMessage,
   type DerivedKeys,
 } from '@/lib/identity/federation-crypto'
+import {
+  parseRecoveryKey,
+  RecoveryKeyError,
+  seedToRecoveryWords,
+  type RecoveryKeyProblem,
+} from '@/lib/identity/recovery-key'
 import {
   storeSeed,
   getSeed,
@@ -44,11 +48,6 @@ export interface Identity {
   domain: string
 }
 
-export interface IdentityWithKeys extends Identity {
-  keys: DerivedKeys
-  recoveryKey: string
-}
-
 /**
  * Check if the user has a local identity (seed stored)
  */
@@ -70,18 +69,17 @@ export async function fetchIdentityFromServer(): Promise<Identity | null> {
 
 /**
  * Generate a new identity (seed and derived keys)
- * Does NOT register with server yet - user must confirm recovery key first
+ * Does NOT register with server yet - user must confirm recovery words first
  */
 export async function generateNewIdentity(): Promise<{
   seed: Uint8Array
   keys: DerivedKeys
-  recoveryKey: string
+  recoveryWords: string[]
 }> {
   const seed = generateSeed()
   const keys = deriveAllKeys(seed)
-  const recoveryKey = exportRecoveryKey(seed)
-  
-  return { seed, keys, recoveryKey }
+
+  return { seed, keys, recoveryWords: seedToRecoveryWords(seed) }
 }
 
 /**
@@ -102,15 +100,27 @@ export async function completeIdentitySetup(
   })
 }
 
+export type RecoveryImportProblem = RecoveryKeyProblem | 'mismatch'
+
+export interface RecoveryImportResult {
+  success: boolean
+  error?: string
+  problem?: RecoveryImportProblem
+  /** The word that isn't a recovery word, when `problem` is `unknown-word`. */
+  word?: string
+  /** True when the user typed their 24 words rather than a legacy key. */
+  fromWords?: boolean
+}
+
 /**
- * Import identity from recovery key
+ * Import identity from recovery words (or a legacy base64 key).
  * Used when logging in on a new device
  */
 export async function importIdentityFromRecoveryKey(
   recoveryKey: string,
-): Promise<{ success: boolean; error?: string }> {
+): Promise<RecoveryImportResult> {
   try {
-    const seed = importRecoveryKey(recoveryKey)
+    const seed = parseRecoveryKey(recoveryKey)
     const keys = deriveAllKeys(seed)
     
     // Get server identity to verify
@@ -122,6 +132,7 @@ export async function importIdentityFromRecoveryKey(
       if (derivedSigningKey !== serverIdentity.signingKey) {
         return {
           success: false,
+          problem: 'mismatch',
           error: 'Recovery key does not match your account',
         }
       }
@@ -138,10 +149,11 @@ export async function importIdentityFromRecoveryKey(
       })
     }
     
-    return { success: true }
+    return { success: true, fromWords: /\s/.test(recoveryKey.trim()) }
   } catch (error) {
     return {
       success: false,
+      ...(error instanceof RecoveryKeyError && { problem: error.problem, word: error.word }),
       error: error instanceof Error ? error.message : 'Invalid recovery key',
     }
   }
@@ -158,15 +170,10 @@ export async function getLocalIdentity(): Promise<DerivedKeys | null> {
   return deriveAllKeys(seed)
 }
 
-/**
- * Get the recovery key for the current identity
- * Used to display in settings
- */
-export async function getRecoveryKey(): Promise<string | null> {
+/** The recovery words for the identity on this device. */
+export async function getRecoveryWords(): Promise<string[] | null> {
   const seed = await getSeed()
-  if (!seed) return null
-  
-  return exportRecoveryKey(seed)
+  return seed ? seedToRecoveryWords(seed) : null
 }
 
 /**
@@ -372,8 +379,8 @@ export async function enrollPasskeySlot(params: {
         },
       )
     } catch {
-      // User cancelled the second tap or the ceremony errored. The
-      // passkey is still registered — treat as sign-in-only.
+      // Cancelled, or a provider that rejects PRF outright. The passkey
+      // is still registered — treat as sign-in-only.
     }
   }
 

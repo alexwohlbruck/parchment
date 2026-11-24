@@ -4,6 +4,8 @@ import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import { useIdentityStore } from '@/stores/identity.store'
 import { useAppService } from '@/services/app.service'
+import type { RecoveryImportResult } from '@/services/identity.service'
+import { toast } from '@/lib/toast'
 import {
   Dialog,
   DialogContent,
@@ -34,6 +36,7 @@ import PasskeyOfferContent from './PasskeyOfferContent.vue'
 import TransferIdentityDialog from './TransferIdentityDialog.vue'
 import { useDialogCompletion } from '@/composables/useDialogCompletion'
 import RecoveryKeyDisplay from './RecoveryKeyDisplay.vue'
+import RecoveryWordCheck from './RecoveryWordCheck.vue'
 
 type Mode = 'setup' | 'import' | 'view'
 type SetupStep =
@@ -59,7 +62,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const identityStore = useIdentityStore()
 const appService = useAppService()
-const { isLoading, handle, hasAnyPasskeySlot } =
+const { isLoading, handle, hasAnyPasskeySlot, hasSavedRecoveryWords } =
   storeToRefs(identityStore)
 
 const isOpen = computed({
@@ -68,7 +71,9 @@ const isOpen = computed({
 })
 
 const recoveryKeyInput = ref('')
-const existingRecoveryKey = ref<string | null>(null)
+const existingRecoveryWords = ref<string[] | null>(null)
+const checkingWords = ref(false)
+const wordsChecked = ref(false)
 const error = ref<string | null>(null)
 const setupStep = ref<SetupStep>('generate')
 const importStep = ref<ImportStep>('choose')
@@ -104,7 +109,9 @@ watch(
       error.value = null
       await identityStore.startSetup()
     } else if (open && props.mode === 'view') {
-      existingRecoveryKey.value = await identityStore.fetchRecoveryKey()
+      checkingWords.value = false
+      wordsChecked.value = false
+      existingRecoveryWords.value = await identityStore.fetchRecoveryWords()
     } else if (open && props.mode === 'import') {
       importStep.value = 'choose'
       error.value = null
@@ -153,8 +160,27 @@ async function handleImport() {
     importStep.value = 'complete'
     dismissWithCompletion()
   } else {
-    error.value = t('settings.identity.recoveryKey.import.invalidKey')
+    error.value = importError(result)
   }
+}
+
+function importError({ problem, word }: RecoveryImportResult) {
+  switch (problem) {
+    case 'unknown-word':
+      return t('settings.identity.recoveryKey.import.unknownWord', { word })
+    case 'word-count':
+      return t('settings.identity.recoveryKey.import.wordCount')
+    case 'checksum':
+      return t('settings.identity.recoveryKey.import.wrongOrder')
+    default:
+      return t('settings.identity.recoveryKey.import.invalidKey')
+  }
+}
+
+function confirmWordsSaved() {
+  identityStore.markRecoveryWordsSaved()
+  toast.success(t('settings.identity.recoveryKey.check.savedToast'))
+  handleClose()
 }
 
 async function handleResetIdentity() {
@@ -220,7 +246,6 @@ function handleClose() {
             <RecoveryKeySetupContent
               ref="recoveryKeySetupRef"
               @confirm="handleSetupConfirm"
-              @cancel="handleClose"
             />
           </div>
         </template>
@@ -324,7 +349,7 @@ function handleClose() {
           <div class="flex flex-col gap-1.5">
             <Textarea
               v-model="recoveryKeyInput"
-              rows="2"
+              rows="4"
               :aria-label="t('settings.identity.recoveryKey.import.recoveryKeyLabel')"
               :aria-invalid="!!error"
               :placeholder="t('settings.identity.recoveryKey.import.recoveryKeyPlaceholder')"
@@ -332,7 +357,7 @@ function handleClose() {
               autocomplete="off"
               autocapitalize="off"
               spellcheck="false"
-              class="min-h-0 resize-none break-all font-mono text-sm placeholder:font-sans"
+              class="min-h-0 resize-none font-mono text-sm placeholder:font-sans"
               :class="error && 'border-destructive focus-visible:ring-destructive'"
               @input="error = null"
               @keydown.enter.exact.prevent="handleImport"
@@ -398,11 +423,18 @@ function handleClose() {
             {{ t('settings.identity.recoveryKey.view.title') }}
           </DialogTitle>
           <DialogDescription>
-            {{ t('settings.identity.recoveryKey.view.description') }}
+            {{ t(hasSavedRecoveryWords === false ? 'settings.identity.recoveryKey.view.descriptionUnsaved' : 'settings.identity.recoveryKey.view.description') }}
           </DialogDescription>
         </DialogHeader>
 
-        <div class="flex flex-col gap-4 py-2">
+        <div v-if="checkingWords && existingRecoveryWords" class="flex flex-col gap-4 py-2">
+          <RecoveryWordCheck v-model:passed="wordsChecked" :words="existingRecoveryWords" />
+          <button type="button" class="self-start text-sm text-muted-foreground hover:text-foreground" @click="checkingWords = false">
+            {{ t('settings.identity.recoveryKey.check.showAgain') }}
+          </button>
+        </div>
+
+        <div v-else class="flex flex-col gap-4 py-2">
           <!-- Federation ID — shown above the recovery key when the user
                has set an alias, since they're frequently looked at
                together (share-with-friend + save-for-self). -->
@@ -429,11 +461,17 @@ function handleClose() {
             </AlertDescription>
           </Alert>
 
-          <RecoveryKeyDisplay :recovery-key="existingRecoveryKey" />
+          <RecoveryKeyDisplay :recovery-words="existingRecoveryWords" />
         </div>
 
         <DialogFooter>
-          <Button @click="handleClose">{{ t('general.done') }}</Button>
+          <Button v-if="checkingWords" :disabled="!wordsChecked" @click="confirmWordsSaved">
+            {{ t('general.done') }}
+          </Button>
+          <Button v-else-if="hasSavedRecoveryWords === false && existingRecoveryWords" @click="checkingWords = true">
+            {{ t('settings.identity.recoveryKey.check.start') }}
+          </Button>
+          <Button v-else @click="handleClose">{{ t('general.done') }}</Button>
         </DialogFooter>
       </template>
     </DialogContent>

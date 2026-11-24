@@ -6,7 +6,7 @@ import PasskeyOfferContent from './PasskeyOfferContent.vue'
 
 const mocks = vi.hoisted(() => ({ complete: vi.fn(), copy: vi.fn(), passkeys: vi.fn(), enroll: vi.fn(), enrollExisting: vi.fn(), refresh: vi.fn() }))
 const identity = reactive({
-  pendingRecoveryKey: ref<string | null>('DEMO0DEMO0DEMO0'),
+  pendingRecoveryWords: ref<string[] | null>(null),
   isLoading: ref(false),
   passkeySlotCredentialIds: ref(new Set<string>()),
   completeSetup: mocks.complete,
@@ -21,7 +21,7 @@ vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 
 beforeEach(() => {
   vi.clearAllMocks()
-  identity.pendingRecoveryKey = 'DEMO0DEMO0DEMO0'
+  identity.pendingRecoveryWords = WORDS
   identity.passkeySlotCredentialIds = new Set()
   mocks.complete.mockResolvedValue({ success: true })
   mocks.passkeys.mockResolvedValue([])
@@ -29,36 +29,58 @@ beforeEach(() => {
   mocks.enrollExisting.mockResolvedValue({ success: true, slotCreated: true })
 })
 
-test('copies the full raw recovery key and requires confirmation before saving', async () => {
+const WORDS = Array.from({ length: 24 }, (_, i) => `word${i + 1}`)
+
+async function passWordCheck(wrapper: ReturnType<typeof mount>) {
+  await wrapper.findAll('button').find(button => button.text() === 'settings.identity.recoveryKey.check.start')!.trigger('click')
+  const labels = wrapper.findAll('label')
+  expect(labels).toHaveLength(3)
+  for (const label of labels) {
+    // The i18n mock renders the key, so the asked position comes from which word unlocks it.
+    const input = label.get('input')
+    for (const word of WORDS) {
+      await input.setValue(word)
+      if (label.find('svg').exists()) break
+    }
+  }
+}
+
+test('copies the words as one phrase and saves only after 3 are retyped', async () => {
   const wrapper = mount(RecoveryKeySetupContent)
-  expect(wrapper.findAll('code span').map(group => group.text())).toEqual(['DEMO0', 'DEMO0', 'DEMO0'])
-  const buttons = wrapper.findAll('button')
-  const copy = buttons.find(button => button.text().includes('copyToClipboard'))!
-  const confirm = buttons.find(button => button.text() === 'general.continue')!
-  expect(confirm.attributes('disabled')).toBeDefined()
-  await copy.trigger('click')
-  expect(mocks.copy).toHaveBeenCalledWith('DEMO0DEMO0DEMO0', 'settings.identity.recoveryKey.setup.keyCopiedToast')
+  expect(wrapper.findAll('li')).toHaveLength(24)
+  await wrapper.findAll('button').find(button => button.text().includes('copyToClipboard'))!.trigger('click')
+  expect(mocks.copy).toHaveBeenCalledWith(WORDS.join(' '), 'settings.identity.recoveryKey.setup.keyCopiedToast')
+
+  await wrapper.findAll('button').find(button => button.text() === 'settings.identity.recoveryKey.check.start')!.trigger('click')
+  expect(wrapper.findAll('li')).toHaveLength(0)
+  const confirm = () => wrapper.findAll('button').find(button => button.text() === 'general.continue')!
+  expect(confirm().attributes('disabled')).toBeDefined()
+  await wrapper.findAll('input')[0].setValue('not-the-word')
+  expect(confirm().attributes('disabled')).toBeDefined()
   expect(mocks.complete).not.toHaveBeenCalled()
-  await wrapper.get('[role="checkbox"]').trigger('click')
-  await confirm.trigger('click')
+
+  await wrapper.findAll('button').find(button => button.text() === 'settings.identity.recoveryKey.check.showAgain')!.trigger('click')
+  await passWordCheck(wrapper)
+  await confirm().trigger('click')
   await flushPromises()
   expect(mocks.complete).toHaveBeenCalledOnce()
   expect(wrapper.emitted('confirm')).toHaveLength(1)
   wrapper.unmount()
 })
 
-test('keeps recovery confirmation disabled while the key is generating', () => {
-  identity.pendingRecoveryKey = null
+test('keeps the word check out of reach while the words are generating', () => {
+  identity.pendingRecoveryWords = null
   const wrapper = mount(RecoveryKeySetupContent)
-  expect(wrapper.get('[role="checkbox"]').attributes('disabled')).toBeDefined()
-  expect(wrapper.findAll('button').find(button => button.text().includes('copyToClipboard'))!.attributes('disabled')).toBeDefined()
+  const buttons = wrapper.findAll('button')
+  expect(buttons.find(button => button.text() === 'settings.identity.recoveryKey.check.start')!.attributes('disabled')).toBeDefined()
+  expect(buttons.find(button => button.text().includes('copyToClipboard'))!.attributes('disabled')).toBeDefined()
   wrapper.unmount()
 })
 
 test('keeps setup errors visible without completing', async () => {
   mocks.complete.mockResolvedValue({ success: false, error: 'Could not save' })
   const wrapper = mount(RecoveryKeySetupContent)
-  await wrapper.get('[role="checkbox"]').trigger('click')
+  await passWordCheck(wrapper)
   await wrapper.findAll('button').find(button => button.text() === 'general.continue')!.trigger('click')
   await flushPromises()
   expect(wrapper.get('[role="alert"]').text()).toContain('Could not save')

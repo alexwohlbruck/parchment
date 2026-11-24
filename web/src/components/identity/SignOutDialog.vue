@@ -8,15 +8,15 @@ import type { ConfirmDialogOptions } from '@/types/app.types'
 defineProps<ConfirmDialogOptions & { loading?: boolean }>()
 const emit = defineEmits<{ submit: [confirmed: boolean] }>()
 const identityStore = useIdentityStore()
-const recoveryKey = ref<string | null>(null)
+const recoveryWords = ref<string[] | null>(null)
 
 onMounted(async () => {
-  recoveryKey.value = await identityStore.fetchRecoveryKey()
+  recoveryWords.value = await identityStore.fetchRecoveryWords()
 })
 </script>
 
 <template>
   <ConfirmDialog v-bind="$props" @submit="emit('submit', $event)">
-    <RecoveryKeyDisplay v-if="recoveryKey" :recovery-key="recoveryKey" />
+    <RecoveryKeyDisplay v-if="recoveryWords" :recovery-words="recoveryWords" />
   </ConfirmDialog>
 </template>

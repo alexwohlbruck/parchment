@@ -1,7 +1,7 @@
 import Elysia, { t } from 'elysia'
 import { permissions } from '../middleware/auth.middleware'
 import { PermissionId } from '../types/auth.types'
-import { makeUserRateLimit } from '../middleware/rate-limit.middleware'
+import { byUser, rateLimitHandler } from '../middleware/rate-limit.middleware'
 import { isFriend } from '../services/friends.service'
 import { parseHandle } from '../lib/crypto'
 import * as locationE2eeService from '../services/location-e2ee.service'
@@ -14,11 +14,10 @@ const app = new Elysia({ prefix: '/location' }).use(i18nPlugin)
 // caps a well-behaved client to ~30 req/min while moving. 60/min leaves
 // headroom for burst broadcasts (sharing toggle, refresh-and-broadcast)
 // without throttling real usage. Anything above is either a bug or abuse.
-const updateRateLimit = makeUserRateLimit({
-  name: 'location-update',
-  limit: 60,
-  windowMs: 60_000,
-})
+const updateRateLimit = rateLimitHandler(
+  { name: 'location-update', limit: 60, windowMs: 60_000 },
+  byUser,
+)
 
 const MAX_BROADCAST_ITEMS = 200
 const BROADCAST_CONCURRENCY = 8
@@ -183,7 +182,6 @@ app.use(permissions(PermissionId.LOCATION_SHARING)).delete(
  */
 app
   .use(permissions(PermissionId.LOCATION_SHARING))
-  .use(updateRateLimit)
   .post(
     '/e2ee/update',
     async ({ body, user, status, t }) => {
@@ -204,6 +202,7 @@ app
       return { results }
     },
     {
+      beforeHandle: updateRateLimit,
       body: t.Object({
         locations: t.Array(
           t.Object({

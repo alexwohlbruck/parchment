@@ -390,3 +390,29 @@ describe('POST /friends/sync-keys', () => {
     expect(res.body.results).toHaveLength(1)
   })
 })
+
+describe('rate limiting', () => {
+  test('429s past 20 invitations an hour', async () => {
+    setAuthUser({ ...TEST_USER, id: 'invite-flood' })
+
+    let last = { status: 200 } as { status: number }
+    for (let i = 0; i < 21; i++) {
+      last = await req(app).post('/friends/invite', {
+        body: { handle: `user${i}@peer.test`, signature: 'sig' },
+      })
+    }
+
+    expect(last.status).toBe(429)
+  })
+
+  test('429s past 30 handle lookups a minute', async () => {
+    setAuthUser({ ...TEST_USER, id: 'resolve-flood' })
+
+    let last = { status: 200 } as { status: number }
+    for (let i = 0; i < 31; i++) {
+      last = await req(app).get(`/friends/resolve/user${i}%40peer.test`)
+    }
+
+    expect(last.status).toBe(429)
+  })
+})

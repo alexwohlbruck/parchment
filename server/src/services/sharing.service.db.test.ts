@@ -268,6 +268,31 @@ describe('updateShareRole', () => {
     expect(incoming.role).toBe('editor')
   })
 
+  test('demotes the recipient even after the owner renames', async () => {
+    const collectionId = await makeCollection(aliceId)
+    const share = await sharingService.createShare({
+      userId: aliceId,
+      recipientHandle: bobHandle,
+      resourceType: 'collection',
+      resourceId: collectionId,
+      encryptedData: 'ct',
+      nonce: 'n',
+      role: 'editor',
+    })
+    await db
+      .update(users)
+      .set({ alias: `${ALICE_ALIAS}_r` })
+      .where(eq(users.id, aliceId))
+    try {
+      await sharingService.updateShareRole(aliceId, share.id, 'viewer')
+      expect(
+        await sharingService.getEffectiveRoleOnCollection(bobId, collectionId),
+      ).toBe('viewer')
+    } finally {
+      await db.update(users).set({ alias: ALICE_ALIAS }).where(eq(users.id, aliceId))
+    }
+  })
+
   test('returns null when share does not exist', async () => {
     const updated = await sharingService.updateShareRole(
       aliceId,
@@ -504,6 +529,36 @@ describe('cross-server shares naming local resources', () => {
       id: generateId(),
       userId: bobId,
       senderHandle: MALLORY,
+      resourceType: 'collection',
+      resourceId: collectionId,
+      encryptedData: 'ct',
+      nonce: 'n',
+      role: 'editor',
+      status: 'accepted',
+    })
+    expect(
+      await sharingService.getEffectiveRoleOnCollection(bobId, collectionId),
+    ).toBeNull()
+  })
+
+  test('a share from someone other than the owner grants no access', async () => {
+    const collectionId = await makeCollection(aliceId)
+    const shareId = generateId()
+    await db.insert(shares).values({
+      id: shareId,
+      userId: bobId,
+      recipientHandle: bobHandle,
+      recipientUserId: bobId,
+      resourceType: 'collection',
+      resourceId: collectionId,
+      role: 'editor',
+      status: 'accepted',
+    })
+    await db.insert(incomingShares).values({
+      id: generateId(),
+      userId: bobId,
+      senderHandle: bobHandle,
+      shareId,
       resourceType: 'collection',
       resourceId: collectionId,
       encryptedData: 'ct',

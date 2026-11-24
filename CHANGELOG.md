@@ -3,6 +3,7 @@
 ### Added
 
 * Group directions by trip type from the view menu, so walk-and-transit trips stand apart from bike-and-transit ones.
+* A line's vehicle list shows how far each one is from you and marks the closest.
 
 ### Changed
 

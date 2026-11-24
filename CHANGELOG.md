@@ -26,6 +26,9 @@
 * In 3D, road names and one-way arrows on bridges sit on the bridge instead of on the water or ground below.
 * Expanding the sheet while saving an offline map no longer shrinks the area you framed.
 * The list of upcoming trains during navigation no longer skips trains that only appear in live data.
+* Making a collection private no longer removes its places from your other collections.
+* Removing someone from a private collection now stops with a message, instead of cutting off others whose keys haven't synced.
+* Changing someone's role on a shared collection takes effect even after you change your username.
 
 ## [0.25.1-1] - 2026-11-23
 

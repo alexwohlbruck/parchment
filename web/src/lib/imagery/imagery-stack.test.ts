@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { LayerType, type Layer } from '@/types/map.types'
-import { availableImagery, imageryStyle, photorealisticSource, resolveImageryStack } from './imagery-stack'
+import { PHOTOREALISTIC_MIN_ZOOM, availableImagery, imageryStyle, photorealisticSource, resolveImageryStack } from './imagery-stack'
 
 function layer(id: string, type = LayerType.IMAGERY, sourceType = 'raster'): Layer {
   return {
@@ -26,6 +26,13 @@ describe('resolveImageryStack', () => {
     const stack = resolveImageryStack(['mesh', 'a'], [layer('a'), layer('mesh', LayerType.IMAGERY, '3d-tiles')])
     expect(photorealisticSource(stack)).toMatchObject({ id: 'mesh', kind: '3d-tiles' })
     expect(imageryStyle(stack).layers.map(l => l.id)).toEqual(['imagery:a'])
+  })
+
+  it('stops the rasters where the 3D tiles start', () => {
+    const flat = imageryStyle(resolveImageryStack(['a'], [layer('a')]))
+    const under3d = imageryStyle(resolveImageryStack(['mesh', 'a'], [layer('a'), layer('mesh', LayerType.IMAGERY, '3d-tiles')]))
+    expect(flat.layers[0].maxzoom).toBeUndefined()
+    expect(under3d.layers[0].maxzoom).toBe(PHOTOREALISTIC_MIN_ZOOM)
   })
 })
 

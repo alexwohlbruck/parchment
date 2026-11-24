@@ -11,6 +11,9 @@ export type ImagerySource =
 
 const PREFIX = 'imagery:'
 
+/** Zoom the 3D tiles are drawn from; below it the globe is round and the rasters show instead. */
+export const PHOTOREALISTIC_MIN_ZOOM = 12
+
 export const isImageryStyleId = (id: string) => id.startsWith(PREFIX)
 
 const IMAGERY_SOURCE_TYPES = new Set(['raster', '3d-tiles'])
@@ -63,12 +66,14 @@ export function photorealisticSource(stack: readonly ImagerySource[]) {
 /**
  * The style's share of a stack. The bottom source is drawn first, so each one
  * shows through wherever those above it have no tile or a transparent one.
+ * Under 3D tiles the rasters stop where the mesh starts.
  */
 export function imageryStyle(stack: readonly ImagerySource[]): {
   sources: Record<string, RasterSourceSpecification>
   layers: LayerSpecification[]
 } {
   const rasters = stack.flatMap(s => (s.kind === 'raster' ? [s] : []))
+  const maxzoom = photorealisticSource(stack) ? { maxzoom: PHOTOREALISTIC_MIN_ZOOM } : {}
   return {
     sources: Object.fromEntries(rasters.map(s => [PREFIX + s.id, s.source])),
     layers: [...rasters].reverse().map(
@@ -77,6 +82,7 @@ export function imageryStyle(stack: readonly ImagerySource[]): {
           id: PREFIX + s.id,
           type: 'raster',
           source: PREFIX + s.id,
+          ...maxzoom,
           ...(s.paint ? { paint: s.paint } : {}),
         }) as LayerSpecification,
     ),

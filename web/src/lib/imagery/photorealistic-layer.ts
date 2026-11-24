@@ -9,11 +9,10 @@ import {
 } from '3d-tiles-renderer/plugins'
 import { LngLat, type CustomLayerInterface, type CustomRenderMethodInput, type Map as MaplibreMap } from 'maplibre-gl'
 import { enuToMercator, splitViewProjection } from './photorealistic-camera'
+import { PHOTOREALISTIC_MIN_ZOOM } from './imagery-stack'
 
 export const PHOTOREALISTIC_LAYER_ID = 'imagery-3d'
 
-/** The globe is round below this, and the tiles would be spent on a planet-sized view. */
-const MIN_ZOOM = 12
 /** How far the map centre may drift from the frame's origin before the frame moves with it. */
 const REANCHOR_METRES = 2000
 /** Frames between re-measuring the mesh's ground, which sharpens as finer tiles arrive. */
@@ -103,7 +102,7 @@ export class PhotorealisticLayer implements CustomLayerInterface {
   render(_gl: WebGLRenderingContext | WebGL2RenderingContext, args: CustomRenderMethodInput) {
     const { map, renderer, tiles } = this
     if (!map || !renderer || !tiles) return
-    if (map.getZoom() < MIN_ZOOM) {
+    if (map.getZoom() < PHOTOREALISTIC_MIN_ZOOM) {
       this.setCredits(null)
       return
     }

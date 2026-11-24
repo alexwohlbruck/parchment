@@ -50,3 +50,23 @@ export function splitAtStop<T extends NavSegmentInput & { end?: { label?: string
     continuation: [{ ...withoutLanes(current), ...fromStop }, ...segments.slice(index + 1)],
   }
 }
+
+/** The ride at `index` now ends at `lot`, and a walk takes over to where the leg was headed. */
+export function parkAndWalk<T extends NavSegmentInput & { legIndex?: number; end?: { label?: string; location?: LngLat } }>(
+  segments: T[],
+  index: number,
+  toLot: Partial<T>,
+  walk: Partial<T>,
+  lot: AddedStop,
+): T[] {
+  const ride = segments[index]
+  if (!ride) return segments
+  const next = segments[index + 1]
+  const walksOn = next?.mode === 'walking'
+  const base = walksOn ? withoutLanes(next) : ({ legIndex: ride.legIndex, end: ride.end } as T)
+  return [
+    { ...withoutLanes(ride), ...toLot, end: { label: lot.label, location: lot.location } },
+    { ...base, ...walk, mode: 'walking' },
+    ...segments.slice(index + (walksOn ? 2 : 1)),
+  ]
+}

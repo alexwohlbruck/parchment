@@ -33,6 +33,7 @@ afterAll(() => {
 
 const { OpenAqIntegration } = await import('./openaq-integration')
 const { FirmsIntegration } = await import('./firms-integration')
+const { EsriIntegration } = await import('./esri-integration')
 
 beforeEach(() => {
   fetchCalls.length = 0
@@ -194,5 +195,25 @@ describe('FirmsIntegration', () => {
     const result = await integration().testConnection({ apiKey: 'key' })
 
     expect(result.message).toContain('ETIMEDOUT')
+  })
+})
+
+describe('EsriIntegration', () => {
+  const integration = () => new EsriIntegration()
+
+  test('refuses an empty key', () => {
+    expect(integration().validateConfig({ apiKey: '' })).toBe(false)
+    expect(() => integration().initialize({ apiKey: '' })).toThrow('API key is required')
+  })
+
+  test('accepts a key that returns an image tile', async () => {
+    fetchResponse = new Response(new Uint8Array([1]), { headers: { 'content-type': 'image/jpeg' } })
+    expect(await integration().testConnection({ apiKey: 'good' })).toEqual({ success: true })
+    expect(fetchCalls[0][0]).toContain('token=good')
+  })
+
+  test('rejects a key Esri answers with a JSON error at 200', async () => {
+    fetchResponse = new Response('{"error":{"code":498}}', { headers: { 'content-type': 'application/json' } })
+    expect((await integration().testConnection({ apiKey: 'bad' })).success).toBe(false)
   })
 })

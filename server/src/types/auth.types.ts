@@ -25,6 +25,7 @@ export enum PermissionId {
   PREMIUM_NAVIGATION = 'premium:navigation',
   PREMIUM_LOCATION_SHARING = 'premium:location_sharing',
   PREMIUM_ASK = 'premium:ask',
+  PREMIUM_PHOTOREALISTIC_3D = 'premium:photorealistic_3d',
   ASK_TRIAL = 'ask:trial',
   ASK_BASIC = 'ask:basic',
   LIBRARY_READ = 'library:read',

@@ -1,3 +1,4 @@
+import { longestTransitSegment, tripType, type TripTypeSegment } from './trip-type'
 import {
   FootprintsIcon,
   TrainFrontIcon,
@@ -100,4 +101,13 @@ export function getSegmentIcon(mode: string, routeType?: string): LucideIcon {
  */
 export function getModeIcon(mode: string): LucideIcon {
   return modeIcons[mode] || FootprintsIcon
+}
+
+/** The icon a trip's type is shown with: its main transit vehicle, or its mode. */
+export function getTripTypeIcon(
+  segments: Array<TripTypeSegment & { duration: number }>,
+): LucideIcon {
+  const { iconMode } = tripType(segments)
+  if (iconMode !== 'transit') return getModeIcon(iconMode)
+  return getSegmentIcon('transit', longestTransitSegment(segments)?.routeType)
 }

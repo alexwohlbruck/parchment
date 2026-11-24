@@ -144,6 +144,15 @@ watchEffect(() => {
   api.defaults.baseURL = serverUrl.value
 })
 
+/** The session `api` carries, for a plain `fetch` to our server. */
+export function apiFetchAuth(): { credentials: RequestCredentials; headers: Record<string, string> } {
+  const authorization = api.defaults.headers.common['Authorization']
+  return {
+    credentials: api.defaults.withCredentials ? 'include' : 'omit',
+    headers: typeof authorization === 'string' ? { Authorization: authorization } : {},
+  }
+}
+
 // Send locale to backend for localized responses (e.g. weather, directions, place names)
 api.interceptors.request.use(config => {
   config.headers.set('Accept-Language', storedLocale.value)

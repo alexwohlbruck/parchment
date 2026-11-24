@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { dockRisk, pollInterval, projectAvailability, switchStation, watchedDock } from './dock-watch'
+import { dockRisk, pollInterval, projectAvailability, stationOptions, switchStation, watchedDock } from './dock-watch'
 
 const minute = 60_000
 const samples = (...counts: number[]) => counts.map((available, i) => ({ t: i * minute, available }))
@@ -60,5 +60,22 @@ describe('switchStation', () => {
     expect(into).toMatchObject({ geometry: [], sharedMobilityDetails: { toStationName: 'College St' } })
     expect(outOf).toMatchObject({ geometry: [station.location], end: { label: 'Home' } })
     expect(rest).toEqual([{ mode: 'walking' }])
+  })
+})
+
+describe('stationOptions', () => {
+  const station = (stationId: string, lat: number, toTarget: number | null) =>
+    ({ stationId, name: stationId, location: { lat, lng: 0 }, available: 5, fromOriginal: 100, toTarget })
+
+  test('drops off where the walk on is shortest', () => {
+    const options = stationOptions([station('far', 0, 600), station('near', 0, 150)], 'dock', null)
+    expect(options.map(o => o.id)).toEqual(['near', 'far'])
+    expect(options[0].walkSeconds).toBeGreaterThan(150 / 2)
+  })
+
+  test('picks up where the walk from the rider is shortest', () => {
+    const rider = { lat: 0, lng: 0 }
+    const options = stationOptions([station('behind', 0.004, 50), station('beside', 0.001, 900)], 'bike', rider)
+    expect(options.map(o => o.id)).toEqual(['beside', 'behind'])
   })
 })

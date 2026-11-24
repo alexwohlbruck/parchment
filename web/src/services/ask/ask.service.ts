@@ -1,4 +1,4 @@
-import { api } from '@/lib/api'
+import { api, apiFetchAuth } from '@/lib/api'
 import { i18n, storedLocale } from '@/lib/i18n'
 import { createSseParser } from '@/lib/ask/sse-events'
 import { useAskStore } from '@/stores/ask.store'
@@ -12,15 +12,6 @@ let controller: AbortController | null = null
 const t = (key: string) =>
   (i18n.global as unknown as { t: (key: string) => string }).t(key)
 
-function requestHeaders(): Record<string, string> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'Accept-Language': storedLocale.value,
-  }
-  const authorization = api.defaults.headers.common['Authorization']
-  if (typeof authorization === 'string') headers.Authorization = authorization
-  return headers
-}
 
 export function useAskService() {
   const askStore = useAskStore()
@@ -68,11 +59,16 @@ export function useAskService() {
     controller = new AbortController()
     const { signal } = controller
 
+    const auth = apiFetchAuth()
     try {
       const response = await fetch(`${api.defaults.baseURL}/ask`, {
         method: 'POST',
-        credentials: api.defaults.withCredentials ? 'include' : 'omit',
-        headers: requestHeaders(),
+        credentials: auth.credentials,
+        headers: {
+          ...auth.headers,
+          'Content-Type': 'application/json',
+          'Accept-Language': storedLocale.value,
+        },
         body: JSON.stringify({
           question,
           history,

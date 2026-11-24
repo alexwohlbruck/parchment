@@ -18,6 +18,9 @@ import { martinTileCache, portolanTileCache, type CachedResponse } from '../lib/
 import { IntegrationId } from '../types/integration.types'
 import { resolveBarrelmanConfig, resolveLandmarksConfig } from '../services/barrelman.service'
 import { logError } from '../lib/logger'
+import { ESRI_TILE_HOST } from '../services/integrations/esri-integration'
+import { permissions } from '../middleware/auth.middleware'
+import { PermissionId } from '../types/auth.types'
 
 const app = new Elysia({ prefix: '/proxy' })
 
@@ -72,6 +75,106 @@ async function proxyTileRequest(
     return new Response('Proxy error', { status: 500 })
   }
 }
+
+/** Esri services the proxy will fetch, by the name used in our tile URLs. */
+const ESRI_SERVICES: Record<string, string> = {
+  'world-imagery': 'World_Imagery',
+}
+
+app.get(
+  '/esri/:service/:z/:y/:x',
+  async ({ params }) => {
+    const { service, z, y, x } = params
+    const upstream = ESRI_SERVICES[service]
+    if (!upstream || !isTileCoord(z, y, x)) return badTileRequest()
+
+    const apiKey = integrationManager
+      .getConfiguredIntegrations()
+      .find((i) => i.integrationId === IntegrationId.ESRI)?.config?.apiKey
+    if (!apiKey) return new Response('esri not configured', { status: 501 })
+
+    try {
+      const response = await fetch(
+        `${ESRI_TILE_HOST}/${upstream}/MapServer/tile/${z}/${y}/${x}?token=${encodeURIComponent(apiKey)}`,
+      )
+      const contentType = response.headers.get('content-type') ?? ''
+      // Esri answers a bad key or a missing tile with 200 and a JSON error.
+      if (!response.ok || !contentType.startsWith('image/')) {
+        if (response.ok) logError(`Esri ${upstream}: ${(await response.text()).slice(0, 200)}`)
+        return new Response('Upstream error', { status: response.ok ? 502 : response.status })
+      }
+      return new Response(await response.arrayBuffer(), {
+        headers: {
+          'Content-Type': contentType,
+          'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
+        },
+      })
+    } catch (error) {
+      logError('Esri proxy error', error, { params })
+      return new Response('Proxy error', { status: 500 })
+    }
+  },
+  {
+    detail: {
+      tags: ['Proxy'],
+      summary: 'Proxy Esri basemap tiles',
+      description: 'Raster tiles from ArcGIS Location Platform, with the Esri integration key attached server-side. `service` is `world-imagery`.',
+    },
+  },
+)
+
+/** A Photorealistic 3D Tiles path: the root tileset, or a tileset or glTF under a dataset. */
+const GOOGLE_3D_PATH = /^(root\.json|datasets\/[\w-]+\/files\/[\w.-]+\.(json|glb))$/
+/** Upstream headers passed on; Google requires clients to honour its caching ones. */
+const GOOGLE_3D_HEADERS = ['content-type', 'cache-control', 'etag', 'expires', 'last-modified']
+
+// Its own instance, so the premium guard covers only these tiles.
+const google3d = new Elysia().use(permissions(PermissionId.PREMIUM_PHOTOREALISTIC_3D)).get(
+  '/google/3dtiles/*',
+  async ({ params, request }) => {
+    const path = params['*']
+    if (!GOOGLE_3D_PATH.test(path)) return badTileRequest()
+
+    const apiKey = integrationManager
+      .getConfiguredIntegrations()
+      .find((i) => i.integrationId === IntegrationId.GOOGLE_MAPS)?.config?.apiKey
+    if (!apiKey) return new Response('google-maps not configured', { status: 501 })
+
+    // The renderer sends a placeholder key so it attaches the session the way
+    // it would against Google; the real key replaces it here.
+    const query = new URL(request.url).searchParams
+    query.set('key', apiKey)
+
+    try {
+      const response = await fetch(`https://tile.googleapis.com/v1/3dtiles/${path}?${query}`, {
+        headers: request.headers.get('if-none-match')
+          ? { 'If-None-Match': request.headers.get('if-none-match')! }
+          : undefined,
+      })
+      const headers = new Headers()
+      for (const name of GOOGLE_3D_HEADERS) {
+        const value = response.headers.get(name)
+        if (value) headers.set(name, value)
+      }
+      if (!response.ok && response.status !== 304) {
+        logError(`Google 3D tiles: ${response.status} ${response.statusText}`)
+      }
+      return new Response(response.body, { status: response.status, headers })
+    } catch (error) {
+      logError('Google 3D tiles proxy error', error)
+      return new Response('Proxy error', { status: 500 })
+    }
+  },
+  {
+    detail: {
+      tags: ['Proxy'],
+      summary: 'Proxy Google Photorealistic 3D Tiles',
+      description:
+        'The root tileset and every tileset and glTF under it, with the Google Maps integration key attached server-side. Caching headers are passed through unchanged. Requires the photorealistic 3D permission.',
+    },
+  },
+)
+app.use(google3d)
 
 // Proxy route for Loom tile service
 app.get(

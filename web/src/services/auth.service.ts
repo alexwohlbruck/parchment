@@ -5,11 +5,9 @@ import { useIdentityStore } from '@/stores/identity.store'
 import { useAppService } from '@/services/app.service'
 import { useIntegrationService } from '@/services/integration.service'
 import { clearAllUserCaches } from '@/services/cache.service'
-import { syncPreferencesFromBackend } from '@/services/preferences.service'
+import { fetchPreferences } from '@/services/preferences.service'
+import { adoptAccountPreferences } from '@/stores/preferences/account-preferences'
 import { useVehiclesStore } from '@/stores/vehicles.store'
-import { useNavigationPreferencesStore } from '@/stores/preferences/navigation-preferences.store'
-import { useAskPreferencesStore } from '@/stores/preferences/ask-preferences.store'
-import { useAppPreferencesStore } from '@/stores/preferences/app-preferences.store'
 import { createSharedComposable } from '@vueuse/core'
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser'
 import {
@@ -120,11 +118,8 @@ function authService() {
   }
 
   async function syncPreferences() {
-    const preferences = await syncPreferencesFromBackend()
-    if (!preferences) return
-    useNavigationPreferencesStore().adopt(preferences.navigation)
-    if (preferences.ask) useAskPreferencesStore().adopt(preferences.ask)
-    if (preferences.app) useAppPreferencesStore().adopt(preferences.app)
+    const preferences = await fetchPreferences()
+    if (preferences) adoptAccountPreferences(preferences)
   }
 
   async function setAuthenticatedUser(user: User, sessionId: Session['id']) {

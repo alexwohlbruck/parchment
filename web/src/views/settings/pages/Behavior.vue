@@ -4,6 +4,7 @@ import { computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app.store'
 import { useAuthStore } from '@/stores/auth.store'
+import { useDeviceOnlyStore } from '@/stores/preferences/device-only.store'
 import { useCommandStore } from '@/stores/command.store'
 import { CommandName } from '@/stores/command.store'
 import {
@@ -53,6 +54,7 @@ import {
 
 const appStore = useAppStore()
 const authStore = useAuthStore()
+const deviceOnly = useDeviceOnlyStore()
 const commandStore = useCommandStore()
 const mapStore = useMapStore()
 const power = usePowerStore()
@@ -90,15 +92,14 @@ const EXTREME_THRESHOLDS = [0.15, 0.1, 0.05]
 const percent = (level: number) => `${Math.round(level * 100)}%`
 const lowBattery = computed(() => strongerSaver(power.choice, power.fromBattery) !== power.choice)
 
-// Persist language and unit preferences to backend when logged in
 watch(
-  [locale, unitSystem],
-  ([newLocale, newUnitSystem]) => {
-    if (!authStore.me) return
-    updatePreferences({
-      language: newLocale as Locale,
-      unitSystem: newUnitSystem as UnitSystem,
-    }).catch(() => {
+  () => ({
+    language: deviceOnly.isDeviceOnly('account.language') ? undefined : (locale.value as Locale),
+    unitSystem: deviceOnly.isDeviceOnly('account.unitSystem') ? undefined : unitSystem.value,
+  }),
+  updates => {
+    if (!authStore.me || (!updates.language && !updates.unitSystem)) return
+    updatePreferences(updates).catch(() => {
       // Ignore errors (e.g. network); local state is already updated
     })
   },
@@ -116,6 +117,7 @@ watch(
       <SettingsItem
         v-if="languageCommand"
         :title="languageCommand.name"
+        sync-key="account.language"
         :description="languageCommand.description"
         :icon="LanguagesIcon"
       >
@@ -187,6 +189,7 @@ watch(
       <SettingsItem
         v-if="projectionCommand"
         :title="projectionCommand.name"
+        sync-key="app.map.projection"
         :description="projectionCommand.description"
         :icon="projectionCommand.icon"
         :command-id="CommandName.MAP_PROJECTION"
@@ -218,6 +221,7 @@ watch(
 
       <SettingsItem
         :title="$t('settings.mapSettings.rotation.northUpSnap')"
+        sync-key="app.map.northUpSnap"
         :description="$t('settings.mapSettings.rotation.northUpSnapDescription')"
         :icon="CompassIcon"
       >
@@ -229,6 +233,7 @@ watch(
 
       <SettingsItem
         :title="$t('settings.mapSettings.rotation.gridSnap')"
+        sync-key="app.map.gridSnapMode"
         :description="$t('settings.mapSettings.rotation.gridSnapDescription')"
         :icon="Grid2x2"
       >
@@ -263,6 +268,7 @@ watch(
     >
       <SettingsItem
         :title="$t('settings.mapSettings.location.startupLocation')"
+        sync-key="app.map.startupLocation"
         :description="$t('settings.mapSettings.location.startupLocationDescription')"
         :icon="Navigation2Icon"
       >
@@ -291,6 +297,7 @@ watch(
 
       <SettingsItem
         :title="$t('settings.mapSettings.location.locateFlySpeed')"
+        sync-key="app.map.locateFlySpeed"
         :icon="GaugeIcon"
       >
         <Select
@@ -327,6 +334,7 @@ watch(
     >
       <SettingsItem
         :title="$t('settings.behavior.floorNumbering.system')"
+        sync-key="app.general.floorNumbering"
         :icon="LayersIcon"
       >
         <Select v-model="floorNumbering">
@@ -351,6 +359,7 @@ watch(
     <SettingsSection id="units" :title="$t('settings.behavior.units.title')">
       <SettingsItem
         :title="$t('settings.behavior.units.system')"
+        sync-key="account.unitSystem"
         :icon="Gauge"
       >
         <Select v-model="unitSystem">
@@ -460,6 +469,7 @@ watch(
     >
       <SettingsItem
         :title="$t('settings.behavior.homeScreen.sheetStart')"
+        sync-key="app.general.homeSheetStart"
         :icon="PanelBottom"
       >
         <Select v-model="homeSheetStart">

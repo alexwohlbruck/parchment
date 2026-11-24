@@ -1,4 +1,5 @@
 import type { MapRenderBudget } from '@/lib/power/power-saver'
+import type { ImagerySource } from '@/lib/imagery/imagery-stack'
 import { type CameraOptions } from 'maplibre-gl'
 import { SELECTED_MARKER_COLOR } from '@/lib/map-marker'
 import {
@@ -212,6 +213,8 @@ export class MapStrategy {
   setMapTheme(theme: MapTheme) {}
   setMapColorTheme(theme: MapColorTheme) {}
   setBasemap(basemap: Basemap) {}
+  /** The sources satellite and hybrid draw, top first. MapLibre only. */
+  setSatelliteImagery(stack: readonly ImagerySource[]) {}
   setMapStyle(styleId: MapStyleId) {}
   setHdRoads(value: boolean) {}
   /** Extreme battery saver's black, roads-only basemap. MapLibre only. */

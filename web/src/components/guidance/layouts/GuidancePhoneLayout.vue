@@ -11,7 +11,7 @@ import RoadNameLabel from '../RoadNameLabel.vue'
 import SpeedPanel from '../SpeedPanel.vue'
 import GuidanceMapButtons from '../GuidanceMapButtons.vue'
 import GuidanceSheet from '../GuidanceSheet.vue'
-import { useGuidanceContext } from '../context'
+import { MAP_PANELS, useGuidanceContext } from '../context'
 
 const appStore = useAppStore()
 const guidance = useGuidanceStore()
@@ -23,7 +23,8 @@ const banner = ref<HTMLElement | null>(null)
 
 useObstructingComponent(banner, 'guidance-banner')
 
-const expanded = computed(() => panel.value != null)
+/** A panel marking places on the map leaves the map clear to tap them. */
+const scrim = computed(() => panel.value != null && !MAP_PANELS.has(panel.value))
 const { bottom: bannerBottom } = useElementBounding(banner)
 
 const sideInset = computed(() => {
@@ -41,7 +42,7 @@ const sideInset = computed(() => {
       leave-active-class="transition-opacity duration-200"
       leave-to-class="opacity-0"
     >
-      <div v-if="expanded" class="pointer-events-auto absolute inset-0 bg-black/30" @click="closePanel(true)" />
+      <div v-if="scrim" class="pointer-events-auto absolute inset-0 bg-black/30" @click="closePanel(true)" />
     </Transition>
 
     <Transition appear enter-active-class="transition-opacity duration-300" enter-from-class="opacity-0">

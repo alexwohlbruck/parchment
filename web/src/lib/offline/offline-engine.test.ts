@@ -157,7 +157,7 @@ describe('offline trips', () => {
     })!
     const transit = response.trips.find(c => c.trip.segments.some(s => s.mode === 'transit'))!
     const ride = transit.trip.segments.find(s => s.mode === 'transit')!
-    expect(ride.details!.transitDetails!.route).toMatchObject({ shortName: 'A', type: 'subway', color: '#0039A6' })
+    expect(ride.details!.transitDetails!.route).toMatchObject({ shortName: 'A', type: 'subway', color: '0039A6' })
     expect(ride.geometry[0]).toEqual({ lat: 0, lng: 0 })
     expect(transit.trip.segments[0].start.type).toBe('origin')
     expect(transit.trip.segments.at(-1)!.end.type).toBe('destination')

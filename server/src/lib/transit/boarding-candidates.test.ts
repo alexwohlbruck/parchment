@@ -67,6 +67,18 @@ describe('boardingCandidates', () => {
     ])
   })
 
+  test('follows a realtime-only run whose id carries each stop\'s own time', () => {
+    const board = [{ departures: [run('20261124_05:02_5_140450_D..S:20261123', 'D', 0, '0')] }]
+    const out = boardingCandidates({
+      board,
+      later: later({ NEXT: [['20261124_05:10_5_140450_D..S:20261123', 8]] }),
+      plannedMs: T,
+      routes: ['D'],
+      directionId: '1',
+    })
+    expect(out.map((c) => c.calls)).toEqual([[{ stopId: 'NEXT', time: at(8) }]])
+  })
+
   test('ignores a call timed before the run leaves, which is another day or direction', () => {
     const board = [{ departures: [run('t1', '3', 0)] }]
     const out = boardingCandidates({ board, later: later({ B: [['t1', -5]] }), plannedMs: T, routes: ['3'] })

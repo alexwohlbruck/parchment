@@ -18,6 +18,7 @@
 * The satellite map now shows sharp USGS aerial photos across the contiguous US, with Esri imagery everywhere else.
 * Satellite and hybrid maps no longer draw 3D trees, street furniture, landmarks or raised bridges over the photos, and hybrid shows street names without drawing the streets.
 * Rotating your keys shows your new recovery key before it finishes, since the old one stops working.
+* Resetting your account asks you to confirm it's you with your passkey or an emailed code first.
 
 ### Fixed
 
@@ -37,6 +38,7 @@
 * Rotating your keys no longer leaves saved routes, canvases or shared private collections unreadable, and stops instead of skipping anything it can't carry over.
 * Setting up encryption can no longer replace keys your account already has after a failed connection.
 * A device with outdated keys can no longer overwrite your synced data after you rotate keys elsewhere.
+* A friend's location disappears from your map a day after they last shared it, instead of staying forever.
 
 ## [0.25.1-1] - 2026-11-23
 

@@ -7,7 +7,7 @@
 ### Changed
 
 * When your bike share station fills up or runs out of bikes, pick another from a list. If you don't tap one, the closest is chosen after 10 seconds.
-* Places suggested during navigation show on the map like its own points of interest, numbered to match the list.
+* Places suggested during navigation look like the map's own places, numbered to match the list.
 
 ### Fixed
 

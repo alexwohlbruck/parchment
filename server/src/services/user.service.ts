@@ -7,7 +7,7 @@
  * - Federation identity (keys)
  */
 
-import { SQL, eq, sql, count } from 'drizzle-orm'
+import { SQL, and, count, eq, isNull, or, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { users } from '../schema/users.schema'
 import { usersToRoles } from '../schema/users-roles.schema'
@@ -87,22 +87,52 @@ export async function updateUserAlias(
   return { success: true }
 }
 
+export class KeysAlreadyRegistered extends Error {
+  constructor() {
+    super('This account already has identity keys')
+    this.name = 'KeysAlreadyRegistered'
+  }
+}
+
 /**
- * Register or update a user's public keys
+ * Register a user's public keys. Keys that are already set only change
+ * through a rotation commit or an identity reset, never by overwrite.
  */
 export async function updateUserKeys(
   userId: string,
   signingKey: string,
   encryptionKey: string,
 ): Promise<void> {
-  await db
+  const [registered] = await db
     .update(users)
     .set({
       signingKey,
       encryptionKey,
       updatedAt: new Date(),
     })
+    .where(
+      and(
+        eq(users.id, userId),
+        or(isNull(users.signingKey), isNull(users.encryptionKey)),
+      ),
+    )
+    .returning({ id: users.id })
+  if (registered) return
+
+  const [current] = await db
+    .select({
+      signingKey: users.signingKey,
+      encryptionKey: users.encryptionKey,
+    })
+    .from(users)
     .where(eq(users.id, userId))
+    .limit(1)
+  if (
+    current?.signingKey !== signingKey ||
+    current?.encryptionKey !== encryptionKey
+  ) {
+    throw new KeysAlreadyRegistered()
+  }
 }
 
 /**

@@ -1556,6 +1556,7 @@
       "setupDescription": "Configura tu identidad federada para conectar con amigos y compartir datos de forma segura entre servidores de Parchment.",
       "importButton": "Importar clave de recuperación",
       "importDescription": "Tu identidad existe en este servidor, pero necesitas importar tu clave de recuperación para usarla en este dispositivo.",
+      "unavailableDescription": "No se pudo cargar tu identidad. Revisa tu conexión e inténtalo de nuevo.",
       "recoveryKey": "Clave de recuperación",
       "recoveryKeyDescription": "Ver tu clave de recuperación para respaldo",
       "viewKey": "Ver clave",

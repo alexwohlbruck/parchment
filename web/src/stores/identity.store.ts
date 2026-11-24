@@ -10,8 +10,6 @@ import {
   getRecoveryKey,
   updateAlias as updateAliasService,
   clearLocalIdentity,
-  needsIdentitySetup,
-  needsIdentityImport,
   verifyAndSyncKeys,
   fetchWrappedKeySlots,
   enrollPasskeySlot,
@@ -101,6 +99,17 @@ export const useIdentityStore = defineStore('identity', () => {
   // rotation one). The UI surfaces this via a banner that offers the
   // one-tap resync.
   const isStale = ref(false)
+  // The identity request failed, so whether this account has keys is unknown.
+  const identityUnavailable = ref(false)
+
+  async function refreshIdentity(): Promise<void> {
+    try {
+      await refreshIdentity()
+      identityUnavailable.value = false
+    } catch {
+      identityUnavailable.value = true
+    }
+  }
 
   // Cross-component trigger: incremented by any component that wants
   // IdentitySettings to open its "Rotate keys" dialog (currently
@@ -122,8 +131,10 @@ export const useIdentityStore = defineStore('identity', () => {
   const isSetupComplete = computed(() => 
     hasLocalIdentity.value && !!identity.value?.signingKey
   )
-  const needsSetup = computed(() => 
-    !hasLocalIdentity.value || !identity.value?.signingKey
+  const needsSetup = computed(
+    () =>
+      !identityUnavailable.value &&
+      (!hasLocalIdentity.value || !identity.value?.signingKey),
   )
   const needsImport = computed(() => 
     !hasLocalIdentity.value && !!identity.value?.signingKey
@@ -142,13 +153,12 @@ export const useIdentityStore = defineStore('identity', () => {
   async function initialize() {
     isLoading.value = true
     try {
-      const [hasLocal, serverIdentity] = await Promise.all([
+      const [hasLocal] = await Promise.all([
         checkHasLocalIdentity(),
-        fetchIdentityFromServer(),
+        refreshIdentity(),
       ])
 
       hasLocalIdentity.value = hasLocal
-      identity.value = serverIdentity
 
       if (hasLocal) {
         localKeys.value = await getLocalIdentity()
@@ -160,7 +170,7 @@ export const useIdentityStore = defineStore('identity', () => {
         //     resync. Do NOT overwrite the server's new keys.
         const outcome = await verifyAndSyncKeys()
         if (outcome === 'registered') {
-          identity.value = await fetchIdentityFromServer()
+          await refreshIdentity()
         }
         isStale.value = outcome === 'stale'
       } else {
@@ -203,7 +213,7 @@ export const useIdentityStore = defineStore('identity', () => {
       // Refresh server identity — also lets peers resolve our handle to
       // the new signingKey before we try to ship any client-signed
       // messages to them.
-      identity.value = await fetchIdentityFromServer()
+      await refreshIdentity()
 
       // Clear pending state
       pendingSeed.value = null
@@ -255,7 +265,7 @@ export const useIdentityStore = defineStore('identity', () => {
       if (result.success) {
         hasLocalIdentity.value = true
         localKeys.value = await getLocalIdentity()
-        identity.value = await fetchIdentityFromServer()
+        await refreshIdentity()
       }
       
       return result
@@ -595,7 +605,7 @@ export const useIdentityStore = defineStore('identity', () => {
       // Refresh store state with the new keys. Public-key re-registration
       // happened during rotation; just reflect it locally.
       localKeys.value = await getLocalIdentity()
-      identity.value = await fetchIdentityFromServer()
+      await refreshIdentity()
       return { success: true, slotResults: result.slotResults }
     } catch (err) {
       if (err instanceof RotationConflictError) {
@@ -631,7 +641,7 @@ export const useIdentityStore = defineStore('identity', () => {
       })
       hasLocalIdentity.value = true
       localKeys.value = await getLocalIdentity()
-      identity.value = await fetchIdentityFromServer()
+      await refreshIdentity()
       // Seed we just stored was unwrapped from the server's current
       // wrapped-master-key slot, whose signature is bound to the
       // server's current signing key. So by definition we're now in
@@ -685,6 +695,7 @@ export const useIdentityStore = defineStore('identity', () => {
     passkeySlotCredentialIds,
     passkeyListVersion,
     isStale,
+    identityUnavailable,
     rotateKeysRequestCounter,
     requestRotateKeys,
 

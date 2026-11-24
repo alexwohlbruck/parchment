@@ -32,6 +32,7 @@ const {
   getUserHandle,
   updateUserAlias,
   updateUserKeys,
+  KeysAlreadyRegistered,
   updateUserDisplayProfile,
   getUserIdentity,
   getLocalUserIdByAlias,
@@ -142,14 +143,31 @@ describe('updateUserAlias', () => {
 })
 
 describe('updateUserKeys', () => {
-  test('stores both keys with a timestamp', async () => {
+  test('registers keys on an account that has none', async () => {
+    dbMock.queueReturning([{ id: 'user-1' }])
     await updateUserKeys('user-1', 'sig', 'enc')
 
     expect(dbMock.updated[0]).toMatchObject({
       signingKey: 'sig',
       encryptionKey: 'enc',
     })
-    expect((dbMock.updated[0] as any).updatedAt).toBeInstanceOf(Date)
+    expect(dbMock.selectCount).toBe(0)
+  })
+
+  test('accepts re-registering the same keys', async () => {
+    dbMock.queueReturning([])
+    dbMock.queueSelect([{ signingKey: 'sig', encryptionKey: 'enc' }])
+
+    await expect(updateUserKeys('user-1', 'sig', 'enc')).resolves.toBeUndefined()
+  })
+
+  test('refuses to overwrite different registered keys', async () => {
+    dbMock.queueReturning([])
+    dbMock.queueSelect([{ signingKey: 'old-sig', encryptionKey: 'old-enc' }])
+
+    await expect(updateUserKeys('user-1', 'sig', 'enc')).rejects.toBeInstanceOf(
+      KeysAlreadyRegistered,
+    )
   })
 })
 

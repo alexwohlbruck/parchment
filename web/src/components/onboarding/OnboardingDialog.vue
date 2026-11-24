@@ -45,9 +45,11 @@ const skippingPasskey = computed(() => currentStep.value.id === 'passkey')
 
 // Setting up a recovery key replaces existing keys, so only offer it once the server confirms there are none.
 const needsKeys = ref(false)
-fetchIdentityFromServer().then(identity => {
-  needsKeys.value = !!identity && !identity.signingKey
-})
+fetchIdentityFromServer()
+  .then(identity => {
+    needsKeys.value = !identity.signingKey
+  })
+  .catch(() => {})
 
 const currentIndex = ref(0)
 const completing = ref(false)

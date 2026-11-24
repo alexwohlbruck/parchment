@@ -23,6 +23,7 @@ import { PermissionId } from '../types/auth.types'
 import {
   updateUserAlias,
   updateUserKeys,
+  KeysAlreadyRegistered,
   getUserIdentity,
   updateUserDisplayProfile,
 } from '../services/user.service'
@@ -1056,12 +1057,16 @@ app.use(requireAuth).get(
  */
 app.use(requireAuth).put(
   '/me/keys',
-  async ({ user, body, set }) => {
+  async ({ user, body, status }) => {
     const { signingKey, encryptionKey } = body
-
-    await updateUserKeys(user.id, signingKey, encryptionKey)
-
-    set.status = 200
+    try {
+      await updateUserKeys(user.id, signingKey, encryptionKey)
+    } catch (err) {
+      if (err instanceof KeysAlreadyRegistered) {
+        return status(409, { message: err.message })
+      }
+      throw err
+    }
     return { success: true }
   },
   {
@@ -1071,7 +1076,10 @@ app.use(requireAuth).put(
     }),
     detail: {
       tags: ['Users', 'Federation'],
-      description: 'Register or update federation public keys',
+      description:
+        'Register federation public keys. Succeeds when the account has none ' +
+        'yet or already holds exactly these; 409 when different keys are ' +
+        'registered (those change only via rotation commit or identity reset).',
     },
   },
 )

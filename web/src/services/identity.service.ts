@@ -57,16 +57,10 @@ export async function checkHasLocalIdentity(): Promise<boolean> {
   return hasIdentity()
 }
 
-/**
- * Get the current identity from the server
- */
-export async function fetchIdentityFromServer(): Promise<Identity | null> {
-  try {
-    const response = await api.get<Identity>('/users/me/identity')
-    return response.data
-  } catch {
-    return null
-  }
+/** Throws when the server can't be reached, so a failed request is never read as "no identity". */
+export async function fetchIdentityFromServer(): Promise<Identity> {
+  const response = await api.get<Identity>('/users/me/identity')
+  return response.data
 }
 
 /**
@@ -93,14 +87,20 @@ export async function completeIdentitySetup(
   seed: Uint8Array,
   keys: DerivedKeys,
 ): Promise<void> {
-  // Store seed in IndexedDB
+  try {
+    await api.put('/users/me/keys', {
+      signingKey: exportPublicKey(keys.signing.publicKey),
+      encryptionKey: exportPublicKey(keys.encryption.publicKey),
+    })
+  } catch (err) {
+    if ((err as { response?: { status?: number } })?.response?.status === 409) {
+      throw new Error(
+        'Your account already has keys. Restore them with your recovery key or a passkey instead.',
+      )
+    }
+    throw err
+  }
   await storeSeed(seed)
-  
-  // Register public keys with server
-  await api.put('/users/me/keys', {
-    signingKey: exportPublicKey(keys.signing.publicKey),
-    encryptionKey: exportPublicKey(keys.encryption.publicKey),
-  })
 }
 
 /**
@@ -240,35 +240,6 @@ export async function resetServerIdentity(): Promise<{
       (err instanceof Error ? err.message : 'Reset failed')
     return { success: false, error: message }
   }
-}
-
-/**
- * Check if identity setup is needed
- * Returns true if user has no local identity or server has no keys
- */
-export async function needsIdentitySetup(): Promise<boolean> {
-  const [hasLocal, serverIdentity] = await Promise.all([
-    hasIdentity(),
-    fetchIdentityFromServer(),
-  ])
-  
-  // Needs setup if:
-  // - No local identity, OR
-  // - Server has no signing key
-  return !hasLocal || !serverIdentity?.signingKey
-}
-
-/**
- * Check if user needs to import their identity on this device
- * (Server has keys but local doesn't)
- */
-export async function needsIdentityImport(): Promise<boolean> {
-  const [hasLocal, serverIdentity] = await Promise.all([
-    hasIdentity(),
-    fetchIdentityFromServer(),
-  ])
-  
-  return !hasLocal && !!serverIdentity?.signingKey
 }
 
 /**
@@ -615,8 +586,12 @@ export async function verifyAndSyncKeys(): Promise<VerifyKeysOutcome> {
   const localKeys = await getLocalIdentity()
   if (!localKeys) return 'unknown'
 
-  const serverIdentity = await fetchIdentityFromServer()
-  if (!serverIdentity) return 'unknown'
+  let serverIdentity: Identity
+  try {
+    serverIdentity = await fetchIdentityFromServer()
+  } catch {
+    return 'unknown'
+  }
 
   const localSigningKey = exportPublicKey(localKeys.signing.publicKey)
   const localEncryptionKey = exportPublicKey(localKeys.encryption.publicKey)

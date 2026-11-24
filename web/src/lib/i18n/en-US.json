@@ -1636,6 +1636,7 @@
       "setupDescription": "Set up a handle so friends can find you",
       "importButton": "Import recovery key",
       "importDescription": "Your identity exists on this server, but you need to import your recovery key to use it on this device.",
+      "unavailableDescription": "Couldn't load your identity. Check your connection and try again.",
       "recoveryKey": "Recovery key",
       "recoveryKeyDescription": "View your recovery key for backup",
       "viewKey": "View key",

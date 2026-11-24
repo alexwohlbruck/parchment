@@ -65,9 +65,11 @@ const updateUserDisplayProfile = mock(async (_userId: string, _patch: any) => ({
   id: TEST_USER.id,
   firstName: 'New',
 }))
+class KeysAlreadyRegistered extends Error {}
 mock.module('../services/user.service', () => ({
   updateUserAlias,
   updateUserKeys,
+  KeysAlreadyRegistered,
   getUserIdentity,
   updateUserDisplayProfile,
 }))
@@ -450,6 +452,17 @@ describe('PUT /users/me/keys', () => {
 
     expect(res.status).toBe(200)
     expect(updateUserKeys).toHaveBeenCalledWith(TEST_USER.id, 'sig-pub', 'enc-pub')
+  })
+
+  test('409s instead of overwriting registered keys', async () => {
+    updateUserKeys.mockImplementationOnce(async () => {
+      throw new KeysAlreadyRegistered()
+    })
+    const res = await req(app).put('/users/me/keys', {
+      body: { signingKey: 'sig-pub', encryptionKey: 'enc-pub' },
+    })
+
+    expect(res.status).toBe(409)
   })
 
   test('422s when a key is missing', async () => {

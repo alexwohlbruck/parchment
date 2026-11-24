@@ -56,7 +56,7 @@ app.use(permissions(PermissionId.LOCATION_SHARING)).post(
 
     const config = await locationE2eeService.setLocationSharingConfig(
       user.id,
-      body.friendHandle.toLowerCase(),
+      body.friendHandle,
       { enabled: body.enabled },
     )
 
@@ -86,7 +86,7 @@ app.use(permissions(PermissionId.LOCATION_SHARING)).delete(
 
     const deleted = await locationE2eeService.disableLocationSharing(
       user.id,
-      decodeURIComponent(params.friendHandle).toLowerCase(),
+      decodeURIComponent(params.friendHandle),
     )
 
     return { deleted }
@@ -132,7 +132,7 @@ app
 
       const results = await Promise.all(
         body.locations.map(async (item) => {
-          const friendHandle = item.forFriendHandle.toLowerCase()
+          const friendHandle = item.forFriendHandle
           try {
             if (!(await isFriend(user.id, friendHandle))) {
               return { friendHandle, stored: false, reason: 'not-a-friend' as const }

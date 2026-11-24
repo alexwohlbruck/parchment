@@ -56,20 +56,29 @@ export async function getUserHandle(userId: string): Promise<string | null> {
 }
 
 /**
+ * Aliases are compared case-insensitively for availability, so `Bob` can't
+ * be registered next to `bob` and pass for them in a friend list.
+ */
+export async function isAliasAvailable(
+  alias: string,
+  exceptUserId?: string,
+): Promise<boolean> {
+  const [existing] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(lower(users.alias), alias.toLowerCase()))
+    .limit(1)
+  return !existing || existing.id === exceptUserId
+}
+
+/**
  * Update a user's alias (username)
  */
 export async function updateUserAlias(
   userId: string,
   alias: string,
 ): Promise<{ success: boolean; error?: string }> {
-  // Check if alias is already taken
-  const existing = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.alias, alias))
-    .limit(1)
-
-  if (existing[0] && existing[0].id !== userId) {
+  if (!(await isAliasAvailable(alias, userId))) {
     return { success: false, error: 'Alias is already taken' }
   }
 

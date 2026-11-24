@@ -22,6 +22,7 @@ import { permissions, requireAuth } from '../middleware/auth.middleware'
 import { PermissionId } from '../types/auth.types'
 import {
   updateUserAlias,
+  isAliasAvailable,
   updateUserKeys,
   getUserIdentity,
   updateUserDisplayProfile,
@@ -1031,14 +1032,7 @@ app.use(requireAuth).get(
       return { available: false }
     }
 
-    const existing = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.alias, alias))
-      .limit(1)
-
-    const taken = existing[0] && existing[0].id !== user.id
-    return { available: !taken }
+    return { available: await isAliasAvailable(alias, user.id) }
   },
   {
     query: t.Object({

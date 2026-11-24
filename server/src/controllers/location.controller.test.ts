@@ -141,12 +141,12 @@ describe('POST /location/e2ee/config', () => {
     )
   })
 
-  test('normalizes the handle to lowercase', async () => {
+  test('keeps the handle’s casing', async () => {
     await req(app).post('/location/e2ee/config', {
       body: { friendHandle: 'Alice@Peer.TEST', enabled: true },
     })
 
-    expect(setLocationSharingConfig.mock.calls[0][1]).toBe('alice@peer.test')
+    expect(setLocationSharingConfig.mock.calls[0][1]).toBe('Alice@Peer.TEST')
   })
 
   test('422s without a friend handle', async () => {
@@ -177,10 +177,10 @@ describe('DELETE /location/e2ee/config/:friendHandle', () => {
     expect(disableLocationSharing.mock.calls[0][1]).toBe('alice@peer.test')
   })
 
-  test('lowercases the handle', async () => {
+  test('keeps the handle’s casing', async () => {
     await req(app).delete('/location/e2ee/config/ALICE%40PEER.TEST')
 
-    expect(disableLocationSharing.mock.calls[0][1]).toBe('alice@peer.test')
+    expect(disableLocationSharing.mock.calls[0][1]).toBe('ALICE@PEER.TEST')
   })
 })
 
@@ -249,12 +249,12 @@ describe('POST /location/e2ee/update — authorization gates', () => {
     expect(res.body.results[0].reason).toBe('replayed')
   })
 
-  test('lowercases the recipient handle before the friendship check', async () => {
+  test('checks friendship with the handle as sent', async () => {
     await req(app).post('/location/e2ee/update', {
       body: { locations: [broadcast('ALICE@PEER.TEST')] },
     })
 
-    expect(isFriend.mock.calls[0][1]).toBe('alice@peer.test')
+    expect(isFriend.mock.calls[0][1]).toBe('ALICE@PEER.TEST')
   })
 })
 

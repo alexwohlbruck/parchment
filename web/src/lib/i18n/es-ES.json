@@ -1813,7 +1813,8 @@
       "hide": "Ocultar opciones del viaje",
       "destination": "Destino",
       "alongTheWay": "En el camino",
-      "parking": "Buscar estacionamiento"
+      "parking": "Buscar estacionamiento",
+      "docks": "Otras estaciones"
     },
     "arrival": {
       "destination": "Tu destino",
@@ -2383,7 +2384,17 @@
       "keep": "Mantener",
       "voice": {
         "switched": "Cambiando a {station}"
-      }
+      },
+      "pick": {
+        "dock": "Dónde dejarla",
+        "bike": "Dónde recogerla"
+      },
+      "none": {
+        "dock": "No hay anclajes libres cerca",
+        "bike": "No hay bicis cerca"
+      },
+      "goTo": "Ir a {station}",
+      "failed": "No se pudo calcular la ruta a esa estación"
     },
     "alternatives": {
       "faster": "{duration} más rápido",
@@ -2496,8 +2507,6 @@
         "lockers": "Taquillas para bicis",
         "shelter": "Aparcabicis cubierto"
       },
-      "minutes": "{n} min",
-      "walking": "a pie",
       "car": {
         "near": "Estacionamiento cerca de {place}",
         "nearby": "Estacionamiento cerca de tu destino",
@@ -2508,6 +2517,10 @@
         "nearby": "Aparcabicis cerca de tu destino",
         "empty": "No hay aparcabicis cerca"
       }
+    },
+    "pick": {
+      "minutes": "{n} min",
+      "walk": "a pie"
     }
   },
   "attribution": {

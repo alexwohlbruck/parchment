@@ -1890,7 +1890,8 @@
       "hide": "Hide trip options",
       "destination": "Destination",
       "alongTheWay": "Along the way",
-      "parking": "Find parking"
+      "parking": "Find parking",
+      "docks": "Other stations"
     },
     "arrival": {
       "destination": "Your destination",
@@ -2459,7 +2460,17 @@
       "keep": "Keep",
       "voice": {
         "switched": "Switching to {station}"
-      }
+      },
+      "pick": {
+        "dock": "Where to drop off",
+        "bike": "Where to pick up"
+      },
+      "none": {
+        "dock": "No open docks nearby",
+        "bike": "No bikes nearby"
+      },
+      "goTo": "Go to {station}",
+      "failed": "Could not route to that station"
     },
     "alternatives": {
       "faster": "{duration} faster",
@@ -2574,8 +2585,6 @@
         "lockers": "Bike lockers",
         "shelter": "Covered bike parking"
       },
-      "minutes": "{n} min",
-      "walking": "walk",
       "car": {
         "near": "Parking near {place}",
         "nearby": "Parking near your destination",
@@ -2586,6 +2595,10 @@
         "nearby": "Bike parking near your destination",
         "empty": "No bike parking nearby"
       }
+    },
+    "pick": {
+      "minutes": "{n} min",
+      "walk": "walk"
     }
   },
   "attribution": {

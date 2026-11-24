@@ -18,7 +18,7 @@ import { useGuidanceContext } from '../context'
 
 const { t } = useI18n()
 const guidance = useGuidanceStore()
-const { camera, openPanel, parking } = useGuidanceContext()
+const { camera, openPanel, parking, docks } = useGuidanceContext()
 
 const s = computed(() => guidance.progress?.puck.s ?? 0)
 const travelMode = computed(() => guidance.travelMode)
@@ -32,6 +32,7 @@ const actions = computed(() => guidance.kind === 'free' ? [
 ] : [
   { key: 'searchAlongRoute', icon: SearchIcon, enabled: canSearchAhead(travelMode.value), open: () => openPanel('search') },
   ...(parking.destination.value ? [{ key: 'parking', icon: parking.destination.value.vehicle === 'bike' ? BikeIcon : SquareParkingIcon, enabled: true, open: () => openPanel('parking') }] : []),
+  ...(docks.watched.value ? [{ key: 'docks', icon: BikeIcon, enabled: true, open: () => openPanel('docks') }] : []),
   { key: 'routes', icon: SplitIcon, enabled: canReroute(travelMode.value), open: () => openPanel('routes') },
   { key: 'steps', icon: ListIcon, enabled: !!guidance.route?.steps.length, open: () => openPanel('steps') },
 ])

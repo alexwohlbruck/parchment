@@ -7,8 +7,11 @@
 
 ### Changed
 
+* When your bike share station fills up or runs out of bikes, pick another from a list. If you don't tap one, the closest is chosen after 10 seconds.
+
 ### Fixed
 
+* Bike share station checks no longer stop partway through a ride.
 * Transit rides in offline directions now show their line colour in the trip timeline.
 * In 3D, road names and one-way arrows on bridges sit on the bridge instead of on the water or ground below.
 * Expanding the sheet while saving an offline map no longer shrinks the area you framed.

@@ -1,9 +1,12 @@
 // Watching the bike share station a trip depends on: is it likely to have a
 // bike (or a free dock) when the rider gets there?
 
+import type { DockAlternative, DockNeed } from '@server/lib/dock-alternatives'
+import { distanceMeters } from '@/lib/map/movement-interpolation'
+import { modeProfile } from './mode-profiles'
 import type { LngLat } from '@/types/map.types'
 
-export type DockNeed = 'bike' | 'dock'
+export type { DockNeed }
 export type DockRisk = 'ok' | 'at-risk' | 'gone'
 
 export interface DockSample {
@@ -31,6 +34,10 @@ export const DOCK_MIN = 3
 const TREND_SAMPLES = 5
 const NEAR_METERS = 1000
 const NEAR_SECONDS = 300
+/** How long the station picker waits for a tap before taking the best station. */
+export const AUTO_PICK_SECONDS = 10
+/** Streets add this much to the straight line between a station and where the rider walks. */
+const WALK_DETOUR = 1.3
 
 const isSharedRide = (s?: DockSegment) => !!s && (s.mode === 'cycling' || s.mode === 'biking') && s.ownership === 'shared'
 
@@ -97,4 +104,26 @@ export function switchStation<T extends DockSegment>(
     { ...after, ...outOfStation, sharedMobilityDetails: rename(after, 'stationName') },
     ...segments.slice(boundary + 2),
   ]
+}
+
+export interface StationOption {
+  id: string
+  name: string
+  location: LngLat
+  available: number
+  walkSeconds: number
+}
+
+/**
+ * Stations to switch to, shortest walk first: from the dock on to where the
+ * leg goes when dropping off, from the rider to the station when picking up.
+ */
+export function stationOptions(alternatives: DockAlternative[], need: DockNeed, rider: LngLat | null): StationOption[] {
+  const walkSpeed = modeProfile('walking').baseSpeed
+  return alternatives
+    .map(a => {
+      const meters = need === 'dock' ? a.toTarget ?? a.fromOriginal : rider ? distanceMeters(rider, a.location) : a.fromOriginal
+      return { id: a.stationId, name: a.name, location: a.location, available: a.available, walkSeconds: (meters * WALK_DETOUR) / walkSpeed }
+    })
+    .sort((a, b) => a.walkSeconds - b.walkSeconds)
 }

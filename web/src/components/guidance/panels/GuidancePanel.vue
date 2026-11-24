@@ -9,6 +9,7 @@ import AheadSearch from './AheadSearch.vue'
 import RoutesPanel from './RoutesPanel.vue'
 import DestinationSearch from './DestinationSearch.vue'
 import ParkingPanel from './ParkingPanel.vue'
+import DockPanel from './DockPanel.vue'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { parkingTitle } from '../parking-copy'
 import { useGuidanceContext, type GuidancePanelKind } from '../context'
@@ -19,7 +20,7 @@ const props = defineProps<{
   menuHeader?: boolean
 }>()
 const { t } = useI18n()
-const { panelReturnsToMenu, closePanel, camera, alternatives, metric, parking } = useGuidanceContext()
+const { panelReturnsToMenu, closePanel, camera, alternatives, metric, parking, docks } = useGuidanceContext()
 const guidance = useGuidanceStore()
 
 const TITLES = {
@@ -29,12 +30,14 @@ const TITLES = {
   routes: 'guidance.alternatives.title',
   destination: 'guidance.free.whereTo',
   parking: 'guidance.menu.parking',
+  docks: 'guidance.menu.docks',
 } as const
 
 const title = computed(() => {
   if (props.kind === 'search' && guidance.kind === 'free') return t('guidance.free.ahead.title')
   const destination = parking.destination.value
   if (props.kind === 'parking' && destination) return parkingTitle(t, destination)
+  if (props.kind === 'docks' && docks.watched.value) return t(`guidance.docks.pick.${docks.watched.value.need}`)
   return t(TITLES[props.kind])
 })
 
@@ -62,5 +65,6 @@ const header = computed(() => props.kind !== 'menu' || props.menuHeader)
     <RoutesPanel v-else-if="kind === 'routes'" :alternatives="alternatives" @done="closePanel(true)" />
     <DestinationSearch v-else-if="kind === 'destination'" @done="closePanel(true)" />
     <ParkingPanel v-else-if="kind === 'parking'" @done="closePanel(true)" @found="camera.overview()" />
+    <DockPanel v-else-if="kind === 'docks'" @done="closePanel(true)" @found="camera.overview()" />
   </div>
 </template>

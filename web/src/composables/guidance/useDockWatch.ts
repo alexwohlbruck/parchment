@@ -1,11 +1,9 @@
 import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue'
 import { usePremiumNavigation } from '@/composables/usePremiumNavigation'
 import { useGuidanceStore } from '@/stores/guidance.store'
-import { useAuthService } from '@/services/auth.service'
-import { PermissionId } from '@/types/auth.types'
 import { segmentAt } from '@/lib/guidance/nav-route'
 import { modeProfile } from '@/lib/guidance/mode-profiles'
-import { dockRisk, pollInterval, watchedDock, type DockRisk, type DockSample } from '@/lib/guidance/dock-watch'
+import { dockRisk, pollInterval, stationOptions, watchedDock, type DockRisk, type DockSample, type StationOption } from '@/lib/guidance/dock-watch'
 import {
   fetchAlternatives,
   fetchStation,
@@ -13,7 +11,7 @@ import {
   type StationStatus,
 } from '@/services/guidance/dock-watch.service'
 
-/** Polls the bike share station the leg depends on and offers a better one when it runs short. */
+/** Polls the bike share station the leg depends on and offers others when it runs short. */
 export function useDockWatch() {
   const guidance = useGuidanceStore()
   const premium = usePremiumNavigation()
@@ -28,7 +26,16 @@ export function useDockWatch() {
 
   const station = shallowRef<StationStatus | null>(null)
   const risk = ref<DockRisk>('ok')
-  const alternative = shallowRef<DockAlternative | null>(null)
+  const alternatives = shallowRef<DockAlternative[]>([])
+  /** Stations already switched away from, never offered again. */
+  const leftBehind = new Set<string>()
+  const alternative = computed(() => alternatives.value[0] ?? null)
+  const options = computed<StationOption[]>(() =>
+    watched.value ? stationOptions(alternatives.value, watched.value.need, guidance.progress?.puck.position ?? null) : [],
+  )
+  const loadingAlternatives = ref(false)
+  /** Set once the station is out, so the picker opens; cleared when it does. */
+  const pickRequested = ref(false)
   const dismissed = ref(false)
   const switching = ref(false)
   let samples: DockSample[] = []
@@ -45,39 +52,65 @@ export function useDockWatch() {
     return { distance, seconds: distance / modeProfile(span?.mode ?? 'walking').baseSpeed }
   }
 
-  async function poll() {
+  async function loadAlternatives() {
+    const dock = watched.value
+    if (!dock) return
+    const watching = key.value
+    loadingAlternatives.value = true
+    try {
+      const onward = guidance.segments[dock.boundary + 1]?.geometry?.at(-1) ?? null
+      const found = await fetchAlternatives(dock.location, dock.need, onward)
+      if (key.value === watching) alternatives.value = found.filter(a => !leftBehind.has(a.stationId))
+    } finally {
+      loadingAlternatives.value = false
+    }
+  }
+
+  async function check(watching: string) {
     const dock = watched.value
     if (!dock) return
     const status = await fetchStation(dock.location)
-    if (dock !== watched.value) return
-    const { distance, seconds } = approach()
-    if (status) {
-      station.value = status
-      samples = [...samples, { t: Date.now(), available: dock.need === 'dock' ? status.docks : status.bikes }]
-      risk.value = dockRisk(samples, Date.now() + seconds * 1000)
-      if (risk.value !== 'ok' && !alternative.value) {
-        const onward = guidance.segments[dock.boundary + 1]?.geometry?.at(-1) ?? null
-        alternative.value = (await fetchAlternatives(dock.location, dock.need, onward))[0] ?? null
-      }
-      if (risk.value === 'gone' && guidance.preferences.autoSwitchDocks) await accept()
-    }
-    timer = setTimeout(poll, pollInterval(distance, seconds))
+    if (!status || key.value !== watching) return
+    const was = risk.value
+    station.value = status
+    samples = [...samples, { t: Date.now(), available: dock.need === 'dock' ? status.docks : status.bikes }]
+    risk.value = dockRisk(samples, Date.now() + approach().seconds * 1000)
+    if (risk.value === 'ok') return
+    await loadAlternatives()
+    if (risk.value === 'gone' && was !== 'gone' && alternatives.value.length) pickRequested.value = true
   }
 
-  async function accept() {
+  /** Every check reschedules the next, whatever it found, so one failed or overtaken check never ends the watch. */
+  async function poll(watching: string) {
+    try {
+      await check(watching)
+    } catch {
+      // Try again on the next tick.
+    } finally {
+      if (key.value === watching) {
+        const { distance, seconds } = approach()
+        timer = setTimeout(() => void poll(watching), pollInterval(distance, seconds))
+      }
+    }
+  }
+
+  async function pick(to: { name: string; location: { lat: number; lng: number } }): Promise<boolean> {
     const dock = watched.value
-    const to = alternative.value
-    if (!dock || !to || switching.value) return
+    if (!dock || switching.value) return false
+    const leaving = station.value?.stationId
     switching.value = true
     try {
-      await guidance.switchDock(dock.boundary, { name: to.name, location: to.location })
+      if (leaving) leftBehind.add(leaving)
+      return await guidance.switchDock(dock.boundary, { name: to.name, location: to.location })
+    } catch {
+      return false
     } finally {
       switching.value = false
     }
   }
 
-  function dismiss() {
-    dismissed.value = true
+  async function accept() {
+    if (alternative.value) await pick(alternative.value)
   }
 
   function reset() {
@@ -86,7 +119,8 @@ export function useDockWatch() {
     samples = []
     station.value = null
     risk.value = 'ok'
-    alternative.value = null
+    alternatives.value = []
+    pickRequested.value = false
     dismissed.value = false
   }
 
@@ -94,7 +128,7 @@ export function useDockWatch() {
     key,
     next => {
       reset()
-      if (next) void poll()
+      if (next) void poll(next)
     },
     { immediate: true },
   )
@@ -104,5 +138,19 @@ export function useDockWatch() {
     reset()
   })
 
-  return { watched, station, risk, alternative, dismissed, switching, accept, dismiss }
+  return {
+    watched,
+    station,
+    risk,
+    alternative,
+    options,
+    loadingAlternatives,
+    pickRequested,
+    dismissed,
+    switching,
+    loadAlternatives,
+    pick,
+    accept,
+    dismiss: () => (dismissed.value = true),
+  }
 }

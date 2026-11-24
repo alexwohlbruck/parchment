@@ -1,11 +1,9 @@
-import { onScopeDispose, ref, shallowRef, watch } from 'vue'
-import type { Map as MaplibreMap } from 'maplibre-gl'
+import { ref, shallowRef } from 'vue'
 import { useAbortController } from '@/composables/useAbortController'
-import { useMapStore } from '@/stores/map.store'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { PARKING, parkingOptions, type ParkingDestination, type ParkingOption } from '@/lib/guidance/parking'
 import { fetchParkingNear } from '@/services/guidance/parking.service'
-import { AheadResultsLayer } from '@/services/guidance/ahead-results-layer'
+import { useResultMarkers } from './useResultMarkers'
 
 /** Finds parking near the destination, marks it on the map, and parks at the one picked. */
 export function useParkingSearch() {
@@ -15,8 +13,7 @@ export function useParkingSearch() {
   const loading = ref(false)
   const failed = ref(false)
   const parking = ref<string | null>(null)
-  const map = useMapStore().getMapStrategy()?.mapInstance as MaplibreMap | undefined
-  const layer = map ? new AheadResultsLayer(map) : null
+  useResultMarkers(() => options.value.map(o => o.location))
 
   async function search({ location, vehicle }: ParkingDestination) {
     const { presetId, searchMeters } = PARKING[vehicle]
@@ -43,12 +40,6 @@ export function useParkingSearch() {
       parking.value = null
     }
   }
-
-  const stop = watch(options, list => layer?.setPlaces(list.map(o => o.location)))
-  onScopeDispose(() => {
-    stop()
-    layer?.destroy()
-  })
 
   return { options, loading, failed, parking, search, park }
 }

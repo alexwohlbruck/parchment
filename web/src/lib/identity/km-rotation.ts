@@ -64,6 +64,7 @@ import {
 } from '@/lib/identity/passkey-prf'
 import { extractPrfOutputFromAssertion } from '@/lib/identity/passkey-prf-support'
 import { storeSeed } from '@/lib/identity/key-storage'
+import { keepPinsAcrossSeedChange } from '@/lib/identity/key-pinning'
 
 interface BlobListEntry {
   blobType: string
@@ -404,7 +405,7 @@ export async function rotateMasterKey(
   //    passkey unlock on this device (which unwraps from a just-
   //    re-sealed slot).
   progress({ kind: 'storing-seed' })
-  await storeSeed(newSeed)
+  await keepPinsAcrossSeedChange(() => storeSeed(newSeed))
 
   progress({ kind: 'done', newKmVersion })
   return { newSeed, newKeys, newKmVersion, slotResults }

@@ -171,6 +171,15 @@ export async function dropPin(handle: string): Promise<void> {
   await savePins(pins)
 }
 
+/** Re-encrypt the pins under whichever seed `swapSeed` leaves loaded. */
+export async function keepPinsAcrossSeedChange(
+  swapSeed: () => Promise<void>,
+): Promise<void> {
+  const pins = await loadPins()
+  await swapSeed()
+  if (Object.keys(pins).length > 0) await savePins(pins)
+}
+
 export async function listPins(): Promise<FriendPin[]> {
   const pins = await loadPins()
   return Object.values(pins)

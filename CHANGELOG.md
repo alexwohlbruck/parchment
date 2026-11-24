@@ -6,6 +6,8 @@
 
 ### Fixed
 
+* Ponds and smaller lakes now show their names on the map.
+
 ## [0.26.0] - 2026-11-24
 
 ### Added

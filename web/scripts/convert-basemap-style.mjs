@@ -354,6 +354,8 @@ const INSTITUTIONAL_LANDUSE = ['Cemetery', 'Hospital', 'School']
 
 const RESIDENTIAL_LAYER = 'Residential'
 const COMMERCIAL_LAYER = 'Commercial'
+const LAKE_LABEL_LAYER = 'Lake labels'
+const POND_LABEL_LAYER = 'Pond labels'
 
 /** Sports surfaces — `pitch`, `playground` and `stadium` share one layer. */
 const PITCH_LAYER = 'Stadium'
@@ -957,6 +959,33 @@ function addCommercialLanduse(layers) {
       'fill-color': '@commercial_fill_color',
       'fill-opacity': ['interpolate', ['linear'], ['zoom'], 11, 0, 13, 1],
     },
+  })
+}
+
+/**
+ * Names for the lakes the tiles give a point instead of a centreline, which
+ * is every pond and small lake. MapTiler's lake layer reads lines only.
+ */
+function addPondLabels(layers) {
+  const lake = layers.find(l => l.id === LAKE_LABEL_LAYER)
+  if (!lake) throw new Error(`no ${LAKE_LABEL_LAYER} layer to set pond names beside`)
+  layers.splice(layers.indexOf(lake), 0, {
+    id: POND_LABEL_LAYER,
+    type: 'symbol',
+    source: SOURCE,
+    'source-layer': 'water_name',
+    minzoom: 14,
+    filter: ['all', ['==', '$type', 'Point'], ['==', 'class', 'lake'], ['has', 'name']],
+    layout: {
+      'text-field': lake.layout['text-field'],
+      'text-font': lake.layout['text-font'],
+      'text-max-width': 6,
+      'text-size': ['interpolate', ['linear'], ['zoom'], 14, 11, 18, 14],
+      // A pond's label point is often where its park's pin sits too.
+      'text-variable-anchor': ['center', 'top', 'bottom', 'right', 'left'],
+      'text-radial-offset': 0.8,
+    },
+    paint: { ...lake.paint },
   })
 }
 
@@ -1597,6 +1626,10 @@ const TYPOGRAPHY = {
     layout: { 'text-letter-spacing': 0.14 },
     paint: { 'text-halo-width': 1.6, 'text-halo-blur': 0.6 },
   },
+  'Pond labels': {
+    layout: { 'text-letter-spacing': 0.1 },
+    paint: { 'text-halo-width': 1.4, 'text-halo-blur': 0.6 },
+  },
   'Ocean labels': {
     layout: { 'text-letter-spacing': 0.12 },
     paint: { 'text-halo-width': 1.4, 'text-halo-blur': 0.8 },
@@ -2137,6 +2170,7 @@ async function main() {
   // After every pass that touches a road's width or its place in the stack,
   // so the twins inherit the widths the roads actually ship with.
   addCyclingSurface(layers)
+  addPondLabels(layers)
   applyTypography(layers)
 
   // The roofline edge, for the plan view.

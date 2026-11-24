@@ -534,7 +534,7 @@ const CHART: MapTheme = {
     roadLabels: { transform: 'none', letterSpacing: 0.02 },
     districtLabels: { font: 'IM Fell English SC Regular', letterSpacing: 0.14, scale: 1.08 },
     layerFaces: [
-      { layers: ['River labels', 'Lake labels', 'Ferry', 'Globe sea labels', 'Globe line labels', 'Globe region labels', 'Globe range labels'], font: 'IM Fell English Italic', letterSpacing: 0.06 },
+      { layers: ['River labels', 'Lake labels', 'Pond labels', 'Ferry', 'Globe sea labels', 'Globe line labels', 'Globe region labels', 'Globe range labels'], font: 'IM Fell English Italic', letterSpacing: 0.06 },
       { layers: ['Ocean labels', 'Globe ocean labels'], font: 'IM Fell English Italic', letterSpacing: 0.3 },
       { layers: ['Town labels', 'City labels', 'Capital city labels'], font: 'IM Fell English SC Regular', letterSpacing: 0.04 },
       { layers: ['State labels', 'Country labels', 'Continent labels', 'Globe continent labels'], font: 'IM Fell English SC Regular', letterSpacing: 0.24, transform: 'uppercase' },

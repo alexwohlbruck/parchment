@@ -8013,6 +8013,75 @@
    ]
   },
   {
+   "id": "Pond labels",
+   "type": "symbol",
+   "source": "openmaptiles",
+   "source-layer": "water_name",
+   "minzoom": 14,
+   "filter": [
+    "all",
+    [
+     "==",
+     "$type",
+     "Point"
+    ],
+    [
+     "==",
+     "class",
+     "lake"
+    ],
+    [
+     "has",
+     "name"
+    ]
+   ],
+   "layout": {
+    "text-field": [
+     "coalesce",
+     [
+      "get",
+      "name:en"
+     ],
+     [
+      "get",
+      "name"
+     ]
+    ],
+    "text-font": [
+     "Geist Regular"
+    ],
+    "text-max-width": 6,
+    "text-size": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     14,
+     11,
+     18,
+     14
+    ],
+    "text-variable-anchor": [
+     "center",
+     "top",
+     "bottom",
+     "right",
+     "left"
+    ],
+    "text-radial-offset": 0.8,
+    "text-letter-spacing": 0.1
+   },
+   "paint": {
+    "text-color": "@lake_labels_text_color",
+    "text-halo-color": "@lake_labels_text_halo_color",
+    "text-halo-width": 1.4,
+    "text-halo-blur": 0.6
+   }
+  },
+  {
    "id": "Lake labels",
    "type": "symbol",
    "source": "openmaptiles",

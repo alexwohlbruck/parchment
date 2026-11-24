@@ -6,7 +6,7 @@ import {
   encryptedPoints,
 } from '../../schema/library.schema'
 import { shares, incomingShares, ShareRole } from '../../schema/shares.schema'
-import { and, eq, count, sql } from 'drizzle-orm'
+import { and, eq, count, sql, notExists } from 'drizzle-orm'
 import { grantsLocalAccess } from '../sharing.service'
 import { emit } from '../realtime/emit'
 import { resolveCollectionRecipients } from '../realtime/recipients.service'
@@ -729,9 +729,9 @@ export class CollectionVersionConflictError extends Error {
  * Change a collection's encryption scheme atomically.
  *
  * Upgrade (server-key → user-e2ee):
- *   - Delete the cleartext `bookmarks` rows in the collection (and their
- *     pivots) — the client packaged their data into the new encrypted_points
- *     batch so the cleartext copies are no longer needed.
+ *   - Unlink the collection's cleartext bookmarks and delete the ones filed
+ *     nowhere else — the client packaged their data into the new
+ *     encrypted_points batch.
  *   - Insert the new encrypted_points.
  *   - Flip `scheme`, clear any public link (disallowed on user-e2ee), and
  *     mirror `is_sensitive=true` for the compat shim.
@@ -822,18 +822,20 @@ export async function changeCollectionScheme(
         .delete(bookmarksCollections)
         .where(eq(bookmarksCollections.collectionId, params.collectionId))
 
-      // Delete the bookmarks themselves — they belonged only to this
-      // collection. If a bookmark somehow also lived in another server-key
-      // collection, the FK cascade on bookmarks_collections would already
-      // have removed its tie here and the bookmark row stays put (we only
-      // delete bookmarks whose user_id matches and that were in our list).
+      // The cleartext copy of a place filed only here goes, whoever added it;
+      // one still filed in another collection stays there.
       if (bookmarkIds.length > 0) {
         await tx
           .delete(bookmarksSchema)
           .where(
             and(
-              eq(bookmarksSchema.userId, params.userId),
               inArray(bookmarksSchema.id, bookmarkIds),
+              notExists(
+                tx
+                  .select({ id: bookmarksCollections.bookmarkId })
+                  .from(bookmarksCollections)
+                  .where(eq(bookmarksCollections.bookmarkId, bookmarksSchema.id)),
+              ),
             ),
           )
       }

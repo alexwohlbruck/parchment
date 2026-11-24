@@ -331,14 +331,11 @@ function firstLabelLayer(map: MaplibreMap): string | undefined {
 
 
 /**
- * The first of the labels that end the style, so a layer added before it is
- * drawn over every line and fill and under every one of those labels.
+ * The first layer above the imagery, so a layer added before it lies on the
+ * photos and under everything drawn over them: labels, overlays, routes.
  */
-function labelsOnTop(map: MaplibreMap): string | undefined {
-  const layers = map.getStyle()?.layers ?? []
-  let start = layers.length
-  while (start > 0 && layers[start - 1].type === 'symbol') start--
-  return layers[start]?.id
+function firstAboveImagery(map: MaplibreMap): string | undefined {
+  return map.getStyle()?.layers?.find(l => !isImageryStyleId(l.id))?.id
 }
 
 const NEVER_MATCH = ['literal', false]
@@ -1653,7 +1650,7 @@ export class MaplibreStrategy extends MapStrategy {
       onCredits: credits => mapEventBus.emit('imagery:credits', credits),
     })
     this.photorealistic = { url, layer }
-    map.addLayer(layer, labelsOnTop(map))
+    map.addLayer(layer, firstAboveImagery(map))
   }
 
   /**

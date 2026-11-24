@@ -2,9 +2,28 @@
 
 ### Added
 
+* If a friend's encryption keys change, their profile warns you and shows a safety number to compare. Nothing is shared with them until you confirm it matches.
+
 ### Changed
 
+* Rotating your keys shows your new recovery key before it finishes, since the old one stops working.
+* Resetting your account asks you to confirm it's you with your passkey or an emailed code first.
+* Collections and routes can only be shared with friends.
+* Location sharing with friends on other servers isn't available yet, and the switch says so.
+
 ### Fixed
+
+* Turning off location sharing from a friend's profile now removes your last position from their map.
+* Friends' markers turn grey once their location is old, instead of looking live until the next update.
+* Your location keeps reaching friends while the friends layer is hidden, and stops as soon as you turn sharing off.
+* Making a collection private no longer removes its places from your other collections.
+* Removing someone from a private collection now stops with a message, instead of cutting off others whose keys haven't synced.
+* Changing someone's role on a shared collection takes effect even after you change your username.
+* Rotating your keys no longer leaves saved routes, canvases or shared private collections unreadable, and stops instead of skipping anything it can't carry over.
+* Setting up encryption can no longer replace keys your account already has after a failed connection.
+* A device with outdated keys can no longer overwrite your synced data after you rotate keys elsewhere.
+* A friend's location disappears from your map a day after they last shared it, instead of staying forever.
+* Changes to collections shared with friends on other servers now show up for them right away.
 
 ## [0.26.0] - 2026-11-24
 
@@ -17,7 +36,6 @@
 * Choose which imagery the satellite map uses, add your own, and order them so lower sources fill in where higher ones have no coverage.
 * Add Google's photorealistic 3D imagery to the satellite map with Premium, to see cities as 3D models you can tilt around. In hybrid with 3D terrain, street names follow its bridges.
 * A line's vehicle list shows how far each one is from you and marks the closest.
-* If a friend's encryption keys change, their profile warns you and shows a safety number to compare. Nothing is shared with them until you confirm it matches.
 * Inside a station, step cards follow your steps and level changes without GPS, read each step aloud and show which level it leads to.
 
 ### Changed
@@ -26,17 +44,10 @@
 * Places suggested during navigation look like the map's own places, numbered to match the list.
 * The satellite map now shows sharp USGS aerial photos across the contiguous US, with Esri imagery everywhere else.
 * Satellite and hybrid maps no longer draw 3D trees, street furniture, landmarks or raised bridges over the photos, and hybrid shows street names without drawing the streets.
-* Rotating your keys shows your new recovery key before it finishes, since the old one stops working.
-* Resetting your account asks you to confirm it's you with your passkey or an emailed code first.
-* Collections and routes can only be shared with friends.
-* Location sharing with friends on other servers isn't available yet, and the switch says so.
 * The timeline is easier to scan: each trip leads with how you got there and how far, distances follow your unit setting, and one date control replaces the two pickers.
 
 ### Fixed
 
-* Turning off location sharing from a friend's profile now removes your last position from their map.
-* Friends' markers turn grey once their location is old, instead of looking live until the next update.
-* Your location keeps reaching friends while the friends layer is hidden, and stops as soon as you turn sharing off.
 * A bookmarked place now shows once in search, marked as bookmarked, and opening it from search takes you to the place.
 * Bike share station checks no longer stop partway through a ride.
 * Tapping a suggested place on the map during navigation now adds it to your route instead of closing the list.
@@ -46,14 +57,6 @@
 * In 3D, road names and one-way arrows on bridges sit on the bridge instead of on the water or ground below.
 * Expanding the sheet while saving an offline map no longer shrinks the area you framed.
 * The list of upcoming trains during navigation no longer skips trains that only appear in live data.
-* Making a collection private no longer removes its places from your other collections.
-* Removing someone from a private collection now stops with a message, instead of cutting off others whose keys haven't synced.
-* Changing someone's role on a shared collection takes effect even after you change your username.
-* Rotating your keys no longer leaves saved routes, canvases or shared private collections unreadable, and stops instead of skipping anything it can't carry over.
-* Setting up encryption can no longer replace keys your account already has after a failed connection.
-* A device with outdated keys can no longer overwrite your synced data after you rotate keys elsewhere.
-* A friend's location disappears from your map a day after they last shared it, instead of staying forever.
-* Changes to collections shared with friends on other servers now show up for them right away.
 
 ## [0.25.1-1] - 2026-11-23
 

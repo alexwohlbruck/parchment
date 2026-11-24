@@ -1142,6 +1142,11 @@
         "back": "Walk to the back of the platform"
       },
       "saves": "saves {duration}",
+      "for": {
+        "exit": "for {name}",
+        "transfer": "for the {name}"
+      },
+      "waitWalk": "You have {duration}, walk to the {section} of the platform",
       "insideStation": "Through the station",
       "steps": "{n} step | {n} steps",
       "levelUp": "Up {n} level | Up {n} levels",
@@ -2366,6 +2371,14 @@
         "board": "Board the {line}",
         "boardToward": "Board the {line} toward {headsign}",
         "boardSigned": "Board the {line}, {direction}",
+        "boardNear": "Board near the {section}",
+        "boardNearFor": "Board near the {section} for {target}",
+        "waitWalk": "You have {duration}, walk to the {section} of the platform",
+        "waitWalkFor": "You have {duration}, walk to the {section} of the platform for {target}",
+        "target": {
+          "exit": "the {name} exit",
+          "transfer": "the {name}"
+        },
         "alight-next": "Get off at the next stop, {stop}",
         "alight-now": "Get off at {stop}",
         "missed-vehicle": "The {line} has left. Catch the next one or find another way",

@@ -6,6 +6,8 @@
 
 ### Changed
 
+* On phones, dialogs open just tall enough for their content, and you can drag them up to full height.
+
 ### Fixed
 
 * Transit rides in offline directions now show their line colour in the trip timeline.

@@ -19,6 +19,11 @@ const REANCHOR_METRES = 2000
 /** Frames between re-measuring the mesh's ground, which sharpens as finer tiles arrive. */
 const GROUND_EVERY = 30
 const RAY_HEIGHT = 20_000
+const DOWN = new Vector3(0, 0, -1)
+/** East and north offsets, in metres, of the rays that find the ground. */
+const GROUND_SAMPLES = [-150, 0, 150]
+/** Mesh heights are above the ellipsoid; the geoid strays from it by at most about this. */
+const MAX_GROUND_OFFSET = 150
 
 export interface PhotorealisticOptions {
   /** The root tileset, through our proxy. */
@@ -78,6 +83,9 @@ export class PhotorealisticLayer implements CustomLayerInterface {
     this.tiles = tiles
 
     this.anchor(map.getCenter())
+    // The view comes from MapLibre every frame; three would otherwise rebuild it from an identity pose.
+    this.camera.matrixAutoUpdate = false
+    this.camera.matrixWorldAutoUpdate = false
     // Read by the tiles' own raycast, which can then stop at the first triangle.
     Object.assign(this.raycaster, { firstHitOnly: true })
   }
@@ -142,13 +150,25 @@ export class PhotorealisticLayer implements CustomLayerInterface {
     this.frame = 0
   }
 
-  /** Line the mesh's ground at the origin up with the map's. */
+  /**
+   * Line the mesh's ground up with the map's around the origin. The lowest of
+   * a few rays is the street, not a roof; an answer further out than the geoid
+   * ever is comes from a coarse tile, which cuts far under the curved surface,
+   * and is ignored until finer ones load.
+   */
   private measureGround() {
     const tiles = this.tiles!
-    this.raycaster.set(new Vector3(0, 0, RAY_HEIGHT), new Vector3(0, 0, -1))
-    const [hit] = this.raycaster.intersectObject(tiles.group, true)
-    if (!hit) return
-    this.groundOffset = this.options.groundAt(this.origin.lng, this.origin.lat) - hit.point.z
+    let lowest = Infinity
+    for (const east of GROUND_SAMPLES) {
+      for (const north of GROUND_SAMPLES) {
+        this.raycaster.set(new Vector3(east, north, RAY_HEIGHT), DOWN)
+        const [hit] = this.raycaster.intersectObject(tiles.group, true)
+        if (hit) lowest = Math.min(lowest, hit.point.z)
+      }
+    }
+    if (lowest === Infinity) return
+    const offset = this.options.groundAt(this.origin.lng, this.origin.lat) - lowest
+    if (Math.abs(offset) <= MAX_GROUND_OFFSET) this.groundOffset = offset
   }
 
   private setCredits(credits: string | null) {

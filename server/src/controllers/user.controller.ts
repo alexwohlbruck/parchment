@@ -27,6 +27,7 @@ import {
   updateUserDisplayProfile,
 } from '../services/user.service'
 import { emit } from '../services/realtime/emit'
+import { publish } from '../services/realtime/event-bus.service'
 import { resetUserIdentity } from '../services/identity-reset.service'
 import {
   getUserKmVersion,
@@ -1292,10 +1293,10 @@ app.use(requireAuth).put(
     if (body.navigation !== undefined) updates.navigation = body.navigation
     if (body.ask !== undefined) updates.ask = body.ask
     if (body.app !== undefined) updates.app = body.app
-    const prefs = Object.keys(updates).length
-      ? await updateUserPreferences(user.id, updates)
-      : await getOrCreateUserPreferences(user.id)
-    return toPreferencesResponse(prefs)
+    if (!Object.keys(updates).length) return toPreferencesResponse(await getOrCreateUserPreferences(user.id))
+    const response = toPreferencesResponse(await updateUserPreferences(user.id, updates))
+    publish('preferences:updated', { ...response, origin: body.origin }, { localUserIds: [user.id], remoteHandles: [] })
+    return response
   },
   {
     body: t.Object({
@@ -1306,6 +1307,10 @@ app.use(requireAuth).put(
       navigation: t.Optional(t.Partial(NavigationPreferencesSchema)),
       ask: t.Optional(t.Partial(AskPreferencesSchema)),
       app: t.Optional(AppPreferencesSchema),
+      origin: t.Optional(t.String({
+        maxLength: 64,
+        description: "The sending client's id, echoed in the preferences:updated event so it can skip its own change.",
+      })),
     }),
     response: UserPreferencesSchema,
     detail: {
@@ -1313,7 +1318,8 @@ app.use(requireAuth).put(
       description:
         'Update current user preferences. Each navigation or app section sent ' +
         'replaces the stored one; sections left out are kept. Ask settings ' +
-        'sent are merged into the stored ones.',
+        'sent are merged into the stored ones. A change is pushed to the ' +
+        "user's other signed-in clients as a preferences:updated event.",
     },
   },
 )

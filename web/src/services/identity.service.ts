@@ -35,7 +35,6 @@ import {
 import {
   extractPrfOutputFromAssertion,
   extractPrfOutputFromRegistration,
-  registrationHasPrfEnabled,
 } from '@/lib/identity/passkey-prf-support'
 
 export interface Identity {
@@ -302,17 +301,17 @@ export async function hasAnyWrappedKeySlot(): Promise<boolean> {
  *      authenticator evaluates PRF in-band and returns the output on
  *      the creation response. Done.
  *
- * Slow path (TWO taps) — older FIDO2 security keys or platforms that
- * can enable PRF on the credential but can't evaluate in-band:
- *   1. Registration as above. Response says `prf.enabled: true` but
- *      no `results.first`.
+ * Slow path (TWO taps) — older FIDO2 security keys, and providers that
+ * only evaluate PRF on sign-in (Samsung Pass):
+ *   1. Registration as above, with no `results.first`.
  *   2. Follow-up assertion scoped to the just-registered credential,
  *      which triggers a second biometric. Caller gets notified via
  *      `onSecondTapNeeded` so it can show an explanatory toast.
  *
- * If the authenticator doesn't set `prf.enabled: true`, the credential
- * is not PRF-capable (rare on modern authenticators). Return
- * `{ reason: 'prf-unavailable' }`; passkey is registered sign-in-only.
+ * The follow-up runs whatever `prf.enabled` says: providers report it
+ * wrongly in both directions, so only an assertion settles it. With no
+ * output from either, return `{ reason: 'prf-unavailable' }`; the
+ * passkey is registered sign-in-only.
  */
 export async function enrollPasskeySlot(params: {
   passkeyName: string
@@ -343,7 +342,6 @@ export async function enrollPasskeySlot(params: {
   const regResponse = attestationResponse as {
     clientExtensionResults?: {
       prf?: {
-        enabled?: boolean
         results?: {
           first?: ArrayBuffer | ArrayBufferView | string
         }
@@ -357,9 +355,7 @@ export async function enrollPasskeySlot(params: {
   )
   let secondTapUsed = false
 
-  // Slow path: credential is PRF-capable but the authenticator didn't
-  // evaluate in-band. Do a separate assertion.
-  if (!prfOutput && registrationHasPrfEnabled(regResponse)) {
+  if (!prfOutput) {
     params.onSecondTapNeeded?.()
     secondTapUsed = true
     try {

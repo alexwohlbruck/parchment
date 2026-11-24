@@ -149,17 +149,6 @@ export function extractPrfOutputFromRegistration(
 }
 
 /**
- * Check whether the newly-registered credential at least advertises PRF
- * support (`prf.enabled === true`). If false, the authenticator doesn't
- * support PRF at all — we must not build a slot for it.
- */
-export function registrationHasPrfEnabled(
-  response: ResponseWithExtensions,
-): boolean {
-  return response.clientExtensionResults?.prf?.enabled === true
-}
-
-/**
  * PRF output from an authentication assertion. Same shape as registration
  * but without the `enabled` flag.
  */

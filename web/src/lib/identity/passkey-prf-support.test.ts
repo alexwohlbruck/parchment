@@ -13,7 +13,6 @@ import {
   base64urlToBytes,
   extractPrfOutputFromRegistration,
   extractPrfOutputFromAssertion,
-  registrationHasPrfEnabled,
   isProbablyPrfSupported,
   hydratePrfExtensionInPlace,
 } from './passkey-prf-support'
@@ -118,23 +117,6 @@ describe('extractPrfOutputFromRegistration / Assertion', () => {
       },
     }
     expect(extractPrfOutputFromRegistration(r)).toBeNull()
-  })
-
-  test('registrationHasPrfEnabled returns true only when prf.enabled === true', () => {
-    expect(registrationHasPrfEnabled({})).toBe(false)
-    expect(
-      registrationHasPrfEnabled({ clientExtensionResults: {} }),
-    ).toBe(false)
-    expect(
-      registrationHasPrfEnabled({
-        clientExtensionResults: { prf: { enabled: false } },
-      }),
-    ).toBe(false)
-    expect(
-      registrationHasPrfEnabled({
-        clientExtensionResults: { prf: { enabled: true } },
-      }),
-    ).toBe(true)
   })
 })
 

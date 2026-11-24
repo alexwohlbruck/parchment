@@ -13,7 +13,7 @@ import {
 } from '@/lib/map-style/indoor-layers'
 import { BUILDING_3D_TILES } from '@/lib/map-style/detail-layers'
 import type { FlavorId } from '@/lib/map-style/build'
-import { clearedBuildings, focusedVenue, openingLevel, replacedFixtures, replacedPlaces, shownInside, unitedIds, type IndoorFocus } from '@/lib/indoor/indoor-venue'
+import { clearedBuildings, focusedVenue, replacedFixtures, replacedPlaces, shownInside, unitedIds, venueLevel, type FloorRequest, type IndoorFocus } from '@/lib/indoor/indoor-venue'
 import { INDOOR_FIXTURES_STATE } from '@/lib/map-style/fixture-layers'
 
 export function attachIndoor(
@@ -35,6 +35,8 @@ export function attachIndoor(
   let places: any[] = []
   /** The floor last picked in each venue, or null for its outside, so panning away and back keeps it. */
   const picked = new Map<number, number | null>()
+  let request: FloorRequest | null = null
+  let pickedSinceRequest = false
 
   /** The focus the replaced ids were gathered under; they only grow while it holds, as each change reloads the basemap. */
   let gathered: string | null = null
@@ -75,7 +77,10 @@ export function attachIndoor(
     places = map.querySourceFeatures(INDOOR_SOURCE, { sourceLayer: INDOOR_MAP_TILES, filter: ['==', ['get', 'kind'], 'poi'] })
     const { lng, lat } = map.getCenter()
     const venue = focusedVenue(venues, [lng, lat], focusArea())
-    apply(venue ? { venue, level: picked.has(venue.id) ? picked.get(venue.id)! : openingLevel(venue) } : null)
+    if (!venue) return apply(null)
+    const level = venueLevel(venue, picked, request, pickedSinceRequest)
+    if (level === request?.level) picked.set(venue.id, level)
+    apply({ venue, level })
   }
 
   /** The middle half of the screen, as a ring on the ground. */
@@ -146,6 +151,18 @@ export function attachIndoor(
     /** A level to show, or null for the venue's outside. */
     setLevel(level: number | null) {
       if (!focus) return
+      picked.set(focus.venue.id, level)
+      pickedSinceRequest = true
+      apply({ venue: focus.venue, level })
+    },
+    /** Shows a guided step's floor, now and whenever its venue comes into view, until the rider picks another. */
+    requestLevel(next: FloorRequest | null) {
+      if (next?.key === request?.key) return
+      request = next
+      pickedSinceRequest = false
+      if (!focus) return
+      const level = venueLevel(focus.venue, picked, request, false)
+      if (level === focus.level) return
       picked.set(focus.venue.id, level)
       apply({ venue: focus.venue, level })
     },

@@ -20,6 +20,7 @@ import {
   ShadowMode,
 } from '@/types/map.types'
 import type { Place } from '@/types/place.types'
+import type { FloorRequest } from '@/lib/indoor/indoor-venue'
 import { captureMapSnapshot } from './map-snapshot'
 import { useMapStore } from '@/stores/map.store'
 import { useLayersStore } from '@/stores/layers.store'
@@ -1673,6 +1674,7 @@ function mapService() {
     toggleHdRoads,
     toggleIndoorMaps,
     setIndoorLevel: (level: number | null) => mapStrategy?.setIndoorLevel(level),
+    requestIndoorLevel: (request: FloorRequest | null) => mapStrategy?.requestIndoorLevel(request),
     toggleNorthUpSnap,
     destroy,
     on,

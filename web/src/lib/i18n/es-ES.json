@@ -1077,6 +1077,12 @@
       }
     },
     "refresh": "Actualizar",
+    "view": {
+      "title": "Vista",
+      "timeline": "Cronología",
+      "list": "Lista",
+      "group": "Agrupar por tipo de viaje"
+    },
     "station": {
       "transfer": {
         "crossPlatform": "Mismo andén",

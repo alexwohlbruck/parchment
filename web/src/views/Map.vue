@@ -456,6 +456,7 @@ defineExpose({
         :active-snap-point="bottomSheetActiveSnapPoint"
         @update:active-snap-point-index="onBottomSheetSnapIndexChange"
         :dismissable="sheetMeta?.dismissable !== false"
+        :max-obstructing-snap-index="sheetMeta?.maxObstructingSnapIndex"
         show-drag-handle
         dynamic-peek
         adjust-map-padding

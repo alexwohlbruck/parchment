@@ -1108,6 +1108,12 @@
       }
     },
     "refresh": "Refresh",
+    "view": {
+      "title": "View",
+      "timeline": "Timeline",
+      "list": "List",
+      "group": "Group by trip type"
+    },
     "station": {
       "transfer": {
         "crossPlatform": "Cross-platform",

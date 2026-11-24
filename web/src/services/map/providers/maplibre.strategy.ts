@@ -1,6 +1,7 @@
 import { MOON_ATTRIBUTION } from '@/lib/map-globe/moon'
 import { CLOUDS_ATTRIBUTION } from '@/lib/map-globe/clouds'
 import { attachPoiElevation } from '@/services/map/poi-elevation.service'
+import { attachBridgeLabels } from '@/services/map/bridge-labels.service'
 import { GlobeSky } from '@/lib/map-globe/globe-sky'
 import { MILKY_WAY_ATTRIBUTION } from '@/lib/map-globe/celestial'
 import { attachGolfPins } from '@/services/map/golf-pins.service'
@@ -129,7 +130,7 @@ import { loadModelPack } from '@/lib/map-objects/model-pack.mjs'
 import { BakedBridgeLayer } from '@/lib/map-decks/baked/baked-bridge-layer'
 import { deckPalette, withRouteColors } from '@/lib/map-decks/palette'
 import type { RouteTrack } from '@/lib/map-decks/deck.types'
-import { isFlatBridge, isFlatBridgeLabel } from '@/lib/map-decks/flat-bridges'
+import { isFlatBridge } from '@/lib/map-decks/flat-bridges'
 import { TunnelLayer } from '@/lib/map-tunnels/tunnel-layer'
 import { TerrainCarver, cutCarving } from '@/lib/map-terrain/carver'
 import { roofCuts } from '@/lib/map-decks/roofs'
@@ -353,6 +354,7 @@ export class MaplibreStrategy extends MapStrategy {
   /** Trees and the rest; see `applyMapObjects`. */
   private objectLayer: ObjectLayer | null = null
   private poiElevation: ReturnType<typeof attachPoiElevation> | null = null
+  private bridgeLabels: ReturnType<typeof attachBridgeLabels> | null = null
   private golfPins: ReturnType<typeof attachGolfPins> | null = null
   private indoor: ReturnType<typeof attachIndoor> | null = null
   private chartPaper: ReturnType<typeof attachChartPaper> | null = null
@@ -531,6 +533,7 @@ export class MaplibreStrategy extends MapStrategy {
     // are already attached, because MapLibre's layer-scoped delegates use
     // getLayer() on each event and automatically adapt to style changes.
     this.poiElevation = attachPoiElevation(this.mapInstance, () => this.map3dBuildings)
+    this.bridgeLabels = attachBridgeLabels(this.mapInstance, () => this.deckLayer && { surfaceAt: (lng, lat) => this.deckLayer?.surfaceAt(lng, lat) ?? null, footprints: () => this.deckLayer?.footprints() ?? null })
     this.golfPins = attachGolfPins(this.mapInstance)
     this.indoorTerrain = attachIndoorTerrain(this.mapInstance, fineTerrain, this.terrainCarver)
     this.indoorFlights = attachIndoorFlights(this.mapInstance, () => (this.options.theme === 'dark' ? 'dark' : 'light'))
@@ -1303,8 +1306,8 @@ export class MaplibreStrategy extends MapStrategy {
     const labelKey = covered ? this.deckLayer!.version : null
     // By id, not `getStyle()`, which serialises the whole style on every deck that arrives.
     const layers = map.getLayersOrder().map(id => map.getLayer(id)).filter(layer => !!layer).map(layer => ({ id: layer.id, type: layer.type, 'source-layer': layer.sourceLayer }))
-    // A name or arrow placed along a bridge would lie on the ground under its deck.
-    if (labelKey !== this.bridgeLabelKey) map.setSymbolClip(layers.filter(isFlatBridgeLabel).map(l => l.id), covered ? this.deckLayer!.footprints() : null)
+    // A name or arrow placed along a bridge stands on its deck rather than on the ground beneath.
+    if (labelKey !== this.bridgeLabelKey) this.bridgeLabels?.update()
     this.bridgeLabelKey = labelKey
     for (const { id } of layers.filter(isFlatBridge)) {
       if (covered === this.mutedBridges.has(id)) continue
@@ -1932,6 +1935,7 @@ export class MaplibreStrategy extends MapStrategy {
 
   destroy() {
     this.poiElevation?.detach()
+    this.bridgeLabels?.detach()
     this.golfPins?.detach()
     this.indoor?.detach()
     this.chartPaper?.detach()

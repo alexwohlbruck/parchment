@@ -26,6 +26,7 @@
 * In 3D, road names and one-way arrows on bridges sit on the bridge instead of on the water or ground below.
 * Expanding the sheet while saving an offline map no longer shrinks the area you framed.
 * The list of upcoming trains during navigation no longer skips trains that only appear in live data.
+* Walking or cycling in a saved area with no connection, a wrong turn now gets a new route instead of leaving you on the old one.
 
 ## [0.25.1-1] - 2026-11-23
 

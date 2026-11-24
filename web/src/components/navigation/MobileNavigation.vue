@@ -64,6 +64,7 @@ watch(
 
 <template>
   <bottom-sheet
+    panel
     open
     :peek-height="PEEK_HEIGHT"
     :custom-snap-points="snapPoints"

@@ -29,6 +29,7 @@ import {
   type RotationPhase,
 } from '@/lib/identity/km-rotation'
 import { getSeed } from '@/lib/identity/key-storage'
+import { resetBlobKeyVersion } from '@/lib/identity/personal-blob'
 import { flushAllPendingRevocations } from '@/services/revocations.service'
 import { useFriendsStore } from '@/stores/friends.store'
 
@@ -105,6 +106,7 @@ export const useIdentityStore = defineStore('identity', () => {
   const identityUnavailable = ref(false)
 
   async function refreshIdentity(): Promise<void> {
+    resetBlobKeyVersion()
     try {
       await refreshIdentity()
       identityUnavailable.value = false
@@ -322,6 +324,7 @@ export const useIdentityStore = defineStore('identity', () => {
         return { success: false, error: serverResult.error }
       }
       await clearLocalIdentity()
+      resetBlobKeyVersion()
       identity.value = null
       localKeys.value = null
       hasLocalIdentity.value = false
@@ -340,6 +343,7 @@ export const useIdentityStore = defineStore('identity', () => {
    */
   async function clear() {
     await clearLocalIdentity()
+    resetBlobKeyVersion()
     identity.value = null
     localKeys.value = null
     hasLocalIdentity.value = false

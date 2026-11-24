@@ -168,12 +168,14 @@ export async function getUserIdentity(userId: string): Promise<{
   handle: string | null
   signingKey: string | null
   encryptionKey: string | null
+  kmVersion: number
 } | null> {
   const user = await db
     .select({
       alias: users.alias,
       signingKey: users.signingKey,
       encryptionKey: users.encryptionKey,
+      kmVersion: users.kmVersion,
     })
     .from(users)
     .where(eq(users.id, userId))
@@ -185,6 +187,7 @@ export async function getUserIdentity(userId: string): Promise<{
     handle: user[0].alias ? buildHandle(user[0].alias) : null,
     signingKey: user[0].signingKey,
     encryptionKey: user[0].encryptionKey,
+    kmVersion: user[0].kmVersion,
   }
 }
 

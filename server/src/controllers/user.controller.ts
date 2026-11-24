@@ -981,7 +981,9 @@ app.use(requireAuth).get(
   {
     detail: {
       tags: ['Users', 'Federation'],
-      description: 'Get current user federation identity (handle, keys)',
+      description:
+        'Get current user federation identity (handle, keys, and the ' +
+        'master-key version those keys belong to)',
     },
   },
 )

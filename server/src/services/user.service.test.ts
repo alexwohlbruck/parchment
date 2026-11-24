@@ -207,15 +207,16 @@ describe('updateUserDisplayProfile', () => {
 })
 
 describe('getUserIdentity', () => {
-  test('returns the handle and public keys', async () => {
+  test('returns the handle, public keys and their key version', async () => {
     dbMock.queueSelect([
-      { alias: 'alice', signingKey: 'sig', encryptionKey: 'enc' },
+      { alias: 'alice', signingKey: 'sig', encryptionKey: 'enc', kmVersion: 2 },
     ])
 
     expect(await getUserIdentity('user-1')).toEqual({
       handle: 'alice@parchment.test',
       signingKey: 'sig',
       encryptionKey: 'enc',
+      kmVersion: 2,
     })
   })
 

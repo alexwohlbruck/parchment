@@ -4,7 +4,7 @@
  * Handles friend relationships, invitations, and key sync.
  */
 
-import { and, eq, or } from 'drizzle-orm'
+import { and, eq, gt, isNull, or } from 'drizzle-orm'
 import { db } from '../db'
 import { users } from '../schema/users.schema'
 import { friendships, type Friendship } from '../schema/friendships.schema'
@@ -39,6 +39,19 @@ export interface RemoteUserInfo {
   inbox: string
   name?: string
   picture?: string
+}
+
+const INVITATION_TTL_MS = 30 * 24 * 60 * 60 * 1000
+
+function invitationExpiry(): Date {
+  return new Date(Date.now() + INVITATION_TTL_MS)
+}
+
+function notExpired() {
+  return or(
+    isNull(friendInvitations.expiresAt),
+    gt(friendInvitations.expiresAt, new Date()),
+  )
 }
 
 /**
@@ -95,6 +108,7 @@ export async function sendFriendInvitation(
         eq(friendInvitations.fromHandle, fromHandle),
         eq(friendInvitations.toHandle, toHandle),
         eq(friendInvitations.status, 'pending'),
+        notExpired(),
       ),
     )
     .limit(1)
@@ -138,6 +152,7 @@ export async function sendFriendInvitation(
         direction: 'outgoing' as InvitationDirection,
         status: 'pending' as InvitationStatus,
         originServer: getServerDomain(),
+        expiresAt: invitationExpiry(),
         signature,
       })
       .returning()
@@ -151,6 +166,7 @@ export async function sendFriendInvitation(
       direction: 'incoming' as InvitationDirection,
       status: 'pending' as InvitationStatus,
       originServer: getServerDomain(),
+      expiresAt: invitationExpiry(),
       signature,
     })
 
@@ -192,6 +208,7 @@ export async function sendFriendInvitation(
         direction: 'outgoing' as InvitationDirection,
         status: 'pending' as InvitationStatus,
         originServer: getServerDomain(),
+        expiresAt: invitationExpiry(),
         signature,
       })
       .returning()
@@ -227,6 +244,7 @@ export async function acceptFriendInvitation(
         eq(friendInvitations.localUserId, userId),
         eq(friendInvitations.direction, 'incoming'),
         eq(friendInvitations.status, 'pending'),
+        notExpired(),
       ),
     )
     .limit(1)
@@ -353,6 +371,7 @@ export async function rejectFriendInvitation(
         eq(friendInvitations.localUserId, userId),
         eq(friendInvitations.direction, 'incoming'),
         eq(friendInvitations.status, 'pending'),
+        notExpired(),
       ),
     )
     .limit(1)
@@ -527,6 +546,7 @@ export async function getInvitations(
   const conditions = [
     eq(friendInvitations.localUserId, userId),
     eq(friendInvitations.status, 'pending'),
+    notExpired(),
   ]
 
   if (direction) {
@@ -882,6 +902,7 @@ export async function handleIncomingFriendInvite(
     direction: 'incoming',
     status: 'pending',
     originServer: parseHandle(fromHandle)?.domain || '',
+    expiresAt: invitationExpiry(),
     signature,
   })
 

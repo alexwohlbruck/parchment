@@ -45,3 +45,9 @@ FROM friendships f
 WHERE f.user_id = e.user_id
   AND lower(f.friend_handle) = e.for_friend_handle
   AND f.friend_handle <> e.for_friend_handle;
+
+-- 3. Invitations now expire after 30 days. Give existing pending rows the
+-- same window from today rather than expiring them all at once.
+UPDATE friend_invitations
+SET expires_at = now() + interval '30 days'
+WHERE status = 'pending' AND expires_at IS NULL;

@@ -188,6 +188,24 @@ describe('sendFriendInvitation — local recipient', () => {
     })
   })
 
+  test('gives both invitation rows an expiry about 30 days out', async () => {
+    resolved = { handle: 'carol@parchment.test', signingKey: 'k' }
+    dbMock.queueSelect([])
+    dbMock.queueSelect([])
+    dbMock.queueSelect([{ id: 'carol-user-id' }])
+    dbMock.setReturningRows([{ id: 'generated-id' }])
+
+    await sendFriendInvitation('user-1', 'carol@parchment.test', 'sig')
+
+    const day = 24 * 60 * 60 * 1000
+    for (const row of dbMock.inserted as Array<{ expiresAt: Date }>) {
+      const ttl = row.expiresAt.getTime() - Date.now()
+      expect(ttl).toBeGreaterThan(29 * day)
+      expect(ttl).toBeLessThanOrEqual(30 * day)
+    }
+    expect(dbMock.inserted).toHaveLength(2)
+  })
+
   test('fails when the local recipient row is missing', async () => {
     resolved = { handle: 'carol@parchment.test', signingKey: 'k' }
     dbMock.queueSelect([])

@@ -1,17 +1,14 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
-import { useStorage } from '@vueuse/core'
+import { useSessionStorage } from '@vueuse/core'
 import { useIdentityStore } from '@/stores/identity.store'
-import { toast } from '@/lib/toast'
-import RecoveryKeyDialog from './RecoveryKeyDialog.vue'
+import RecoveryWordsDialog from './RecoveryWordsDialog.vue'
 
-const { t } = useI18n()
 const { identity, isSetupComplete, isStale, hasSavedRecoveryWords } = storeToRefs(useIdentityStore())
 
-/** The signing key this device last prompted for, so each set of words is announced once. */
-const promptedFor = useStorage('parchment:recovery-words-prompted', '')
+/** Asked again each session until the words are confirmed; closing it only skips this one. */
+const skippedFor = useSessionStorage('parchment:recovery-words-skipped', '')
 const open = ref(false)
 
 watch(
@@ -20,23 +17,16 @@ watch(
       ? identity.value?.signingKey
       : null,
   signingKey => {
-    if (!signingKey || promptedFor.value === signingKey) return
-    promptedFor.value = signingKey
-    toast(t('settings.identity.recoveryKey.prompt.title'), {
-      description: t('settings.identity.recoveryKey.prompt.description'),
-      action: {
-        label: t('settings.identity.recoveryKey.prompt.action'),
-        onClick: () => {
-          open.value = true
-        },
-      },
-      duration: 30000,
-    })
+    if (signingKey && skippedFor.value !== signingKey) open.value = true
   },
   { immediate: true },
 )
+
+watch(open, isOpen => {
+  if (!isOpen && hasSavedRecoveryWords.value === false) skippedFor.value = identity.value?.signingKey ?? ''
+})
 </script>
 
 <template>
-  <RecoveryKeyDialog v-model:open="open" mode="view" />
+  <RecoveryWordsDialog v-model:open="open" mode="view" />
 </template>

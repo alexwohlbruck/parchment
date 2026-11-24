@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
 import {
   checkHasLocalIdentity,
@@ -224,19 +224,7 @@ export const useIdentityStore = defineStore('identity', () => {
       pendingKeys.value = null
       pendingRecoveryKey.value = null
 
-      // Fan out any pending RELATIONSHIP_REVOKE messages queued by a
-      // prior `resetUserIdentity`. This is what tells friends /
-      // collection-share counterparties "my identity changed, drop your
-      // cached rows pointing at my old keys." Safe to call on a
-      // first-time setup too — the pending list is empty in that case.
-      // Errors are swallowed inside the service so a federation hiccup
-      // doesn't fail the overall setup; the queue persists for retry.
-      if (identity.value?.handle) {
-        void flushAllPendingRevocations({
-          myHandle: identity.value.handle,
-          signingPrivateKey: registeredKeys.signing.privateKey,
-        })
-      }
+      void retryPendingRevocations()
 
       return { success: true }
     } catch (error) {
@@ -246,6 +234,29 @@ export const useIdentityStore = defineStore('identity', () => {
       }
     }
   }
+
+  let revocationFlush: Promise<void> | null = null
+
+  /** Deliver revocations still queued server-side; failures stay queued. */
+  function retryPendingRevocations(): Promise<void> {
+    const myHandle = identity.value?.handle
+    const key = localKeys.value?.signing.privateKey
+    if (!myHandle || !key || isStale.value) return Promise.resolve()
+    revocationFlush ??= flushAllPendingRevocations({
+      myHandle,
+      signingPrivateKey: key,
+    }).finally(() => {
+      revocationFlush = null
+    })
+    return revocationFlush
+  }
+
+  watch(
+    () => [handle.value, signingPrivateKey.value, isStale.value] as const,
+    ([h, key, stale]) => {
+      if (h && key && !stale) void retryPendingRevocations()
+    },
+  )
 
   /**
    * Cancel pending setup
@@ -750,6 +761,7 @@ export const useIdentityStore = defineStore('identity', () => {
     autoUnlockAfterSignIn,
     rotateKeys,
     resetIdentity,
+    retryPendingRevocations,
   }
 })
 

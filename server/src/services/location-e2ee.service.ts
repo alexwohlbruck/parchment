@@ -5,7 +5,7 @@
  * All location data is end-to-end encrypted - the server only stores ciphertext.
  */
 
-import { and, eq } from 'drizzle-orm'
+import { and, eq, lt } from 'drizzle-orm'
 import { db } from '../db'
 import {
   locationSharingConfig,
@@ -176,6 +176,44 @@ async function publishLocationCleared(
     { senderHandle: buildHandle(sender.alias) },
     recipientHandle,
   )
+}
+
+/** How long a shared location is kept after its sharer last sent one. */
+export const LOCATION_RETENTION_MS = 24 * 60 * 60 * 1000
+const RETENTION_SWEEP_INTERVAL_MS = 60 * 60 * 1000
+
+/** Delete shared locations older than the retention window and tell recipients. */
+export async function sweepStaleLocations(now = new Date()): Promise<number> {
+  const cutoff = new Date(now.getTime() - LOCATION_RETENTION_MS)
+  const removed = await db
+    .delete(encryptedLocations)
+    .where(lt(encryptedLocations.updatedAt, cutoff))
+    .returning({
+      userId: encryptedLocations.userId,
+      forFriendHandle: encryptedLocations.forFriendHandle,
+    })
+
+  for (const row of removed) {
+    await publishLocationCleared(row.userId, row.forFriendHandle).catch((err) =>
+      logger.error({ err, userId: row.userId }, 'Failed to publish location:cleared'),
+    )
+  }
+  return removed.length
+}
+
+let retentionTimer: ReturnType<typeof setInterval> | null = null
+
+export function startLocationRetentionSweep(): void {
+  if (retentionTimer || process.env.NODE_ENV === 'test') return
+  const run = () =>
+    sweepStaleLocations()
+      .then((count) => {
+        if (count > 0) logger.info({ count }, 'Swept stale shared locations')
+      })
+      .catch((err) => logger.error({ err }, 'Shared location sweep failed'))
+  void run()
+  retentionTimer = setInterval(run, RETENTION_SWEEP_INTERVAL_MS)
+  retentionTimer.unref?.()
 }
 
 // ============================================================================

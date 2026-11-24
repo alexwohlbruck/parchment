@@ -51,6 +51,7 @@ import {
 } from './controllers'
 import { initializeIntegrations } from './services/integration.service'
 import { migrateLegacyAvatars } from './services/avatar.service'
+import { startLocationRetentionSweep } from './services/location-e2ee.service'
 import { clearProductCache } from './services/subscription.service'
 import { bootstrapRealtime } from './services/realtime/bootstrap'
 import { syncPermissionsAndRoles } from './seed/sync-permissions'
@@ -174,6 +175,8 @@ async function main() {
     { hostname: app.server?.hostname, port: app.server?.port },
     'Server started',
   )
+
+  startLocationRetentionSweep()
 
   try {
     logger.debug('i18n configured')

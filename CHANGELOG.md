@@ -16,6 +16,7 @@
 * Places suggested during navigation look like the map's own places, numbered to match the list.
 * The satellite map now shows sharp USGS aerial photos across the contiguous US, with Esri imagery everywhere else.
 * Satellite and hybrid maps no longer draw 3D trees, street furniture, landmarks or raised bridges over the photos, and hybrid shows street names without drawing the streets.
+* Rotating your keys shows your new recovery key before it finishes, since the old one stops working.
 
 ### Fixed
 
@@ -26,6 +27,9 @@
 * In 3D, road names and one-way arrows on bridges sit on the bridge instead of on the water or ground below.
 * Expanding the sheet while saving an offline map no longer shrinks the area you framed.
 * The list of upcoming trains during navigation no longer skips trains that only appear in live data.
+* Rotating your keys no longer leaves saved routes, canvases or shared private collections unreadable, and stops instead of skipping anything it can't carry over.
+* Setting up encryption can no longer replace keys your account already has after a failed connection.
+* A device with outdated keys can no longer overwrite your synced data after you rotate keys elsewhere.
 
 ## [0.25.1-1] - 2026-11-23
 

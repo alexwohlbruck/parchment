@@ -3,9 +3,8 @@ import { useAbortController } from '@/composables/useAbortController'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { PARKING, parkingOptions, type ParkingDestination, type ParkingOption } from '@/lib/guidance/parking'
 import { fetchParkingNear } from '@/services/guidance/parking.service'
-import { useResultMarkers } from './useResultMarkers'
 
-/** Finds parking near the destination, marks it on the map, and parks at the one picked. */
+/** Finds parking near the destination and parks at the one picked. */
 export function useParkingSearch() {
   const guidance = useGuidanceStore()
   const { nextSignal } = useAbortController()
@@ -13,7 +12,6 @@ export function useParkingSearch() {
   const loading = ref(false)
   const failed = ref(false)
   const parking = ref<string | null>(null)
-  useResultMarkers(() => options.value.map(o => o.location))
 
   async function search({ location, vehicle }: ParkingDestination) {
     const { presetId, searchMeters } = PARKING[vehicle]

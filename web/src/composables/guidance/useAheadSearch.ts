@@ -3,16 +3,14 @@ import { useAbortController } from '@/composables/useAbortController'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { routeAhead } from '@/lib/guidance/nav-route'
 import { searchAhead, type AheadResult } from '@/services/guidance/route-search.service'
-import { useResultMarkers } from './useResultMarkers'
 
-/** Searches the route still ahead and marks what it finds on the map. */
+/** Searches the route still ahead. */
 export function useAheadSearch() {
   const guidance = useGuidanceStore()
   const { nextSignal } = useAbortController()
   const results = shallowRef<AheadResult[]>([])
   const loading = ref(false)
   const failed = ref(false)
-  useResultMarkers(() => results.value.map(r => r.place.geometry.value.center))
 
   async function search(params: { query?: string; categories?: string[] }) {
     const route = guidance.followed

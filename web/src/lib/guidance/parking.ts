@@ -33,6 +33,8 @@ export interface ParkingOption {
   location: LngLat
   walkSeconds: number
   paid: boolean | null
+  /** Place category, for the map badge. */
+  category: string
 }
 
 interface RiddenSegment {
@@ -102,6 +104,7 @@ export function parkingOptions(places: Place[], destination: LngLat, vehicle: Pa
         location: { lat: center.lat, lng: center.lng },
         walkSeconds: (meters * WALK_DETOUR) / walkSpeed,
         paid: paid(place.tags),
+        category: place.icon?.category ?? 'default',
       }]
     })
     .sort((a, b) => a.walkSeconds - b.walkSeconds)

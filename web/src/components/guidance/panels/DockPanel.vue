@@ -1,15 +1,17 @@
 <script setup lang="ts">
+import type { LngLat } from '@/types/map.types'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { useResultMarkers } from '@/composables/guidance/useResultMarkers'
 import { AUTO_PICK_SECONDS, type StationOption } from '@/lib/guidance/dock-watch'
+import type { PlaceCategoryId } from '@/lib/map-style/build'
 import { toast } from '@/lib/toast'
 import { useGuidanceContext } from '../context'
 import AutoPickButton from './AutoPickButton.vue'
 import PickList, { type PickItem } from './PickList.vue'
 
-const emit = defineEmits<{ done: []; found: [] }>()
+const emit = defineEmits<{ done: []; found: [places: LngLat[]] }>()
 const { t } = useI18n()
 const guidance = useGuidanceStore()
 const { docks } = useGuidanceContext()
@@ -33,7 +35,15 @@ const items = computed<PickItem[]>(() =>
 const best = computed(() => docks.options.value[0] ?? null)
 const counting = computed(() => auto.value && guidance.preferences.autoSwitchDocks && !touched.value && !!best.value && !picking.value)
 
-useResultMarkers(() => docks.options.value.map(o => o.location))
+/** The basemap files bike share stations under bicycle infrastructure. */
+const STATION_CATEGORY: PlaceCategoryId = 'sport_and_leisure'
+useResultMarkers(
+  () => docks.options.value.map(o => ({ location: o.location, name: o.name, category: STATION_CATEGORY })),
+  i => {
+    touched.value = true
+    void pick(docks.options.value[i] ?? null)
+  },
+)
 
 async function pick(option: StationOption | null) {
   if (!option || picking.value) return
@@ -62,7 +72,7 @@ watch(docks.watched, watched => !watched && emit('done'))
 
 onMounted(async () => {
   if (!docks.options.value.length) await docks.loadAlternatives()
-  if (docks.options.value.length) emit('found')
+  if (docks.options.value.length) emit('found', docks.options.value.map(o => o.location))
 })
 </script>
 

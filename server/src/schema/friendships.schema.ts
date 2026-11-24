@@ -1,5 +1,5 @@
 import { relations } from 'drizzle-orm'
-import { pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { pgTable, text, timestamp, unique } from 'drizzle-orm/pg-core'
 import { users } from './users.schema'
 
 export const friendships = pgTable('friendships', {
@@ -16,7 +16,9 @@ export const friendships = pgTable('friendships', {
   establishedAt: timestamp('established_at'),
   revokedAt: timestamp('revoked_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-})
+}, (table) => [
+  unique('unique_friendship').on(table.userId, table.friendHandle),
+])
 
 export const friendshipsRelations = relations(friendships, ({ one }) => ({
   user: one(users, {

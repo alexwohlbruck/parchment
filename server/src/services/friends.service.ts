@@ -4,7 +4,7 @@
  * Handles friend relationships, invitations, and key sync.
  */
 
-import { and, eq } from 'drizzle-orm'
+import { and, eq, or } from 'drizzle-orm'
 import { db } from '../db'
 import { users } from '../schema/users.schema'
 import { friendships, type Friendship } from '../schema/friendships.schema'
@@ -252,61 +252,65 @@ export async function acceptFriendInvitation(
     }
   }
 
-  // Delete the incoming invitation (no longer needed)
-  await db
-    .delete(friendInvitations)
-    .where(eq(friendInvitations.id, invitationId))
+  const localSenderId = isLocalHandle(inv.fromHandle)
+    ? await findLocalUserIdByHandle(inv.fromHandle)
+    : null
+  const acceptorInfo = localSenderId ? await getUserIdentity(userId) : null
 
-  // Create friendship record
-  await db.insert(friendships).values({
-    id: generateId(),
-    userId,
-    friendHandle: inv.fromHandle,
-    friendSigningKey: sender.signingKey,
-    friendEncryptionKey: sender.encryptionKey,
-    status: 'accepted',
-    establishedAt: new Date(),
-  })
+  const claimed = await db.transaction(async (tx) => {
+    const [claim] = await tx
+      .delete(friendInvitations)
+      .where(
+        and(
+          eq(friendInvitations.id, invitationId),
+          eq(friendInvitations.status, 'pending'),
+        ),
+      )
+      .returning({ id: friendInvitations.id })
+    if (!claim) return false
 
-  // If sender is local, delete their invitation and create friendship
-  if (isLocalHandle(inv.fromHandle)) {
-    const parsed = parseHandle(inv.fromHandle)
-    if (parsed) {
-      const senderUser = await db
-        .select({ id: users.id })
-        .from(users)
-        .where(eq(users.alias, parsed.alias))
-        .limit(1)
+    await deletePendingInvitationsBetween(tx, userId, myHandle, inv.fromHandle)
+    await tx
+      .insert(friendships)
+      .values({
+        id: generateId(),
+        userId,
+        friendHandle: inv.fromHandle,
+        friendSigningKey: sender.signingKey,
+        friendEncryptionKey: sender.encryptionKey,
+        status: 'accepted',
+        establishedAt: new Date(),
+      })
+      .onConflictDoNothing()
 
-      if (senderUser[0]) {
-        // Delete sender's outgoing invitation
-        await db
-          .delete(friendInvitations)
-          .where(
-            and(
-              eq(friendInvitations.fromHandle, inv.fromHandle),
-              eq(friendInvitations.toHandle, inv.toHandle),
-              eq(friendInvitations.direction, 'outgoing'),
-            ),
-          )
-
-        // Get acceptor's keys
-        const acceptorInfo = await getUserIdentity(userId)
-
-        // Create friendship for sender
-        await db.insert(friendships).values({
+    if (localSenderId) {
+      await deletePendingInvitationsBetween(
+        tx,
+        localSenderId,
+        inv.fromHandle,
+        myHandle,
+      )
+      await tx
+        .insert(friendships)
+        .values({
           id: generateId(),
-          userId: senderUser[0].id,
+          userId: localSenderId,
           friendHandle: myHandle,
           friendSigningKey: acceptorInfo?.signingKey || null,
           friendEncryptionKey: acceptorInfo?.encryptionKey || null,
           status: 'accepted',
           establishedAt: new Date(),
         })
-      }
+        .onConflictDoNothing()
     }
-  } else {
-    // Send acceptance to remote server
+    return true
+  })
+
+  if (!claimed) {
+    return { success: false, error: 'Invitation not found' }
+  }
+
+  if (!isLocalHandle(inv.fromHandle)) {
     const timestamp = new Date().toISOString()
     const message: FederationMessage = {
       type: 'FRIEND_ACCEPT',
@@ -568,31 +572,34 @@ export async function removeFriend(
   }
 
   const myHandle = await getUserHandle(userId)
+  const friendUserId =
+    myHandle && isLocalHandle(friendHandle)
+      ? await findLocalUserIdByHandle(friendHandle)
+      : null
 
-  await db.delete(friendships).where(eq(friendships.id, friendship[0].id))
-
-  if (myHandle && isLocalHandle(friendHandle)) {
-    const parsed = parseHandle(friendHandle)
-    if (parsed) {
-      const friendUser = await db
-        .select({ id: users.id })
-        .from(users)
-        .where(eq(users.alias, parsed.alias))
-        .limit(1)
-
-      if (friendUser[0]) {
-        await db
-          .delete(friendships)
-          .where(
-            and(
-              eq(friendships.userId, friendUser[0].id),
-              eq(friendships.friendHandle, myHandle),
-            ),
-          )
-
-        await cleanupLocationSharingForFriend(friendUser[0].id, myHandle)
-      }
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(friendships)
+      .where(
+        and(
+          eq(friendships.userId, userId),
+          eq(friendships.friendHandle, friendHandle),
+        ),
+      )
+    if (friendUserId && myHandle) {
+      await tx
+        .delete(friendships)
+        .where(
+          and(
+            eq(friendships.userId, friendUserId),
+            eq(friendships.friendHandle, myHandle),
+          ),
+        )
     }
+  })
+
+  if (friendUserId && myHandle) {
+    await cleanupLocationSharingForFriend(friendUserId, myHandle)
   } else if (myHandle && !isLocalHandle(friendHandle) && revokeSignature) {
     // Remote friend: propagate revocation to their home server.
     const { generateNonce, nowIso } = await import('../lib/federation-canonical')
@@ -925,17 +932,20 @@ export async function handleIncomingFriendAccept(
     .where(eq(friendInvitations.id, invitation[0].id))
 
   // Create friendship record
-  await db.insert(friendships).values({
-    id: generateId(),
-    userId: localUser[0].id,
-    friendHandle: fromHandle,
-    friendSigningKey: senderInfo.signingKey,
-    friendEncryptionKey: senderInfo.encryptionKey,
-    friendName: senderInfo.name || null,
-    friendPicture: senderInfo.picture || null,
-    status: 'accepted',
-    establishedAt: new Date(),
-  })
+  await db
+    .insert(friendships)
+    .values({
+      id: generateId(),
+      userId: localUser[0].id,
+      friendHandle: fromHandle,
+      friendSigningKey: senderInfo.signingKey,
+      friendEncryptionKey: senderInfo.encryptionKey,
+      friendName: senderInfo.name || null,
+      friendPicture: senderInfo.picture || null,
+      status: 'accepted',
+      establishedAt: new Date(),
+    })
+    .onConflictDoNothing()
 
   return { success: true }
 }
@@ -962,6 +972,49 @@ export async function handleIncomingFriendReject(
     .where(eq(friendInvitations.id, invitation[0].id))
 
   return { success: true }
+}
+
+type DbOrTx = Pick<typeof db, 'delete'>
+
+/**
+ * Drop every pending invitation, in either direction, that `userId` holds
+ * between their own handle and `otherHandle`.
+ */
+async function deletePendingInvitationsBetween(
+  tx: DbOrTx,
+  userId: string,
+  ownHandle: string,
+  otherHandle: string,
+): Promise<void> {
+  await tx
+    .delete(friendInvitations)
+    .where(
+      and(
+        eq(friendInvitations.localUserId, userId),
+        eq(friendInvitations.status, 'pending'),
+        or(
+          and(
+            eq(friendInvitations.fromHandle, ownHandle),
+            eq(friendInvitations.toHandle, otherHandle),
+          ),
+          and(
+            eq(friendInvitations.fromHandle, otherHandle),
+            eq(friendInvitations.toHandle, ownHandle),
+          ),
+        ),
+      ),
+    )
+}
+
+async function findLocalUserIdByHandle(handle: string): Promise<string | null> {
+  const parsed = parseHandle(handle)
+  if (!parsed) return null
+  const [row] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.alias, parsed.alias))
+    .limit(1)
+  return row?.id ?? null
 }
 
 /**

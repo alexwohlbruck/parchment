@@ -152,4 +152,16 @@ describe('app preferences store', () => {
       expect(save.mock.calls[0][0].theme).toMatchObject({ radius: 1 })
     })
   })
+
+  it("keeps an edit it hasn't saved yet when another device's change arrives", async () => {
+    const store = useAppPreferencesStore()
+    store.adopt(saved)
+    useThemeStore().setAccentColor('cobalt')
+    store.adopt({ ...saved, theme: { accentColor: 'teal', radius: 1, colorScheme: 'dark', uiTheme: 'parchment' } })
+    await settle()
+
+    expect(useThemeStore().accentColor).toBe('cobalt')
+    expect(save.mock.calls.at(-1)![0].theme).toMatchObject({ accentColor: 'cobalt' })
+  })
 })
+

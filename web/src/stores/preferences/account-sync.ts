@@ -70,13 +70,14 @@ export function useAccountSync<T extends object>(
 
   /**
    * Runs `apply` with the account's values, this device's standing in for any
-   * it keeps to itself, then seeds the account with this device's for any
-   * section it never saved.
+   * it keeps to itself or has yet to save, then seeds the account with this
+   * device's for any section it never saved.
    */
   function adopt(remote: Partial<T>, apply: (values: Partial<T>) => void) {
     account = { ...remote }
+    const kept = (section: Section) => (section in pending ? [''] : devicePaths(section))
     const values = Object.fromEntries(
-      sectionNames.map(section => [section, overlayPaths(remote[section], sources[section](), devicePaths(section))]),
+      sectionNames.map(section => [section, overlayPaths(remote[section], sources[section](), kept(section))]),
     ) as Partial<T>
     adopting = true
     try {
@@ -86,7 +87,7 @@ export function useAccountSync<T extends object>(
     }
     for (const section of sectionNames) sent[section] = JSON.stringify(sources[section]())
     linked.value = true
-    sectionNames.filter(section => remote[section] === undefined).forEach(queue)
+    sectionNames.filter(section => remote[section] === undefined || section in pending).forEach(queue)
   }
 
   const authStore = useAuthStore()

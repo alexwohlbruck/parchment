@@ -8,9 +8,16 @@ import { formatDurationShort } from '@/lib/time-format'
 import type { StationWalk } from '@server/types/station-guidance.types'
 import { stationSignText, type StationSign } from '@/lib/transit/station/station-signs'
 import { stationStepText, type PlatformSpot } from '@/lib/transit/station/station-walks'
+import { useStationStepFocus } from '@/composables/transit/useStationStepFocus'
 
-const props = withDefaults(defineProps<{ walk: StationWalk; sign?: StationSign | null; spot?: PlatformSpot | null; timed?: boolean }>(), { timed: true })
+const props = withDefaults(
+  defineProps<{ id: string; walk: StationWalk; sign?: StationSign | null; spot?: PlatformSpot | null; timed?: boolean }>(),
+  { timed: true },
+)
 const { t } = useI18n()
+const stepFocus = useStationStepFocus()
+const focus = (i: number) => stepFocus.focus(`${props.id}:${i}`, props.walk, i)
+const frame = (i: number) => stepFocus.frame(`${props.id}:${i}`, props.walk, i)
 
 const steps = computed(() => (props.walk.estimate ? [] : props.walk.steps ?? []))
 const time = computed(() => `${props.walk.estimate ? '≈ ' : ''}${formatDurationShort(props.walk.seconds)}`)
@@ -37,7 +44,7 @@ function levels(change: number | null) {
   <div v-else-if="!steps.length" class="text-xs text-muted-foreground tabular-nums">
     {{ t('directions.station.insideStation') }} · {{ time }}
   </div>
-  <Collapsible v-else v-slot="{ open }">
+  <Collapsible v-else v-slot="{ open }" @update:open="opened => opened && focus(0)">
     <CollapsibleTrigger class="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer select-none">
       <ChevronDownIcon class="size-3.5 transition-transform" :class="open && 'rotate-180'" />
       <span class="tabular-nums">
@@ -46,7 +53,13 @@ function levels(change: number | null) {
     </CollapsibleTrigger>
     <CollapsibleContent>
       <ol class="mt-2 space-y-2">
-        <li v-for="(step, i) in steps" :key="i" class="flex gap-2.5">
+        <li
+          v-for="(step, i) in steps"
+          :key="i"
+          class="-mx-1.5 flex cursor-pointer gap-2.5 rounded-sm px-1.5 py-0.5 transition-colors hover:bg-accent"
+          @mouseenter="focus(i)"
+          @click="frame(i)"
+        >
           <component :is="stationStepIcon(step)" class="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
           <div class="min-w-0 flex-1">
             <div class="text-xs text-foreground leading-snug">{{ stationStepText(steps, i, spot ?? null, t) }}</div>

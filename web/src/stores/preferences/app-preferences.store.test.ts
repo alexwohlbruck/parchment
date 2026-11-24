@@ -3,6 +3,7 @@ import { createPinia, setActivePinia, type Pinia } from 'pinia'
 import type { AppPreferences } from '@server/types/app-preferences.types'
 import { useAppPreferencesStore } from './app-preferences.store'
 import { useAppStore } from '@/stores/app.store'
+import { useIdentityStore } from '@/stores/identity.store'
 import { useMapStore } from '@/stores/map.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { useDeviceOnlyStore } from './device-only.store'
@@ -16,7 +17,7 @@ vi.mock('@/stores/layer-appearance.store', () => ({
   useLayerAppearanceStore: () => ({ chosen: {}, adopt: layerAppearances.adopt }),
 }))
 
-const saved: AppPreferences = { theme: {}, map: {}, general: {}, layerAppearances: {} }
+const saved: AppPreferences = { theme: {}, map: {}, general: {}, layerAppearances: {}, security: {} }
 
 let pinia: Pinia
 
@@ -44,6 +45,7 @@ describe('app preferences store', () => {
       map: { basemap: 'satellite', roadLabels: false },
       general: { floorNumbering: FloorNumbering.ONE_BASED, homeSheetStart: 'library' },
       layerAppearances: { 'default:group:cycling': 'suitability' },
+      security: { recoveryWordsSavedFor: 'key-1' },
     })
     await settle()
 
@@ -74,6 +76,31 @@ describe('app preferences store', () => {
     })
   })
 
+  it('carries which recovery words were saved, and sends nothing before the account loads', async () => {
+    const identity = useIdentityStore()
+    const store = useAppPreferencesStore()
+    expect(identity.recoveryWordsSavedFor).toBeUndefined()
+
+    store.adopt({ ...saved, security: { recoveryWordsSavedFor: 'key-1' } })
+    await settle()
+    expect(identity.recoveryWordsSavedFor).toBe('key-1')
+    expect(save).not.toHaveBeenCalled()
+
+    identity.recoveryWordsSavedFor = 'key-2'
+    await settle()
+    expect(save).toHaveBeenCalledExactlyOnceWith({ security: { recoveryWordsSavedFor: 'key-2' } })
+
+    identity.recoveryWordsSavedFor = undefined
+    await settle()
+    expect(save).toHaveBeenCalledOnce()
+  })
+
+  it('reads an account that never saved its recovery words as unsaved', async () => {
+    useAppPreferencesStore().adopt({ theme: {}, map: {}, general: {}, layerAppearances: {} })
+    await settle()
+    expect(useIdentityStore().recoveryWordsSavedFor).toBeNull()
+  })
+
   it('saves a changed section whole, and only what suits any device', async () => {
     const mapStore = useMapStore()
     useAppPreferencesStore().adopt(saved)
@@ -92,7 +119,7 @@ describe('app preferences store', () => {
 
   it('seeds the account with device values it never saved', async () => {
     useThemeStore().setAccentColor('cobalt')
-    useAppPreferencesStore().adopt({ map: {}, layerAppearances: {} })
+    useAppPreferencesStore().adopt({ map: {}, layerAppearances: {}, security: {} })
     await settle()
 
     expect(save).toHaveBeenCalledOnce()

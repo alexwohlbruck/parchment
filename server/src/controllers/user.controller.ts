@@ -1249,6 +1249,7 @@ const AppPreferencesSchema = t.Partial(
       map: clientSettings('Map look and behavior that suits any device: basemap, labels, projection, snapping.'),
       general: clientSettings('Floor numbering and where the home sheet opens.'),
       layerAppearances: clientSettings('The look chosen for each built-in layer, by layer id.'),
+      security: clientSettings('The signing key whose recovery words the user has confirmed they saved.'),
     },
     { additionalProperties: false },
   ),
@@ -1275,7 +1276,7 @@ app.use(requireAuth).get(
       description:
         'Get current user preferences: language, unit system, navigation, Ask and app. ' +
         'Each navigation section (excludedModes, sortPreference, routing, speech, ' +
-        'guidance) and app section (theme, map, general, layerAppearances) is ' +
+        'guidance) and app section (theme, map, general, layerAppearances, security) is ' +
         'absent until first saved.',
     },
   },

@@ -4,6 +4,7 @@ import { isBoolean, isStringArray, oneOf, pickKnown, pickValid, type Validators 
 import { POI_STYLES } from '@/lib/map-style/build'
 import { saveAppPreferences } from '@/services/preferences.service'
 import { useAppStore, type HomeSheetStart } from '@/stores/app.store'
+import { useIdentityStore } from '@/stores/identity.store'
 import { useLayerAppearanceStore } from '@/stores/layer-appearance.store'
 import { useMapStore } from '@/stores/map.store'
 import { allColors, allRadii, colorSchemes, uiThemes, useThemeStore, type ColorScheme, type UiTheme } from '@/stores/theme.store'
@@ -80,12 +81,13 @@ const MAP: Validators<SyncedMapSettings> = {
   satelliteImagery: isStringArray,
 }
 
-/** Look-and-feel settings that follow the account: theme, map, and a few app-wide choices. */
+/** Settings that follow the account: theme, map, a few app-wide choices, and whether the recovery words are saved. */
 export const useAppPreferencesStore = defineStore('appPreferences', () => {
   const themeStore = useThemeStore()
   const mapStore = useMapStore()
   const appStore = useAppStore()
   const layerAppearanceStore = useLayerAppearanceStore()
+  const identityStore = useIdentityStore()
 
   const sync = useAccountSync<Required<AppPreferences>>(
     'app',
@@ -94,6 +96,10 @@ export const useAppPreferencesStore = defineStore('appPreferences', () => {
       map: () => pickKnown(MAP, mapStore.ownSettings),
       general: () => pickKnown(GENERAL, appStore),
       layerAppearances: () => layerAppearanceStore.chosen,
+      security: () =>
+        identityStore.recoveryWordsSavedFor === undefined
+          ? undefined
+          : { recoveryWordsSavedFor: identityStore.recoveryWordsSavedFor },
     },
     saveAppPreferences,
   )
@@ -112,6 +118,8 @@ export const useAppPreferencesStore = defineStore('appPreferences', () => {
       Object.assign(themeStore, pickValid(THEME, values.theme))
       Object.assign(appStore, pickValid(GENERAL, values.general))
       adoptMap(values.map)
+      const savedFor = values.security?.recoveryWordsSavedFor
+      identityStore.recoveryWordsSavedFor = typeof savedFor === 'string' ? savedFor : null
       if (values.layerAppearances) {
         layerAppearanceStore
           .adopt(values.layerAppearances, mapStore.getMapStrategy())

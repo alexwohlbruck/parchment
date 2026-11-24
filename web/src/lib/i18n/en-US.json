@@ -1889,7 +1889,8 @@
       "show": "Show trip options",
       "hide": "Hide trip options",
       "destination": "Destination",
-      "alongTheWay": "Along the way"
+      "alongTheWay": "Along the way",
+      "parking": "Find parking"
     },
     "arrival": {
       "destination": "Your destination",
@@ -2555,6 +2556,35 @@
         "suv": "SUV",
         "pickup": "Pickup",
         "bike": "Bike"
+      }
+    },
+    "parking": {
+      "find": "Find",
+      "dismiss": "Not now",
+      "paid": "Paid",
+      "free": "Free",
+      "unavailable": "Parking search is unavailable right now",
+      "failed": "Could not route to that parking",
+      "kinds": {
+        "garage": "Garage",
+        "underground": "Underground garage",
+        "street": "Street parking",
+        "lot": "Parking lot",
+        "rack": "Bike rack",
+        "lockers": "Bike lockers",
+        "shelter": "Covered bike parking"
+      },
+      "minutes": "{n} min",
+      "walking": "walk",
+      "car": {
+        "near": "Parking near {place}",
+        "nearby": "Parking near your destination",
+        "empty": "No public parking nearby"
+      },
+      "bike": {
+        "near": "Bike parking near {place}",
+        "nearby": "Bike parking near your destination",
+        "empty": "No bike parking nearby"
       }
     }
   },

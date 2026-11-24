@@ -1812,7 +1812,8 @@
       "show": "Mostrar opciones del viaje",
       "hide": "Ocultar opciones del viaje",
       "destination": "Destino",
-      "alongTheWay": "En el camino"
+      "alongTheWay": "En el camino",
+      "parking": "Buscar estacionamiento"
     },
     "arrival": {
       "destination": "Tu destino",
@@ -2477,6 +2478,35 @@
         "suv": "SUV",
         "pickup": "Pickup",
         "bike": "Bici"
+      }
+    },
+    "parking": {
+      "find": "Buscar",
+      "dismiss": "Ahora no",
+      "paid": "De pago",
+      "free": "Gratis",
+      "unavailable": "La búsqueda de estacionamiento no está disponible ahora",
+      "failed": "No se pudo trazar la ruta a ese estacionamiento",
+      "kinds": {
+        "garage": "Garaje",
+        "underground": "Garaje subterráneo",
+        "street": "En la calle",
+        "lot": "Estacionamiento",
+        "rack": "Aparcabicis",
+        "lockers": "Taquillas para bicis",
+        "shelter": "Aparcabicis cubierto"
+      },
+      "minutes": "{n} min",
+      "walking": "a pie",
+      "car": {
+        "near": "Estacionamiento cerca de {place}",
+        "nearby": "Estacionamiento cerca de tu destino",
+        "empty": "No hay estacionamiento público cerca"
+      },
+      "bike": {
+        "near": "Aparcabicis cerca de {place}",
+        "nearby": "Aparcabicis cerca de tu destino",
+        "empty": "No hay aparcabicis cerca"
       }
     }
   },

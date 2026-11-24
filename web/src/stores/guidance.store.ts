@@ -12,7 +12,8 @@ import { segmentAt, smoothedBearingAt } from '@/lib/guidance/nav-route'
 import { cardinal, TurnAroundWatch, type Cardinal } from '@/lib/guidance/turn-around'
 import { travellerHeading } from '@/lib/directions/start-motion'
 import { useOrientationService } from '@/services/orientation.service'
-import { adoptItinerary, rerouteOrigin, spliceReroute, splitAtStop, type AddedStop } from '@/lib/guidance/reroute'
+import { adoptItinerary, parkAndWalk, rerouteOrigin, spliceReroute, splitAtStop, type AddedStop } from '@/lib/guidance/reroute'
+import { PARKING, parkingDestination } from '@/lib/guidance/parking'
 import { switchStation, type StationSwitch } from '@/lib/guidance/dock-watch'
 import { joinPlan, type JoinPlan } from '@/lib/guidance/start-eligibility'
 import type { LanePlan } from '@/lib/guidance/lanes'
@@ -902,6 +903,23 @@ export const useGuidanceStore = defineStore('guidance', () => {
     return true
   }
 
+  /** Ends the current drive at `lot` and walks the rest of the way. */
+  async function parkAt(lot: AddedStop): Promise<boolean> {
+    const navRoute = route.value
+    const puck = guidanceEngine.sample()
+    if (!navRoute || !puck) return false
+    const index = segmentAt(navRoute, puck.s)?.index ?? 0
+    const target = parkingDestination(segments.value, index)
+    if (!target) return false
+    const [toLot, walk] = await Promise.all([
+      requestReroute({ position: rerouteOrigin(puck.position, puck.bearing, puck.speed), heading: puck.bearing, speed: puck.speed, destination: lot.location, mode: PARKING[target.vehicle].rideMode }),
+      requestReroute({ position: lot.location, heading: null, destination: target.location, mode: 'walking' }),
+    ])
+    if (!toLot || !walk || route.value !== navRoute) return false
+    reshape(parkAndWalk(segments.value, index, toLot, walk, lot), index)
+    return true
+  }
+
   function stop() {
     guidanceEngine.stop()
     releaseScreenAwake()
@@ -995,6 +1013,7 @@ export const useGuidanceStore = defineStore('guidance', () => {
     askWhichVehicle,
     clockMs,
     addStop,
+    parkAt,
     switchDock,
     lanePlans,
     setLanePlan,

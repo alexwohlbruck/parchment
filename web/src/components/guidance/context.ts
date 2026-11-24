@@ -6,9 +6,10 @@ import type { useBetterItinerary } from '@/composables/guidance/useBetterItinera
 import type { useMissedRecovery } from '@/composables/guidance/useMissedRecovery'
 import type { useDockWatch } from '@/composables/guidance/useDockWatch'
 import type { useVehicleSwitch } from '@/composables/guidance/useVehicleSwitch'
+import type { useParkingOffer } from '@/composables/guidance/useParkingOffer'
 import type { FreeMode } from '@/lib/guidance/free-roam'
 
-export type GuidancePanelKind = 'menu' | 'steps' | 'search' | 'routes' | 'destination'
+export type GuidancePanelKind = 'menu' | 'steps' | 'search' | 'routes' | 'destination' | 'parking'
 
 export interface GuidanceContext {
   camera: ReturnType<typeof useGuidanceCamera>
@@ -18,6 +19,7 @@ export interface GuidanceContext {
   recovery: ReturnType<typeof useMissedRecovery>
   vehicleSwitch: ReturnType<typeof useVehicleSwitch>
   docks: ReturnType<typeof useDockWatch>
+  parking: ReturnType<typeof useParkingOffer>
   metric: ComputedRef<boolean>
   panel: Ref<GuidancePanelKind | null>
   /** Whether closing the open panel returns to the menu rather than to the map. */

@@ -8,7 +8,9 @@ import GuidanceSteps from './GuidanceSteps.vue'
 import AheadSearch from './AheadSearch.vue'
 import RoutesPanel from './RoutesPanel.vue'
 import DestinationSearch from './DestinationSearch.vue'
+import ParkingPanel from './ParkingPanel.vue'
 import { useGuidanceStore } from '@/stores/guidance.store'
+import { parkingTitle } from '../parking-copy'
 import { useGuidanceContext, type GuidancePanelKind } from '../context'
 
 const props = defineProps<{
@@ -17,7 +19,7 @@ const props = defineProps<{
   menuHeader?: boolean
 }>()
 const { t } = useI18n()
-const { panelReturnsToMenu, closePanel, camera, alternatives, metric } = useGuidanceContext()
+const { panelReturnsToMenu, closePanel, camera, alternatives, metric, parking } = useGuidanceContext()
 const guidance = useGuidanceStore()
 
 const TITLES = {
@@ -26,9 +28,15 @@ const TITLES = {
   search: 'guidance.ahead.title',
   routes: 'guidance.alternatives.title',
   destination: 'guidance.free.whereTo',
+  parking: 'guidance.menu.parking',
 } as const
 
-const title = computed(() => (props.kind === 'search' && guidance.kind === 'free' ? 'guidance.free.ahead.title' : TITLES[props.kind]))
+const title = computed(() => {
+  if (props.kind === 'search' && guidance.kind === 'free') return t('guidance.free.ahead.title')
+  const destination = parking.destination.value
+  if (props.kind === 'parking' && destination) return parkingTitle(t, destination)
+  return t(TITLES[props.kind])
+})
 
 const header = computed(() => props.kind !== 'menu' || props.menuHeader)
 </script>
@@ -46,12 +54,13 @@ const header = computed(() => props.kind !== 'menu' || props.menuHeader)
         <ChevronLeftIcon v-if="panelReturnsToMenu" class="size-5" />
         <XIcon v-else class="size-5" />
       </Button>
-      <h2 class="font-sans text-lg font-semibold">{{ t(title) }}</h2>
+      <h2 class="min-w-0 truncate font-sans text-lg font-semibold">{{ title }}</h2>
     </div>
     <GuidanceMenu v-if="kind === 'menu'" />
     <GuidanceSteps v-else-if="kind === 'steps'" />
     <AheadSearch v-else-if="kind === 'search'" :metric="metric" @done="closePanel(true)" @found="camera.overview()" />
     <RoutesPanel v-else-if="kind === 'routes'" :alternatives="alternatives" @done="closePanel(true)" />
     <DestinationSearch v-else-if="kind === 'destination'" @done="closePanel(true)" />
+    <ParkingPanel v-else-if="kind === 'parking'" @done="closePanel(true)" @found="camera.overview()" />
   </div>
 </template>

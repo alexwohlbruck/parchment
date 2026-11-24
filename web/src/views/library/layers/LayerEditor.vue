@@ -13,6 +13,7 @@ import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import { AppRoute } from '@/router'
 import { useLayersStore } from '@/stores/layers.store'
+import { useMapStore } from '@/stores/map.store'
 import { useCanvasesStore } from '@/stores/library/canvases.store'
 import { useCanvasesService } from '@/services/library/canvases.service'
 import { useAppService } from '@/services/app.service'
@@ -42,7 +43,7 @@ import { Switch } from '@/components/ui/switch'
 import { Checkbox } from '@/components/ui/checkbox'
 import { IconPicker } from '@/components/ui/icon-picker'
 import { Spinner } from '@/components/ui/spinner'
-import { MapEngine, type Layer } from '@/types/map.types'
+import { LayerType, MapEngine, type Layer } from '@/types/map.types'
 import { newCanvasId, type CanvasStyleLayer } from '@/types/canvas.types'
 import { DownloadIcon, EyeIcon, EyeOffIcon } from 'lucide-vue-next'
 
@@ -52,6 +53,7 @@ const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
 const layersStore = useLayersStore()
+const mapStore = useMapStore()
 const canvasesStore = useCanvasesStore()
 const canvasesService = useCanvasesService()
 const appService = useAppService()
@@ -100,7 +102,7 @@ const pristine = ref('')
 function load() {
   draft.value = existing.value
     ? layerToDraft(existing.value)
-    : createLayerDraft()
+    : { ...createLayerDraft(), type: route.query.imagery ? LayerType.IMAGERY : LayerType.CUSTOM }
   pristine.value = JSON.stringify(draft.value)
 }
 
@@ -155,11 +157,14 @@ async function save() {
     } else if (existing.value) {
       await layersStore.updateLayer(existing.value.id, fields)
     } else {
-      await layersStore.addLayer({
+      const created = await layersStore.addLayer({
         ...fields,
         order: layersStore.layers.length,
         groupId: null,
       } as Omit<Layer, 'id' | 'userId' | 'createdAt' | 'updatedAt'>)
+      if (created && fields.type === LayerType.IMAGERY) {
+        mapStore.setSatelliteImagery([created.id, ...(mapStore.settings.satelliteImagery ?? [])])
+      }
     }
 
     pristine.value = JSON.stringify(draft.value)
@@ -187,7 +192,9 @@ async function save() {
 const destination = computed(() =>
   canvasId.value
     ? { name: AppRoute.CANVAS_EDITOR, params: { id: canvasId.value } }
-    : { name: AppRoute.LIBRARY_LAYERS },
+    : route.query.imagery
+      ? { name: AppRoute.APPEARANCE }
+      : { name: AppRoute.LIBRARY_LAYERS },
 )
 
 /**
@@ -242,8 +249,25 @@ function toggleEngine(engine: MapEngine, enabled: boolean) {
   draft.value = { ...draft.value, engines: engines.length ? engines : [engine] }
 }
 
+/** Only a plain raster layer can be offered to the satellite map; other types are owned by their features. */
+const canBeImagery = computed(
+  () =>
+    !canvasId.value &&
+    draft.value.source.kind === 'raster' &&
+    (draft.value.type === LayerType.CUSTOM || draft.value.type === LayerType.IMAGERY),
+)
+const isImagery = computed(() => draft.value.type === LayerType.IMAGERY)
+
+function setImagery(on: boolean) {
+  draft.value = { ...draft.value, type: on ? LayerType.IMAGERY : LayerType.CUSTOM }
+}
+
 const title = computed(() =>
-  existing.value ? t('layers.editor.editTitle') : t('layers.editor.newTitle'),
+  existing.value
+    ? t('layers.editor.editTitle')
+    : isImagery.value
+      ? t('layers.editor.newImageryTitle')
+      : t('layers.editor.newTitle'),
 )
 </script>
 
@@ -327,7 +351,17 @@ const title = computed(() =>
         </TabsContent>
 
         <TabsContent value="options" class="pt-4 space-y-4">
-          <div class="flex items-center justify-between gap-2">
+          <div v-if="canBeImagery" class="flex items-center justify-between gap-2">
+            <div>
+              <Label class="text-sm">{{ t('layers.editor.options.imagery') }}</Label>
+              <p class="text-[11px] text-muted-foreground">
+                {{ t('layers.editor.options.imageryHint') }}
+              </p>
+            </div>
+            <Switch :model-value="isImagery" @update:model-value="setImagery" />
+          </div>
+
+          <div v-if="!isImagery" class="flex items-center justify-between gap-2">
             <div>
               <Label class="text-sm">
                 {{ t('layers.meta.fields.showInLayerSelector') }}
@@ -342,7 +376,7 @@ const title = computed(() =>
             />
           </div>
 
-          <div class="flex items-center justify-between gap-2">
+          <div v-if="!isImagery" class="flex items-center justify-between gap-2">
             <div>
               <Label class="text-sm">{{ t('layers.meta.fields.fadeBasemap') }}</Label>
               <p class="text-[11px] text-muted-foreground">

@@ -1,10 +1,12 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import {
   useResponsiveOverlay,
   type ResponsiveOverlayBaseProps,
   type ResponsiveOverlayTitleProps,
 } from '@/composables/sheet/useResponsiveOverlay'
 import BottomSheet from '@/components/sheet/BottomSheet.vue'
+import SheetPeek from '@/components/sheet/SheetPeek.vue'
 import {
   Dialog,
   DialogContent,
@@ -43,6 +45,19 @@ const { isMobileScreen, internalOpen, handleOpenChange } = useResponsiveOverlay(
     emit,
   },
 )
+
+const FALLBACK_PEEK = '250px'
+
+// Unless told otherwise, open just tall enough for the content, then full height.
+const fitsContent = computed(
+  () =>
+    !props.fitContent &&
+    !props.customSnapPoints &&
+    props.peekHeight === undefined,
+)
+const snapPoints = computed(() =>
+  fitsContent.value ? [FALLBACK_PEEK, 1] : props.customSnapPoints,
+)
 </script>
 
 <template>
@@ -55,7 +70,8 @@ const { isMobileScreen, internalOpen, handleOpenChange } = useResponsiveOverlay(
     <BottomSheet
       v-model:open="internalOpen"
       :peek-height="props.peekHeight"
-      :custom-snap-points="props.customSnapPoints"
+      :custom-snap-points="snapPoints"
+      :dynamic-peek="fitsContent"
       :fit-content="props.fitContent"
       :show-drag-handle="props.showDragHandle"
       :show-close-button="props.showCloseButton"
@@ -64,7 +80,7 @@ const { isMobileScreen, internalOpen, handleOpenChange } = useResponsiveOverlay(
       :z-index-offset="props.zIndexOffset"
       obstructing-key="responsive-dialog"
     >
-      <div :class="props.noPadding ? 'p-0' : 'pt-5 pb-4 px-4'">
+      <SheetPeek :class="props.noPadding ? 'p-0' : 'pt-5 pb-4 px-4'">
         <div v-if="props.title || props.description" class="mb-4">
           <h2 v-if="props.title" class="text-lg font-semibold">
             {{ props.title }}
@@ -77,7 +93,7 @@ const { isMobileScreen, internalOpen, handleOpenChange } = useResponsiveOverlay(
           </p>
         </div>
         <slot name="content" :close="() => handleOpenChange(false)" />
-      </div>
+      </SheetPeek>
     </BottomSheet>
   </div>
 

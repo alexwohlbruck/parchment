@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import type { AppPreferences } from '@server/types/app-preferences.types'
-import { isBoolean, oneOf, pickKnown, pickValid, type Validators } from '@/lib/preferences/setting-validators'
+import { isBoolean, isStringArray, oneOf, pickKnown, pickValid, type Validators } from '@/lib/preferences/setting-validators'
 import { POI_STYLES } from '@/lib/map-style/build'
 import { saveAppPreferences } from '@/services/preferences.service'
 import { useAppStore, type HomeSheetStart } from '@/stores/app.store'
@@ -48,6 +48,7 @@ type SyncedMapSettings = Pick<
   | 'gridSnapMode'
   | 'locateFlySpeed'
   | 'startupLocation'
+  | 'satelliteImagery'
 >
 
 const THEME: Validators<ThemeSettings> = {
@@ -76,6 +77,7 @@ const MAP: Validators<SyncedMapSettings> = {
   gridSnapMode: oneOf(Object.values(GridSnapMode)),
   locateFlySpeed: oneOf(Object.values(LocateFlySpeed)),
   startupLocation: oneOf(Object.values(StartupLocation)),
+  satelliteImagery: isStringArray,
 }
 
 /** Look-and-feel settings that follow the account: theme, map, and a few app-wide choices. */
@@ -86,6 +88,7 @@ export const useAppPreferencesStore = defineStore('appPreferences', () => {
   const layerAppearanceStore = useLayerAppearanceStore()
 
   const sync = useAccountSync<Required<AppPreferences>>(
+    'app',
     {
       theme: () => pickKnown(THEME, themeStore),
       map: () => pickKnown(MAP, mapStore.ownSettings),
@@ -105,13 +108,13 @@ export const useAppPreferencesStore = defineStore('appPreferences', () => {
   }
 
   function adopt(remote: AppPreferences) {
-    sync.adopt(remote, () => {
-      Object.assign(themeStore, pickValid(THEME, remote.theme))
-      Object.assign(appStore, pickValid(GENERAL, remote.general))
-      adoptMap(remote.map)
-      if (remote.layerAppearances) {
+    sync.adopt(remote, values => {
+      Object.assign(themeStore, pickValid(THEME, values.theme))
+      Object.assign(appStore, pickValid(GENERAL, values.general))
+      adoptMap(values.map)
+      if (values.layerAppearances) {
         layerAppearanceStore
-          .adopt(remote.layerAppearances, mapStore.getMapStrategy())
+          .adopt(values.layerAppearances, mapStore.getMapStrategy())
           .catch(error => console.error('[preferences] layer appearances failed to apply', error))
       }
     })

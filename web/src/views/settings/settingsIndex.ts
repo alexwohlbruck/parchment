@@ -353,7 +353,13 @@ export const settingsIndex: SettingsPageDef[] = [
       {
         id: 'style',
         titleKey: 'settings.mapSettings.style.title',
-        items: [{ titleKey: 'settings.mapSettings.style.mapStyle' }],
+        items: [
+          { titleKey: 'settings.mapSettings.style.mapStyle' },
+          {
+            titleKey: 'settings.mapSettings.style.imagery.title',
+            descriptionKey: 'settings.mapSettings.style.imagery.description',
+          },
+        ],
       },
       {
         id: 'layers',

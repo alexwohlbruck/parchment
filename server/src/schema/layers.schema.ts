@@ -20,6 +20,8 @@ export const LayerType = {
   FRIENDS: 'friends',
   TRACKERS: 'trackers',
   NOTES: 'notes',
+  /** A raster source the satellite basemap can draw; never an overlay. */
+  IMAGERY: 'imagery',
 } as const
 
 export const MapEngine = {

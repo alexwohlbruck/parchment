@@ -33,6 +33,15 @@ export const schemaConfigs: Partial<Record<string, SchemaConfig>> = {
       },
     },
   },
+  esriSchema: {
+    fieldConfig: {
+      apiKey: {
+        label: 'API key',
+        description: 'An ArcGIS Location Platform key with the Basemaps privilege',
+        inputProps: { type: 'password', autocomplete: 'new-password' },
+      },
+    },
+  },
   openrouterSchema: {
     fieldConfig: {
       apiKey: {
@@ -126,6 +135,10 @@ export const configSchemas: Record<
 
   firmsMapKeySchema: z.object({
     apiKey: z.string().min(1, 'MAP_KEY is required').describe('public'),
+  }),
+
+  esriSchema: z.object({
+    apiKey: z.string().min(1, 'API key is required'),
   }),
 
   hostConfigSchema: z.object({

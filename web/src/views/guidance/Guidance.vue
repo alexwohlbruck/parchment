@@ -6,13 +6,14 @@ import { AppRoute } from '@/router'
 import { useResponsive } from '@/lib/utils'
 import GuidancePhoneLayout from '@/components/guidance/layouts/GuidancePhoneLayout.vue'
 import GuidanceDashLayout from '@/components/guidance/layouts/GuidanceDashLayout.vue'
-import { GUIDANCE_CONTEXT, type GuidancePanelKind } from '@/components/guidance/context'
+import { GUIDANCE_CONTEXT, MAP_PANELS, type GuidancePanelKind } from '@/components/guidance/context'
 import { useAlternativeRoutes } from '@/composables/guidance/useAlternativeRoutes'
 import { useBetterItinerary } from '@/composables/guidance/useBetterItinerary'
 import { useMissedRecovery } from '@/composables/guidance/useMissedRecovery'
 import { useVehicleSwitch } from '@/composables/guidance/useVehicleSwitch'
 import { useLaneGuidance } from '@/composables/guidance/useLaneGuidance'
 import { useDockWatch } from '@/composables/guidance/useDockWatch'
+import { useParkingOffer } from '@/composables/guidance/useParkingOffer'
 import { useGuidanceCamera } from '@/composables/guidance/useGuidanceCamera'
 import { guidanceRouteSource, useGuidanceRouteLine } from '@/composables/guidance/useGuidanceRouteLine'
 import { useGuidanceVehicle } from '@/composables/guidance/useGuidanceVehicle'
@@ -42,6 +43,7 @@ const routeLine = useGuidanceRouteLine(guidanceRouteSource(camera.state))
 useGuidanceVehicle()
 useLaneGuidance()
 const docks = useDockWatch()
+const parking = useParkingOffer()
 const alternatives = useAlternativeRoutes()
 const recovery = useMissedRecovery()
 const itinerary = useBetterItinerary(() => !!recovery.view.value)
@@ -49,7 +51,6 @@ const vehicleSwitch = useVehicleSwitch()
 
 const panel = ref<GuidancePanelKind | null>(null)
 const openedFrom = ref<GuidancePanelKind | null>(null)
-const MAP_PANELS = new Set<GuidancePanelKind>(['search', 'routes', 'destination'])
 
 function openPanel(next: GuidancePanelKind) {
   openedFrom.value = panel.value
@@ -63,6 +64,8 @@ function closePanel(outright = false) {
   openedFrom.value = null
   if (leaving && MAP_PANELS.has(leaving)) camera.follow()
 }
+
+watch(docks.pickRequested, requested => requested && panel.value !== 'docks' && openPanel('docks'))
 
 // Away from the route there is nothing to follow; show the whole of it until the traveller joins.
 watch(
@@ -96,6 +99,7 @@ provide(GUIDANCE_CONTEXT, {
   recovery,
   vehicleSwitch,
   docks,
+  parking,
   metric,
   panel,
   panelReturnsToMenu: computed(() => panel.value !== 'menu' && openedFrom.value === 'menu'),

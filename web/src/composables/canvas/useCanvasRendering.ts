@@ -33,7 +33,7 @@ import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { useEncryptedPointsStore } from '@/stores/library/encrypted-points.store'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import type { MapStrategy } from '@/services/map/providers/map.strategy'
-import { MARKER_RENDERED_LAYER_TYPES, type Layer } from '@/types/map.types'
+import { NON_OVERLAY_LAYER_TYPES, type Layer } from '@/types/map.types'
 import type {
   CanvasAnnotation,
   CanvasBody,
@@ -331,10 +331,9 @@ export function useCanvasRendering(
               const source = libraryLayers.value.find(
                 l => l.id === layer.layerId,
               )
-              // A borrowed layer that no longer exists, or one drawn as Vue
-              // markers rather than a style layer (friends, trackers, notes),
-              // has nothing to copy onto the canvas.
-              if (!source || MARKER_RENDERED_LAYER_TYPES.has(source.type)) {
+              // A borrowed layer that no longer exists, or one with no style
+              // layer of its own (markers, imagery), has nothing to copy.
+              if (!source || NON_OVERLAY_LAYER_TYPES.has(source.type)) {
                 return null
               }
               return { ...source.configuration } as Record<string, unknown>

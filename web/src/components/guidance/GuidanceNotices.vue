@@ -6,13 +6,14 @@ import { useGuidanceStore } from '@/stores/guidance.store'
 import AlternativeOffer from './AlternativeOffer.vue'
 import SegmentHandoff from './SegmentHandoff.vue'
 import DockWatchCard from './DockWatchCard.vue'
+import ParkingOffer from './ParkingOffer.vue'
 import VehicleQuestion from './transit/VehicleQuestion.vue'
 import { useGuidanceContext } from './context'
 import { lineSequence } from '@/lib/guidance/line-sequence'
 
 const { t } = useI18n()
 const guidance = useGuidanceStore()
-const { alternatives, itinerary, docks, vehicleSwitch } = useGuidanceContext()
+const { alternatives, itinerary, docks, vehicleSwitch, parking, openPanel } = useGuidanceContext()
 const vehicleQuestion = vehicleSwitch.question
 
 const offer = computed(() => {
@@ -79,6 +80,13 @@ const showDocks = computed(() => !!docks.watched.value && guidance.status !== 'a
         :switching="docks.switching.value"
         @accept="docks.accept()"
         @dismiss="docks.dismiss()"
+      />
+    </div>
+    <div v-if="parking.offered.value && parking.destination.value && !offer" key="parking" class="nav-card p-4">
+      <ParkingOffer
+        :destination="parking.destination.value"
+        @find="openPanel('parking')"
+        @dismiss="parking.dismiss()"
       />
     </div>
   </TransitionGroup>

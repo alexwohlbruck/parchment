@@ -1021,8 +1021,8 @@ describe('assembled styles', () => {
   const cases: Array<[string, () => any]> = [
     ['light', () => buildMapStyle({ ...opts, theme: 'light' })],
     ['dark', () => buildMapStyle({ ...opts, theme: 'dark' })],
-    ['hybrid', () => buildSatelliteStyle({ ...opts, theme: 'dark', hybrid: true })],
-    ['satellite', () => buildSatelliteStyle({ ...opts, theme: 'dark', hybrid: false })],
+    ['hybrid', () => buildSatelliteStyle({ ...opts, theme: 'dark', hybrid: true, imagery: [] })],
+    ['satellite', () => buildSatelliteStyle({ ...opts, theme: 'dark', hybrid: false, imagery: [] })],
     ['light glyph POIs', () => buildMapStyle({ ...opts, theme: 'light', poiStyle: 'glyph' })],
     ['dark glyph POIs', () => buildMapStyle({ ...opts, theme: 'dark', poiStyle: 'glyph' })],
     ['light HD roads', () => buildMapStyle({ ...opts, theme: 'light', hdRoads: true })],
@@ -1349,7 +1349,7 @@ describe('assembled styles', () => {
       expect(sky['fog-color'], theme).toBeTruthy()
     }
     // The imagery basemap is daylight photography whatever the app theme is.
-    expect((buildSatelliteStyle({ ...opts, theme: 'dark' }) as any).sky).toEqual(
+    expect((buildSatelliteStyle({ ...opts, theme: 'dark', imagery: [] }) as any).sky).toEqual(
       (buildMapStyle({ ...opts, theme: 'light' }) as any).sky,
     )
   })
@@ -1600,12 +1600,22 @@ describe('assembled styles', () => {
     })
   })
 
-  test('hybrid keeps labels and arterials over the imagery, nothing else', () => {
-    const style = buildSatelliteStyle({ ...opts, theme: 'dark', hybrid: true })
+  test('hybrid keeps only labels over the imagery', () => {
+    const imagery = [{ id: 'photo', kind: 'raster' as const, source: { type: 'raster' as const, tiles: ['https://photo/{z}/{x}/{y}'] } }]
+    const style = buildSatelliteStyle({ ...opts, theme: 'dark', hybrid: true, imagery })
     const ids = style.layers.map(l => l.id)
-    expect(ids[0]).toBe('satellite-raster')
+    expect(ids[0]).toBe('imagery:photo')
+    expect(style.layers.filter(l => l.type === 'line')).toEqual([])
     expect(style.layers.filter(l => l.type === 'symbol').length).toBeGreaterThan(5)
     expect(ids).not.toContain('Background')
+    expect(style.sources[DETAIL_SOURCE]).toBeUndefined()
+  })
+
+  test('hybrid over a 3D mesh reads the bridge decks without drawing them', () => {
+    const style = buildSatelliteStyle({ ...opts, theme: 'dark', hybrid: true, imagery: [], deckSource: true, decks: true })
+    expect((style.sources[DETAIL_SOURCE] as any).tiles[0]).toContain('&decks=1')
+    expect(style.layers.filter(l => (l as any).source === DETAIL_SOURCE).map(l => (l as any).paint)).toEqual([{ 'circle-opacity': 0, 'circle-radius': 1 }])
+    expect(validateStyleMin(style).map(e => e.message)).toEqual([])
   })
 
   test('roads only draws grey roads and labels on black from one source', () => {
@@ -1774,8 +1784,8 @@ describe('projection', () => {
     const styles = [
       buildMapStyle({ ...opts, theme: 'light' } as any),
       buildMapStyle({ ...opts, theme: 'dark' } as any),
-      buildSatelliteStyle({ ...opts, hybrid: false } as any),
-      buildSatelliteStyle({ ...opts, hybrid: true } as any),
+      buildSatelliteStyle({ ...opts, hybrid: false, imagery: [] } as any),
+      buildSatelliteStyle({ ...opts, hybrid: true, imagery: [] } as any),
     ]
     expect(styles.map(s => s.sky?.['atmosphere-blend'])).toEqual([0, 0, 0, 0])
   })

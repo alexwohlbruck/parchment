@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { LngLat } from '@/types/map.types'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
@@ -14,28 +15,24 @@ import {
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ItemIcon } from '@/components/ui/item-icon'
 import { useAheadSearch } from '@/composables/guidance/useAheadSearch'
+import { useResultMarkers } from '@/composables/guidance/useResultMarkers'
+import PickNumber from './PickNumber.vue'
 import { useGuidanceStore } from '@/stores/guidance.store'
 import { AHEAD_CATEGORIES, aheadCategoriesFor, type AheadCategoryKey } from '@/lib/guidance/along-route-categories'
 import { bannerDistance } from '@/lib/guidance/guidance-display'
 import { formatDurationCompact } from '@/lib/time-format'
 import {
   getSearchResultCategory,
-  getSearchResultIconName,
-  getSearchResultIconPack,
   getSearchResultName,
 } from '@/lib/search/search-result'
-import { getCategoryColor } from '@/services/place/place-colors'
 import { toast } from '@/lib/toast'
-import { useThemeStore } from '@/stores/theme.store'
 import type { AheadResult } from '@/services/guidance/route-search.service'
 
 const props = defineProps<{ metric: boolean }>()
-const emit = defineEmits<{ done: []; found: [] }>()
+const emit = defineEmits<{ done: []; found: [places: LngLat[]] }>()
 const { t } = useI18n()
 const guidance = useGuidanceStore()
-const themeStore = useThemeStore()
 const { results, loading, failed, search } = useAheadSearch()
 
 const ICONS: Record<AheadCategoryKey, unknown> = {
@@ -59,7 +56,7 @@ const adding = ref<string | null>(null)
 async function run(params: { query?: string; categories?: string[] }) {
   searched.value = true
   await search(params)
-  if (results.value.length) emit('found')
+  if (results.value.length) emit('found', results.value.map(r => r.place.geometry.value.center))
 }
 
 function pick(key: AheadCategoryKey) {
@@ -86,7 +83,8 @@ function detour(result: AheadResult) {
     : t('guidance.ahead.detour', { duration: formatDurationCompact(result.detourSeconds) })
 }
 
-async function add(result: AheadResult) {
+async function add(result: AheadResult | undefined) {
+  if (!result || adding.value) return
   adding.value = result.place.id
   const stop = { label: getSearchResultName(result.place), location: result.place.geometry.value.center }
   const added = free.value ? await guidance.headTo({ ...stop, placeId: result.place.id }) : await guidance.addStop(stop)
@@ -94,6 +92,11 @@ async function add(result: AheadResult) {
   if (added) emit('done')
   else toast.error(t(free.value ? 'guidance.free.goFailed' : 'guidance.ahead.addFailed'))
 }
+
+useResultMarkers(
+  () => results.value.map(r => ({ location: r.place.geometry.value.center, name: getSearchResultName(r.place), category: getSearchResultCategory(r.place) })),
+  i => void add(results.value[i]),
+)
 </script>
 
 <template>
@@ -130,18 +133,7 @@ async function add(result: AheadResult) {
     </div>
     <ol v-else class="divide-y">
       <li v-for="(result, i) in results" :key="result.place.id" class="flex items-center gap-3 py-3">
-        <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-foreground text-xs font-semibold text-background">
-          {{ i + 1 }}
-        </span>
-        <ItemIcon
-          :icon="getSearchResultIconName(result.place)"
-          :icon-pack="getSearchResultIconPack(result.place)"
-          :custom-color="getCategoryColor(getSearchResultCategory(result.place), themeStore.isDark)"
-          size="sm"
-          variant="solid"
-          shape="circle"
-          class="shrink-0"
-        />
+        <PickNumber :n="i + 1" :category="getSearchResultCategory(result.place)" />
         <div class="min-w-0 flex-1">
           <div class="truncate text-sm font-medium">{{ getSearchResultName(result.place) }}</div>
           <div class="text-xs text-muted-foreground tabular-nums">

@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
@@ -8,15 +8,15 @@ const router = useRouter()
 
 const dialogOpen = ref(false)
 
-router.beforeEach((to, from) => {
-  dialogOpen.value = !!to.meta?.dialog || false
+router.beforeEach(to => {
+  dialogOpen.value = !!to.meta?.dialog
 })
 
-watch(dialogOpen, open => {
-  if (!open) {
-    router.push({ name: AppRoute.MAP })
-  }
-})
+/** Only a close the user asked for returns to the map; a link out of the dialog keeps its destination. */
+function onOpenChange(open: boolean) {
+  dialogOpen.value = open
+  if (!open) router.push({ name: AppRoute.MAP })
+}
 
 /**
  * Reka-ui's Dialog closes on any "interaction outside" — including
@@ -48,7 +48,7 @@ function onFocusOutside(event: Event) {
 </script>
 
 <template>
-  <Dialog :open="dialogOpen" @update:open="open => (dialogOpen = open)">
+  <Dialog :open="dialogOpen" @update:open="onOpenChange">
     <DialogContent
       no-padding
       show-close-button

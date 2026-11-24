@@ -79,6 +79,7 @@ describe('toOfflineSource', () => {
 
   it('refuses hosts that forbid bulk saving, and untiled sources', () => {
     expect(toOfflineSource({ type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'] })).toBeNull()
+    expect(toOfflineSource({ type: 'raster', tiles: ['https://api.test/proxy/esri/world-imagery/{z}/{y}/{x}'] })).toBeNull()
     expect(toOfflineSource({ type: 'geojson' })).toBeNull()
     expect(toOfflineSource({ type: 'vector' })).toBeNull()
   })

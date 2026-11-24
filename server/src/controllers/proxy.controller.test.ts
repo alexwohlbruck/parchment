@@ -2,7 +2,8 @@
  * Endpoint tests for the tile proxy.
  *
  * Tile routes are deliberately unauthenticated: a MapLibre raster/vector
- * source fetches them directly and can't attach our auth header. What they
+ * source fetches them directly and can't attach our auth header. Google 3D
+ * tiles are the exception, fetched by our own renderer and premium. What they
  * must never do is leak a provider key, so several tests assert the key
  * appears in the upstream URL but never in the response.
  *
@@ -11,7 +12,7 @@
  */
 
 import { describe, test, expect, mock, beforeEach, afterAll } from 'bun:test'
-import { authMockModule, setAuthUser, resetAuth } from '../test/auth-mock'
+import { authMockModule, setAuthUser, setHasPermission, resetAuth } from '../test/auth-mock'
 import { createTestApp, req } from '../test/app'
 import { martinTileCache, portolanTileCache } from '../lib/tile-cache'
 
@@ -731,3 +732,78 @@ describe('bridge deck index proxy', () => {
   })
 })
 
+
+describe('GET /proxy/esri/:service/:z/:y/:x', () => {
+  const esri = { integrationId: 'esri', config: { apiKey: 'esri-key' } }
+
+  test('501s when Esri is not configured', async () => {
+    configuredIntegrations = []
+    const res = await req(app).get('/proxy/esri/world-imagery/3/2/1')
+    expect(res.status).toBe(501)
+  })
+
+  test('only fetches services it knows', async () => {
+    configuredIntegrations = [esri]
+    const res = await req(app).get('/proxy/esri/World_Street_Map/3/2/1')
+    expect(res.status).toBe(400)
+    expect(fetchCalls).toHaveLength(0)
+  })
+
+  test('attaches the key upstream and never returns it', async () => {
+    configuredIntegrations = [esri]
+    fetchResponses = [new Response(new Uint8Array([9]), { headers: { 'content-type': 'image/jpeg' } })]
+    const res = await req(app).get('/proxy/esri/world-imagery/3/2/1')
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toBe('image/jpeg')
+    expect(fetchCalls[0]).toBe('https://ibasemaps-api.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/3/2/1?token=esri-key')
+    expect(JSON.stringify([...res.headers])).not.toContain('esri-key')
+  })
+
+  test('turns a 200 JSON error into a failed tile', async () => {
+    configuredIntegrations = [esri]
+    fetchResponses = [new Response('{"error":{"code":498}}', { headers: { 'content-type': 'application/json' } })]
+    const res = await req(app).get('/proxy/esri/world-imagery/3/2/1')
+    expect(res.status).toBe(502)
+  })
+})
+
+describe('GET /proxy/google/3dtiles/*', () => {
+  const google = { integrationId: 'google-maps', config: { apiKey: 'g-key' } }
+
+  test('is premium only, while other tiles stay open', async () => {
+    configuredIntegrations = [google]
+    setHasPermission(false)
+    expect((await req(app).get('/proxy/google/3dtiles/root.json?key=proxy')).status).toBe(403)
+    setAuthUser(null)
+    expect((await req(app).get('/proxy/google/3dtiles/root.json?key=proxy')).status).toBe(401)
+    expect(fetchCalls).toHaveLength(0)
+    expect((await req(app).get('/proxy/esri/world-imagery/3/2/1')).status).not.toBe(401)
+  })
+
+  test('501s when Google Maps is not configured', async () => {
+    configuredIntegrations = []
+    const res = await req(app).get('/proxy/google/3dtiles/root.json?key=proxy')
+    expect(res.status).toBe(501)
+  })
+
+  test('only fetches the root and files under a dataset', async () => {
+    configuredIntegrations = [google]
+    const res = await req(app).get('/proxy/google/3dtiles/../v1/2dtiles/root.json')
+    expect(res.status).not.toBe(200)
+    expect(fetchCalls).toHaveLength(0)
+  })
+
+  test('swaps the placeholder key for the real one and keeps the session', async () => {
+    configuredIntegrations = [google]
+    fetchResponses = [
+      new Response(new Uint8Array([1]), {
+        headers: { 'content-type': 'model/gltf-binary', 'cache-control': 'private, max-age=14400' },
+      }),
+    ]
+    const res = await req(app).get('/proxy/google/3dtiles/datasets/CgA/files/abc_-1.glb?session=s1&key=proxy')
+    expect(res.status).toBe(200)
+    expect(fetchCalls[0]).toBe('https://tile.googleapis.com/v1/3dtiles/datasets/CgA/files/abc_-1.glb?session=s1&key=g-key')
+    expect(res.headers.get('cache-control')).toBe('private, max-age=14400')
+    expect(JSON.stringify([...res.headers])).not.toContain('g-key')
+  })
+})

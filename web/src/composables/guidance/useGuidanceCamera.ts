@@ -9,7 +9,7 @@ import { useGuidanceStore } from '@/stores/guidance.store'
 import { guidanceEngine } from '@/services/guidance/guidance-engine.service'
 import { register as registerTick, type Tick } from '@/lib/map/animation-scheduler'
 import { projectLatLng } from '@/lib/map/movement-interpolation'
-import { calculateFitPadding, toContainerRect } from '@/lib/map/map-padding'
+import { beyondMapPadding, calculateFitPadding, toContainerRect } from '@/lib/map/map-padding'
 import { createSpring, stepAngleSpring, stepSpring } from '@/lib/guidance/spring'
 import { deckLiftAt } from '@/services/guidance/deck-lift.service'
 import { sampleFacing } from '@/services/guidance/facing.service'
@@ -67,6 +67,12 @@ export function useGuidanceCamera() {
     if (!map) return null
     const container = map.getContainer().getBoundingClientRect()
     return toContainerRect(appStore.visibleMapArea, container)
+  }
+
+  function visibleAbove(visible: ReturnType<typeof visibleRect>, above?: number) {
+    if (!visible || above == null || !map) return visible
+    const bottom = above - map.getContainer().getBoundingClientRect().top
+    return { ...visible, height: Math.max(0, Math.min(visible.y + visible.height, bottom) - visible.y) }
   }
 
   const tick: Tick = nowMs => {
@@ -140,10 +146,14 @@ export function useGuidanceCamera() {
     state.value = 'following'
   }
 
-  function overview() {
+  /**
+   * Frames the route still ahead, and `alongside` it, such as places a panel offers.
+   * `above` is a viewport y the framing stays over, for an open sheet the map isn't told about.
+   */
+  function overview(alongside: { lat: number; lng: number }[] = [], above?: number) {
     const route = guidanceEngine.route
     const puck = guidanceEngine.sample()
-    const visible = visibleRect()
+    const visible = visibleAbove(visibleRect(), above)
     if (!map || !route || !visible) return
     clearResumeTimer()
     state.value = 'overview'
@@ -151,6 +161,7 @@ export function useGuidanceCamera() {
     const from = puck?.s ?? 0
     const points = route.points.filter((_, i) => route.cumulative[i] >= from)
     if (puck) points.unshift(puck.position)
+    points.push(...alongside)
     if (points.length < 2) return
     const lngs = points.map(p => p.lng)
     const lats = points.map(p => p.lat)
@@ -158,7 +169,7 @@ export function useGuidanceCamera() {
     map.fitBounds(
       [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
       {
-        padding: calculateFitPadding(visible, container.clientWidth, container.clientHeight),
+        padding: beyondMapPadding(calculateFitPadding(visible, container.clientWidth, container.clientHeight, above != null), map.getPadding()),
         bearing: 0,
         pitch: 0,
         duration: OVERVIEW_DURATION_MS,

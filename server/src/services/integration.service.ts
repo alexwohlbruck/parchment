@@ -329,6 +329,19 @@ const availableIntegrations: IntegrationDefinition[] = [
     scope: [IntegrationScope.SYSTEM],
   },
   {
+    id: IntegrationId.ESRI,
+    name: 'Esri',
+    description: 'World Imagery for the satellite map, through ArcGIS Location Platform',
+    color: '#0079C1',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(IntegrationId.ESRI)
+    },
+    paid: false,
+    cloud: true,
+    configSchema: 'esriSchema',
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
     id: IntegrationId.AXIOM,
     name: 'Axiom',
     description:

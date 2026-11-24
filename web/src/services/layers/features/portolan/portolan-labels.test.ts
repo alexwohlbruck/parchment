@@ -25,12 +25,14 @@ import {
   LABEL_TEXT_LIGHT_MAP,
 } from './portolan-expressions'
 
+const IMAGERY = [{ id: 'photo', kind: 'raster' as const, source: { type: 'raster', tiles: ['https://photo/{z}/{x}/{y}'] } }]
+
 const opts = { tileServerUrl: 'https://example.test/tiles' }
 const STYLES: Array<[string, () => any]> = [
   ['street light', () => buildMapStyle({ ...opts, theme: 'light' } as any)],
   ['street dark', () => buildMapStyle({ ...opts, theme: 'dark' } as any)],
-  ['hybrid', () => buildSatelliteStyle({ ...opts, theme: 'light', hybrid: true } as any)],
-  ['satellite', () => buildSatelliteStyle({ ...opts, theme: 'light', hybrid: false } as any)],
+  ['hybrid', () => buildSatelliteStyle({ ...opts, theme: 'light', hybrid: true, imagery: IMAGERY } as any)],
+  ['satellite', () => buildSatelliteStyle({ ...opts, theme: 'light', hybrid: false, imagery: IMAGERY } as any)],
 ]
 
 describe('station labels contrast on every basemap', () => {
@@ -100,7 +102,7 @@ describe('the vote, and what happens without one', () => {
   })
 
   test('bare imagery gets light ink even with no labels to copy', () => {
-    const layers = buildSatelliteStyle({ ...opts, theme: 'light', hybrid: false } as any).layers as any[]
+    const layers = buildSatelliteStyle({ ...opts, theme: 'light', hybrid: false, imagery: IMAGERY } as any).layers as any[]
     expect(styleIsDark(layers)).toBe(true)
     expect(labelPaintFor(layers)['text-color']).toBe(LABEL_TEXT_DARK_MAP)
   })
@@ -130,7 +132,7 @@ describe('overlays drawn over the basemap cannot vote', () => {
   })
 
   test('imagery with an overlay still reads as dark', () => {
-    const layers = [...(buildSatelliteStyle({ ...opts, theme: 'light', hybrid: false } as any).layers as any[]), OVERLAY]
+    const layers = [...(buildSatelliteStyle({ ...opts, theme: 'light', hybrid: false, imagery: IMAGERY } as any).layers as any[]), OVERLAY]
     expect(labelPaintFor(layers)['text-color']).toBe(LABEL_TEXT_DARK_MAP)
   })
 })
@@ -182,7 +184,7 @@ describe('a style whose basemap is an import', () => {
   test('with no preset to read, the style still decides', () => {
     // satellite on Mapbox: no basemap import, so undefined — and the
     // reader falls through to the raster rule rather than the chrome
-    const layers = buildSatelliteStyle({ ...opts, theme: 'light', hybrid: false } as any).layers as any[]
+    const layers = buildSatelliteStyle({ ...opts, theme: 'light', hybrid: false, imagery: IMAGERY } as any).layers as any[]
     expect(labelPaintFor(layers, false, undefined)['text-color']).toBe(LABEL_TEXT_DARK_MAP)
   })
 

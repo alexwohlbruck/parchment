@@ -199,6 +199,12 @@ const props = withDefaults(
      * the map, so opening it further doesn't move the camera.
      */
     maxObstructingSnapIndex?: number
+    /**
+     * A page-level sheet that sits beside the map, like the home or place
+     * sheet. Any other sheet is stacked: it dims everything behind it and
+     * pushes the sheets beneath it back until it closes.
+     */
+    panel?: boolean
   }>(),
   {
     open: true,
@@ -272,54 +278,6 @@ const { registerDismissing, unregisterDismissing, isDismissing } =
   useDrawerCoordination()
 const drawerId =
   props.parentId || `drawer-${Math.random().toString(36).substr(2, 9)}`
-
-// ==================== NESTING ====================
-//
-// A sheet opened over another pushes the one beneath back: it shrinks, lifts
-// and dims, and stops taking input until the sheet above it closes. The
-// recess is applied to a wrapper around the drawer so it composes with the
-// transform Vaul drives on the drawer itself.
-
-const NESTED_INSET = 16
-const NESTED_LIFT = 12
-const NESTED_DIM = 0.3
-const NESTED_EASE = 'cubic-bezier(0.32, 0.72, 0, 1)'
-
-const sheetStack = useSheetStackStore()
-watch(
-  () => props.open,
-  open => {
-    if (!open) return sheetStack.remove(drawerId)
-    sheetStack.push({
-      id: drawerId,
-      layer: props.zIndexOffset,
-      dismiss: () => props.dismissable && emit('update:open', false),
-    })
-  },
-  { immediate: true },
-)
-onUnmounted(() => sheetStack.remove(drawerId))
-
-const depth = computed(() => sheetStack.depthOf(drawerId))
-const recessed = computed(() => depth.value > 0)
-
-// Shrink about the sheet's visible top edge, so it stays put and only narrows.
-const recessOrigin = ref(0)
-watch(recessed, isRecessed => {
-  if (isRecessed) recessOrigin.value = sheet.value?.getBoundingClientRect().top ?? 0
-})
-
-const recessStyle = computed(() => {
-  const width = windowWidth.value || 1
-  const scale = Math.max(0, width - NESTED_INSET * 2 * depth.value) / width
-  return {
-    zIndex: 40 + props.zIndexOffset,
-    transformOrigin: `50% ${recessOrigin.value}px`,
-    scale: String(scale),
-    translate: `0 ${-NESTED_LIFT * depth.value}px`,
-    transition: `scale 0.5s ${NESTED_EASE}, translate 0.5s ${NESTED_EASE}`,
-  }
-})
 
 // ==================== HELPERS ====================
 
@@ -414,14 +372,16 @@ const manualBounds = computed<ManualBounds | null>(() => {
 
 useObstructingComponent(sheet, props.obstructingKey, manualBounds)
 
-// Mirror DrawerContent's $el into `sheet` for the composable.
-watch(
-  () => drawerContentRef.value?.$el as Node | undefined,
-  el => {
-    sheet.value = el instanceof HTMLElement ? el : null
-  },
-  { immediate: true, flush: 'post' },
-)
+// Mirror DrawerContent's $el into `sheet` for the composable. `$el` isn't
+// reactive, and the content only mounts once the sheet first opens.
+function mirrorSheetEl() {
+  const el = drawerContentRef.value?.$el as Node | undefined
+  sheet.value = el instanceof HTMLElement ? el : null
+}
+watch([drawerContentRef, () => props.open], () => nextTick(mirrorSheetEl), {
+  immediate: true,
+  flush: 'post',
+})
 
 // rAF loop — runs only while the drawer is dragging or mid-animation.
 // Self-cancels once both flags go false.
@@ -770,6 +730,84 @@ const footerSpace = computed(() => {
   return Math.max(0, visibleHeight.value - peekPx)
 })
 
+// ==================== NESTING ====================
+//
+// A stacked sheet pushes every sheet beneath it back: each one narrows and
+// slides so that a sliver of it peeks out above the front sheet's top edge,
+// and a scrim dims it and the map. The push is applied to a wrapper around
+// the drawer, so it composes with the transform Vaul drives on the drawer and
+// leaves the sheet's detent — and the map padding — where they were.
+
+const NESTED_INSET = 16
+const NESTED_PEEK = 10
+const NESTED_EASE = 'cubic-bezier(0.32, 0.72, 0, 1)'
+
+const sheetStack = useSheetStackStore()
+watch(
+  () => props.open,
+  open => {
+    if (!open) return sheetStack.remove(drawerId)
+    sheetStack.push({
+      id: drawerId,
+      layer: props.zIndexOffset,
+      panel: props.panel,
+      dismiss: () => props.dismissable && emit('update:open', false),
+    })
+  },
+  { immediate: true },
+)
+onUnmounted(() => {
+  sheetStack.remove(drawerId)
+  sheetStack.clearEdge(drawerId)
+})
+
+const depth = computed(() => sheetStack.depthOf(drawerId))
+const recessed = computed(() => depth.value > 0)
+const isFront = computed(
+  () => props.open && sheetStack.front()?.id === drawerId,
+)
+
+// Where the sheet's top edge rests, read from its detent rather than its rect,
+// which a recessed sheet's own transform would skew.
+const { height: sheetHeight } = useElementSize(sheet, undefined, {
+  box: 'border-box',
+})
+const settledTop = computed(() => {
+  if (props.fitContent) return windowHeight.value - sheetHeight.value
+  const point = activeSnapPoint.value ?? snapPoints.value[snapIndex.value]
+  return windowHeight.value - (point == null ? 0 : snapPointToPixels(point))
+})
+
+watch(
+  [isFront, settledTop, isDragging, liveBounds],
+  () => {
+    if (!isFront.value) return sheetStack.clearEdge(drawerId)
+    const dragging = isDragging.value && !!liveBounds.value
+    sheetStack.setEdge(drawerId, {
+      top: dragging ? liveBounds.value!.y : settledTop.value,
+      dragging,
+    })
+  },
+  { immediate: true },
+)
+
+const recessStyle = computed(() => {
+  const level = depth.value
+  const edge = level ? sheetStack.frontEdge() : undefined
+  const width = windowWidth.value || 1
+  const scale = Math.max(0, width - NESTED_INSET * 2 * level) / width
+  const shift = edge ? edge.top - NESTED_PEEK * level - settledTop.value : 0
+  return {
+    zIndex: 40 + props.zIndexOffset,
+    transformOrigin: `50% ${settledTop.value}px`,
+    scale: String(scale),
+    translate: `0 ${shift}px`,
+    transition: edge?.dragging
+      ? 'none'
+      : `scale 0.5s ${NESTED_EASE}, translate 0.5s ${NESTED_EASE}`,
+  }
+})
+
 // ==================== SNAP POINT SYNCING ====================
 
 // When user drags to a new snap point, update our tracked index
@@ -1014,9 +1052,24 @@ function handleAnimationEnd(open: boolean) {
   >
     <DrawerPortal>
       <DrawerOverlay
-        :class="cn('fixed bg-black/40 inset-0')"
+        class="fixed inset-0"
         :style="{ zIndex: 30 + props.zIndexOffset }"
       />
+      <!-- Dims everything behind a stacked sheet, map and sheets alike; a tap
+           on it closes the sheet, as a tap on a backdrop would. -->
+      <Transition
+        enter-active-class="transition-opacity duration-500"
+        leave-active-class="transition-opacity duration-500"
+        enter-from-class="opacity-0"
+        leave-to-class="opacity-0"
+      >
+        <div
+          v-if="isFront"
+          class="fixed inset-0 bg-black/50"
+          :style="{ zIndex: 40 + props.zIndexOffset }"
+          @click="sheetStack.dismissFront()"
+        />
+      </Transition>
       <div class="pointer-events-none fixed inset-0" :style="recessStyle">
       <DrawerContent
         ref="drawerContentRef"
@@ -1026,7 +1079,8 @@ function handleAnimationEnd(open: boolean) {
             'flex flex-col',
             props.floating
               ? 'pointer-events-none'
-              : 'pointer-events-auto bg-background rounded-t-md shadow-lg border-t',
+              : 'pointer-events-auto bg-background shadow-lg border-t transition-[border-radius] duration-500',
+            !props.floating && (recessed ? 'rounded-t-2xl' : 'rounded-t-md'),
             props.fitContent
               ? 'fixed bottom-0 left-0 right-0 max-h-[calc(100dvh-env(safe-area-inset-top))]'
               : 'min-h-full absolute top-0 bottom-0 left-0 right-0',
@@ -1179,23 +1233,6 @@ function handleAnimationEnd(open: boolean) {
               }"
             ></div>
           </div>
-
-          <!-- Covers a recessed sheet: dims it, takes its input, and a tap on it
-               closes the sheet on top, as a tap on a backdrop would. -->
-          <div
-            data-vaul-no-drag
-            class="absolute inset-0 z-[60] bg-black"
-            :class="[
-              recessed ? 'pointer-events-auto' : 'pointer-events-none',
-              !props.floating && 'rounded-t-md',
-            ]"
-            :style="{
-              opacity: recessed ? NESTED_DIM : 0,
-              transition: `opacity 0.5s ${NESTED_EASE}`,
-            }"
-            @pointerdown.stop
-            @click="sheetStack.dismissTop()"
-          />
         </div>
       </DrawerContent>
       </div>

@@ -1111,6 +1111,11 @@
         "back": "Camina hasta la parte trasera del andén"
       },
       "saves": "ahorra {duration}",
+      "for": {
+        "exit": "para salir por {name}",
+        "transfer": "para el {name}"
+      },
+      "waitWalk": "Tienes {duration}, camina hasta la parte {section} del andén",
       "insideStation": "Dentro de la estación",
       "steps": "{n} paso | {n} pasos",
       "levelUp": "Sube {n} nivel | Sube {n} niveles",
@@ -2306,6 +2311,14 @@
         "board": "Sube al {line}",
         "boardToward": "Sube al {line} hacia {headsign}",
         "boardSigned": "Sube al {line}, {direction}",
+        "boardNear": "Sube por la parte {section}",
+        "boardNearFor": "Sube por la parte {section} para {target}",
+        "waitWalk": "Tienes {duration}, camina hasta la parte {section} del andén",
+        "waitWalkFor": "Tienes {duration}, camina hasta la parte {section} del andén para {target}",
+        "target": {
+          "exit": "la salida de {name}",
+          "transfer": "el {name}"
+        },
         "alight-next": "Bájate en la próxima parada, {stop}",
         "alight-now": "Bájate en {stop}",
         "missed-vehicle": "El {line} ya salió. Toma el siguiente o busca otra ruta",

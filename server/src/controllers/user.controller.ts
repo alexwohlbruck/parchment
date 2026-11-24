@@ -32,6 +32,7 @@ import { emit } from '../services/realtime/emit'
 import { publish } from '../services/realtime/event-bus.service'
 import { resetUserIdentity } from '../services/identity-reset.service'
 import { purgeHandle } from '../services/handle-references.service'
+import { closeUserConnections } from '../services/realtime/registry.service'
 import {
   getUserKmVersion,
   commitRotation,
@@ -787,6 +788,7 @@ app.group('', (admin) =>
           if (handle) await purgeHandle(tx, handle)
           await tx.delete(users).where(eq(users.id, params.id))
         })
+        closeUserConnections(params.id)
 
         return status(204)
       },

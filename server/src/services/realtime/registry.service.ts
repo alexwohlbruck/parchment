@@ -26,6 +26,7 @@
  */
 export interface Connection {
   id: string
+  sessionId?: string
   send(data: string): unknown
   close?(code?: number, reason?: string): unknown
 }
@@ -84,6 +85,39 @@ export function allConnections(): Connection[] {
     }
   }
   return result
+}
+
+export const SESSION_ENDED_CLOSE_CODE = 4001
+
+function closeAndRemove(connection: Connection): void {
+  try {
+    connection.close?.(SESSION_ENDED_CLOSE_CODE, 'Session ended')
+  } catch {
+    /* already closed */
+  }
+  removeById(connection.id)
+}
+
+/** Close every socket opened under one of these sessions. */
+export function closeSessions(sessionIds: string[]): void {
+  const ended = new Set(sessionIds)
+  for (const connection of allConnections()) {
+    if (connection.sessionId && ended.has(connection.sessionId)) {
+      closeAndRemove(connection)
+    }
+  }
+}
+
+/** Close a user's sockets, optionally sparing the caller's own session. */
+export function closeUserConnections(
+  userId: string,
+  options: { exceptSessionId?: string } = {},
+): void {
+  for (const connection of socketsForUser(userId)) {
+    if (connection.sessionId !== options.exceptSessionId) {
+      closeAndRemove(connection)
+    }
+  }
 }
 
 /** Diagnostic counter. */

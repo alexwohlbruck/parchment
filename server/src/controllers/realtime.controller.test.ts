@@ -15,11 +15,17 @@ import { describe, test, expect, mock, beforeEach } from 'bun:test'
 import { authMockModule, setAuthUser, resetAuth, TEST_USER } from '../test/auth-mock'
 import { createTestApp, req } from '../test/app'
 
-const mintTicket = mock((_userId: string) => ({
+const mintTicket = mock((_userId: string, _sessionId: string) => ({
   ticket: 'tkt_abc',
   expiresAt: '2026-01-01T00:00:30.000Z',
 }))
-const redeemTicket = mock((_ticket: string) => 'user-1' as string | null)
+const redeemTicket = mock(
+  (_ticket: string) =>
+    ({ userId: 'user-1', sessionId: 'test-session-1' }) as {
+      userId: string
+      sessionId: string
+    } | null,
+)
 
 mock.module('../services/realtime/ticket.service', () => ({ mintTicket, redeemTicket }))
 
@@ -66,7 +72,7 @@ describe('POST /realtime/ticket', () => {
       ticket: 'tkt_abc',
       expiresAt: '2026-01-01T00:00:30.000Z',
     })
-    expect(mintTicket).toHaveBeenCalledWith(TEST_USER.id)
+    expect(mintTicket).toHaveBeenCalledWith(TEST_USER.id, 'test-session-1')
   })
 
   test('rejects an unauthenticated caller', async () => {
@@ -83,7 +89,7 @@ describe('POST /realtime/ticket', () => {
 
     await req(app).post('/realtime/ticket', { body: { userId: 'victim' } as any })
 
-    expect(mintTicket).toHaveBeenCalledWith('other-user')
+    expect(mintTicket).toHaveBeenCalledWith('other-user', 'test-session-1')
   })
 })
 

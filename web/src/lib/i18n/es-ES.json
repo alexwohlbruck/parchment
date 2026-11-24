@@ -3219,8 +3219,6 @@
           "description": "Las de arriba tienen prioridad; las de abajo rellenan los huecos",
           "add": "Añadir",
           "create": "Nueva fuente…",
-          "moveUp": "Subir",
-          "moveDown": "Bajar",
           "remove": "Quitar",
           "empty": "Sin fuentes, el satélite muestra un mapa vacío"
         },

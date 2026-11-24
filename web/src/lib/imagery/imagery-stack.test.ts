@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { LayerType, type Layer } from '@/types/map.types'
-import { imageryStyle, moveInStack, photorealisticSource, resolveImageryStack } from './imagery-stack'
+import { imageryStyle, photorealisticSource, resolveImageryStack } from './imagery-stack'
 
 function layer(id: string, type = LayerType.IMAGERY, sourceType = 'raster'): Layer {
   return {
@@ -34,13 +34,5 @@ describe('imageryStyle', () => {
     const style = imageryStyle(resolveImageryStack(['top', 'fallback'], [layer('top'), layer('fallback')]))
     expect(style.layers.map(l => l.id)).toEqual(['imagery:fallback', 'imagery:top'])
     expect(Object.keys(style.sources)).toEqual(['imagery:top', 'imagery:fallback'])
-  })
-})
-
-describe('moveInStack', () => {
-  it('swaps with a neighbour and ignores moves past either end', () => {
-    expect(moveInStack(['a', 'b', 'c'], 'c', -1)).toEqual(['a', 'c', 'b'])
-    expect(moveInStack(['a', 'b'], 'a', -1)).toEqual(['a', 'b'])
-    expect(moveInStack(['a', 'b'], 'b', 1)).toEqual(['a', 'b'])
   })
 })

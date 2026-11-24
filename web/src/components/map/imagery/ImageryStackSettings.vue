@@ -3,9 +3,10 @@ import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
+import draggable from 'vuedraggable'
 import { useMapStore } from '@/stores/map.store'
 import { useLayersStore } from '@/stores/layers.store'
-import { isImageryLayer, moveInStack } from '@/lib/imagery/imagery-stack'
+import { isImageryLayer } from '@/lib/imagery/imagery-stack'
 import { AppRoute } from '@/router'
 import { SettingsItem } from '@/components/settings'
 import { Button } from '@/components/ui/button'
@@ -16,13 +17,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import {
-  ChevronDownIcon,
-  ChevronUpIcon,
-  PlusIcon,
-  SatelliteIcon,
-  XIcon,
-} from 'lucide-vue-next'
+import { GripVerticalIcon, PlusIcon, SatelliteIcon, XIcon } from 'lucide-vue-next'
+import type { Layer } from '@/types/map.types'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -40,8 +36,8 @@ const unused = computed(() =>
   imageryLayers.value.filter(l => !stackIds.value.includes(l.id)),
 )
 
-function move(id: string, step: -1 | 1) {
-  mapStore.setSatelliteImagery(moveInStack(stackIds.value, id, step))
+function reorder(layers: Layer[]) {
+  mapStore.setSatelliteImagery(layers.map(l => l.id))
 }
 
 function remove(id: string) {
@@ -87,47 +83,36 @@ function createSource() {
       </DropdownMenu>
     </SettingsItem>
 
-    <ol class="flex flex-col pl-8">
-      <li
-        v-for="(layer, index) in stack"
-        :key="layer.id"
-        class="flex items-center gap-2 h-9"
-      >
-        <span class="w-4 text-xs text-muted-foreground tabular-nums">{{ index + 1 }}</span>
-        <span class="flex-1 truncate text-sm">{{ layer.name }}</span>
-        <Button
-          variant="ghost"
-          size="icon"
-          class="size-7"
-          :disabled="index === 0"
-          :aria-label="t('settings.mapSettings.style.imagery.moveUp')"
-          @click="move(layer.id, -1)"
-        >
-          <ChevronUpIcon class="size-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          class="size-7"
-          :disabled="index === stack.length - 1"
-          :aria-label="t('settings.mapSettings.style.imagery.moveDown')"
-          @click="move(layer.id, 1)"
-        >
-          <ChevronDownIcon class="size-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          class="size-7"
-          :aria-label="t('settings.mapSettings.style.imagery.remove')"
-          @click="remove(layer.id)"
-        >
-          <XIcon class="size-4" />
-        </Button>
-      </li>
-      <li v-if="!stack.length" class="text-sm text-muted-foreground h-9 flex items-center">
-        {{ t('settings.mapSettings.style.imagery.empty') }}
-      </li>
-    </ol>
+    <draggable
+      :model-value="stack"
+      item-key="id"
+      tag="ol"
+      handle=".imagery-handle"
+      :animation="150"
+      class="flex flex-col pl-8"
+      @update:model-value="reorder"
+    >
+      <template #item="{ element: layer, index }">
+        <li class="flex items-center gap-2 h-9">
+          <GripVerticalIcon class="size-3.5 shrink-0 text-muted-foreground/60 cursor-grab imagery-handle" />
+          <span class="w-4 text-xs text-muted-foreground tabular-nums">{{ index + 1 }}</span>
+          <span class="flex-1 truncate text-sm">{{ layer.name }}</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            class="size-7"
+            :aria-label="t('settings.mapSettings.style.imagery.remove')"
+            @click="remove(layer.id)"
+          >
+            <XIcon class="size-4" />
+          </Button>
+        </li>
+      </template>
+      <template #footer>
+        <li v-if="!stack.length" class="text-sm text-muted-foreground h-9 flex items-center">
+          {{ t('settings.mapSettings.style.imagery.empty') }}
+        </li>
+      </template>
+    </draggable>
   </div>
 </template>

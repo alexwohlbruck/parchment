@@ -3364,8 +3364,6 @@
           "description": "Higher sources win; lower ones fill the gaps",
           "add": "Add",
           "create": "New source…",
-          "moveUp": "Move up",
-          "moveDown": "Move down",
           "remove": "Remove",
           "empty": "No sources, so satellite shows a blank map"
         },

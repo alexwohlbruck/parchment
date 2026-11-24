@@ -75,13 +75,3 @@ export function imageryStyle(stack: readonly ImagerySource[]): {
     ),
   }
 }
-
-/** Move `id` one place up (-1) or down (+1) the stack. */
-export function moveInStack(ids: readonly string[], id: string, step: -1 | 1): string[] {
-  const from = ids.indexOf(id)
-  const to = from + step
-  if (from === -1 || to < 0 || to >= ids.length) return [...ids]
-  const next = [...ids]
-  ;[next[from], next[to]] = [next[to], next[from]]
-  return next
-}

@@ -17,6 +17,25 @@ import { i18nPlugin } from '../lib/i18n/plugin'
 
 const app = new Elysia({ prefix: '/friends' }).use(i18nPlugin)
 
+const signedEnvelope = {
+  signature: t.String({
+    maxLength: 256,
+    description: 'Ed25519 signature over the v2 federation envelope',
+  }),
+  nonce: t.Optional(
+    t.String({ maxLength: 64, description: 'Envelope nonce the client signed' }),
+  ),
+  timestamp: t.Optional(
+    t.String({ maxLength: 40, description: 'Envelope timestamp the client signed' }),
+  ),
+}
+
+function envelopeOf(body: { nonce?: string; timestamp?: string }) {
+  return body.nonce && body.timestamp
+    ? { nonce: body.nonce, timestamp: body.timestamp }
+    : undefined
+}
+
 /**
  * Get all friends
  */
@@ -70,7 +89,12 @@ app.use(permissions(PermissionId.SOCIAL_WRITE)).post(
       return status(400, { message: t('errors.friends.invalidHandle') })
     }
 
-    const result = await sendFriendInvitation(user.id, handle, signature)
+    const result = await sendFriendInvitation(
+      user.id,
+      handle,
+      signature,
+      envelopeOf(body),
+    )
 
     if (!result.success) {
       return status(400, {
@@ -82,12 +106,13 @@ app.use(permissions(PermissionId.SOCIAL_WRITE)).post(
   },
   {
     body: t.Object({
-      handle: t.String(),
-      signature: t.String(),
+      handle: t.String({ maxLength: 320 }),
+      ...signedEnvelope,
     }),
     detail: {
       tags: ['Friends'],
-      description: 'Send a friend invitation to a user (local or remote)',
+      description:
+        'Send a friend invitation to a user (local or remote). Remote invitations need the nonce and timestamp the client signed into its v2 FRIEND_INVITE envelope.',
     },
   },
 )
@@ -98,7 +123,12 @@ app.use(permissions(PermissionId.SOCIAL_WRITE)).post(
 app.use(permissions(PermissionId.SOCIAL_WRITE)).post(
   '/invitations/:id/accept',
   async ({ user, params: { id }, body, status }) => {
-    const result = await acceptFriendInvitation(user.id, id, body.signature)
+    const result = await acceptFriendInvitation(
+      user.id,
+      id,
+      body.signature,
+      envelopeOf(body),
+    )
 
     if (!result.success) {
       return status(400, {
@@ -112,12 +142,11 @@ app.use(permissions(PermissionId.SOCIAL_WRITE)).post(
     params: t.Object({
       id: t.String(),
     }),
-    body: t.Object({
-      signature: t.String(),
-    }),
+    body: t.Object(signedEnvelope),
     detail: {
       tags: ['Friends'],
-      description: 'Accept a pending friend invitation',
+      description:
+        'Accept a pending friend invitation. For a remote sender, the signed v2 FRIEND_ACCEPT envelope is forwarded to their server.',
     },
   },
 )
@@ -128,7 +157,12 @@ app.use(permissions(PermissionId.SOCIAL_WRITE)).post(
 app.use(permissions(PermissionId.SOCIAL_WRITE)).post(
   '/invitations/:id/reject',
   async ({ user, params: { id }, body, status }) => {
-    const result = await rejectFriendInvitation(user.id, id, body?.signature)
+    const result = await rejectFriendInvitation(
+      user.id,
+      id,
+      body?.signature,
+      body ? envelopeOf(body) : undefined,
+    )
 
     if (!result.success) {
       return status(400, {
@@ -144,12 +178,14 @@ app.use(permissions(PermissionId.SOCIAL_WRITE)).post(
     }),
     body: t.Optional(
       t.Object({
-        signature: t.Optional(t.String()),
+        ...signedEnvelope,
+        signature: t.Optional(signedEnvelope.signature),
       }),
     ),
     detail: {
       tags: ['Friends'],
-      description: 'Reject a pending friend invitation',
+      description:
+        'Reject a pending friend invitation. For a remote sender, a signed v2 FRIEND_REJECT envelope is forwarded when provided.',
     },
   },
 )
@@ -188,8 +224,12 @@ app.use(permissions(PermissionId.SOCIAL_WRITE)).delete(
   '/:handle',
   async ({ user, params: { handle }, query, status }) => {
     const decodedHandle = decodeURIComponent(handle)
-    const revokeSignature = query?.revoke_signature as string | undefined
-    const result = await removeFriend(user.id, decodedHandle, revokeSignature)
+    const { revoke_signature, revoke_nonce, revoke_timestamp } = query
+    const revoke =
+      revoke_signature && revoke_nonce && revoke_timestamp
+        ? { signature: revoke_signature, nonce: revoke_nonce, timestamp: revoke_timestamp }
+        : undefined
+    const result = await removeFriend(user.id, decodedHandle, revoke)
 
     if (!result.success) {
       return status(400, { message: result.error || 'Failed to remove friend' })
@@ -202,11 +242,14 @@ app.use(permissions(PermissionId.SOCIAL_WRITE)).delete(
       handle: t.String(),
     }),
     query: t.Object({
-      revoke_signature: t.Optional(t.String()),
+      revoke_signature: t.Optional(t.String({ maxLength: 256 })),
+      revoke_nonce: t.Optional(t.String({ maxLength: 64 })),
+      revoke_timestamp: t.Optional(t.String({ maxLength: 40 })),
     }),
     detail: {
       tags: ['Friends'],
-      description: 'Remove a friend',
+      description:
+        'Remove a friend. For a remote friend, pass the signed v2 RELATIONSHIP_REVOKE envelope; without it, or if delivery fails, the revocation is queued for retry.',
     },
   },
 )

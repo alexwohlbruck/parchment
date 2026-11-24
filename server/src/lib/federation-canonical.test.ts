@@ -9,7 +9,6 @@ import {
   hashBody,
   generateNonce,
   isTimestampFresh,
-  buildLegacySignableV1,
 } from './federation-canonical'
 
 describe('buildClientSignableV2', () => {
@@ -118,31 +117,5 @@ describe('isTimestampFresh', () => {
 
   test('rejects unparseable strings', () => {
     expect(isTimestampFresh('not-a-date', 300)).toBe(false)
-  })
-})
-
-describe('buildLegacySignableV1', () => {
-  test('still produces the same shape v1 clients expect', () => {
-    const out = buildLegacySignableV1('FRIEND_INVITE', {
-      from: 'a@b.com',
-      to: 'c@d.com',
-    })
-    const parsed = JSON.parse(out)
-    expect(parsed.type).toBe('FRIEND_INVITE')
-    expect(parsed.from).toBe('a@b.com')
-  })
-
-  test('emits type first, then payload keys in sorted order', () => {
-    // Byte-exact check: this is what the original client & server produced.
-    // Any regression here silently breaks every v1 signature, so the string
-    // comparison is intentional.
-    const out = buildLegacySignableV1('FRIEND_INVITE', {
-      to: 'c@d.com',
-      from: 'a@b.com',
-      timestamp: '2026-04-20T00:00:00Z',
-    })
-    expect(out).toBe(
-      '{"type":"FRIEND_INVITE","from":"a@b.com","timestamp":"2026-04-20T00:00:00Z","to":"c@d.com"}',
-    )
   })
 })

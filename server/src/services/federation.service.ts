@@ -21,11 +21,8 @@ import {
 } from '../lib/crypto'
 import {
   buildClientSignableV2,
-  buildLegacySignableV1,
   canonicalJsonStringify,
-  generateNonce,
   isTimestampFresh,
-  type SignableEnvelopeV2,
 } from '../lib/federation-canonical'
 import {
   resolvePeerServer,
@@ -50,36 +47,19 @@ export type FederationMessageType =
   | 'REALTIME_EVENT'
 
 /**
- * v2 federation message envelope. All new messages MUST use this shape.
- * Legacy (no `protocol_version`) messages are accepted at the inbox for a
- * short transition window via the v1 verification path.
+ * v2 federation message envelope. Every field except `signature` is covered
+ * by the sending user's Ed25519 signature (see buildClientSignableV2).
  */
 export interface FederationMessage {
-  protocol_version?: number
-  message_type?: FederationMessageType
-  message_version?: number
-  nonce?: string
+  protocol_version: number
+  message_type: FederationMessageType
+  message_version: number
+  nonce: string
   timestamp: string
   from: string
   to: string
   signature: string
-  payload?: Record<string, unknown>
-  // Legacy v1 field (kept for compat during transition)
-  type?: FederationMessageType
-  // Legacy per-message-type fields (kept; v2 moves these into payload)
-  encryptedLocation?: string
-  encryptedNonce?: string
-  nonceField?: string
-  resourceType?: string
-  resourceId?: string
-  encryptedData?: string
-  // RESOURCE_SHARE — role the sender granted on the shared resource. A
-  // malicious peer CANNOT silently upgrade 'viewer' to 'editor' because
-  // the role rides in the payload/top-level which is covered by the
-  // client signature on v2 messages. For v1 flat messages this field is
-  // not yet in the signed surface — migrating RESOURCE_SHARE to v2 is
-  // tracked as a follow-up.
-  role?: 'viewer' | 'editor'
+  payload: Record<string, unknown>
 }
 
 export interface RemoteUserInfo {
@@ -200,7 +180,12 @@ export async function resolveRemoteUser(
       },
     })
 
-    if (response.status === 200 && response.data) {
+    const expected = `${alias}@${domain}`.toLowerCase()
+    if (
+      response.status === 200 &&
+      response.data &&
+      response.data.handle?.toLowerCase() === expected
+    ) {
       return response.data
     }
     return null
@@ -218,63 +203,53 @@ export async function resolveRemoteUser(
 // ============================================================================
 
 /**
- * Send a federation message to a remote server. Automatically wraps outbound
- * messages with a server-level signature for S2S authentication.
+ * Send a federation message to the home server of `targetHandle`. The message
+ * is forwarded exactly as the client signed it, wrapped in a server-level
+ * signature for S2S authentication.
  */
 export async function sendFederationMessage(
-  target: string,
+  targetHandle: string,
   message: FederationMessage,
 ): Promise<boolean> {
   try {
-    let inboxUrl: string
-    let peerDomain: string
+    if (!message.nonce || !message.timestamp) {
+      logger.error({ targetHandle }, 'Federation message missing nonce or timestamp')
+      return false
+    }
 
-    if (target.startsWith('http://') || target.startsWith('https://')) {
-      const targetHost = new URL(target).host
-      if (target.startsWith('http://') && !isLocalDevDomain(targetHost)) {
-        logger.error({ target }, 'Refusing to send federation message over HTTP')
-        return false
-      }
-      inboxUrl = target
-      peerDomain = targetHost
-    } else {
-      const userInfo = await resolveHandle(target)
-      if (!userInfo) {
-        logger.error({ target }, 'Failed to resolve handle for federation send')
-        return false
-      }
-      inboxUrl = userInfo.inbox
-      const inboxHost = new URL(inboxUrl).host
-      if (inboxUrl.startsWith('http://') && !isLocalDevDomain(inboxHost)) {
-        logger.error({ inboxUrl }, 'Refusing to send federation message over HTTP')
-        return false
-      }
-      peerDomain = inboxHost
+    const target = parseHandle(targetHandle)
+    if (!target) {
+      logger.error({ targetHandle }, 'Invalid federation target handle')
+      return false
+    }
+
+    const userInfo = await resolveHandle(targetHandle)
+    if (!userInfo) {
+      logger.error({ targetHandle }, 'Failed to resolve handle for federation send')
+      return false
+    }
+    const inboxUrl = userInfo.inbox
+    const inboxHost = new URL(inboxUrl).host
+    if (inboxHost.toLowerCase() !== target.domain.toLowerCase()) {
+      logger.error(
+        { targetHandle, inboxHost },
+        'Refusing to send federation message to an inbox off the handle domain',
+      )
+      return false
+    }
+    if (inboxUrl.startsWith('http://') && !isLocalDevDomain(inboxHost)) {
+      logger.error({ inboxUrl }, 'Refusing to send federation message over HTTP')
+      return false
     }
 
     let peer
     try {
-      peer = await resolvePeerServer(peerDomain)
+      peer = await resolvePeerServer(inboxHost)
     } catch (err) {
       logger.error(
-        { peerDomain, err: (err as Error).message },
+        { inboxHost, err: (err as Error).message },
         'Peer server manifest check failed; aborting federation send',
       )
-      return false
-    }
-
-    // Envelope policy: the client (caller) owns protocol_version, nonce, and
-    // timestamp, because they are covered by the client's message signature.
-    // We MUST NOT mutate any field a client signature binds to — doing so
-    // silently invalidates the signature at the recipient. For v1 messages
-    // that have no client-side nonce at all, we still produce a per-request
-    // transport nonce for the server-wrapper signature only; that one is
-    // separate from the message envelope.
-    const envelopeNonce = message.nonce
-    const envelopeTimestamp = message.timestamp
-    if (!envelopeTimestamp) {
-      // Callers must set timestamp; it's part of the v1 signed surface too.
-      logger.error({ target }, 'Federation message missing timestamp')
       return false
     }
 
@@ -284,18 +259,13 @@ export async function sendFederationMessage(
     const bodyJson = canonicalJsonStringify(message)
     const url = new URL(inboxUrl)
 
-    // Server-wrapper nonce: tied to this HTTP request, independent of the
-    // message envelope nonce. Reuse the envelope nonce if present so there's
-    // one less thing to track; otherwise mint a fresh one.
-    const transportNonce = envelopeNonce ?? generateNonce()
-
     const serverAuthHeaders = await signOutboundRequest({
       method: 'POST',
       path: url.pathname,
       bodyJson,
       peerServerId: peer.serverId,
-      nonce: transportNonce,
-      timestamp: envelopeTimestamp,
+      nonce: message.nonce,
+      timestamp: message.timestamp,
     })
 
     await assertPublicUrl(inboxUrl)
@@ -314,7 +284,7 @@ export async function sendFederationMessage(
     return response.status === 202 || response.status === 200
   } catch (error) {
     logger.error(
-      { err: error, target },
+      { err: error, targetHandle },
       'Failed to send federation message',
     )
     return false
@@ -336,8 +306,15 @@ export async function sendFederationMessage(
 export async function processFederationMessage(
   message: FederationMessage,
 ): Promise<{ success: boolean; error?: string }> {
-  const messageType = message.message_type ?? message.type
-  if (!messageType || !message.from || !message.to || !message.signature) {
+  const messageType = message.message_type
+  if (
+    !messageType ||
+    !message.from ||
+    !message.to ||
+    !message.signature ||
+    !message.nonce ||
+    !(message.protocol_version >= 2)
+  ) {
     return { success: false, error: 'Invalid message structure' }
   }
 
@@ -354,31 +331,17 @@ export async function processFederationMessage(
     return { success: false, error: 'Could not resolve sender' }
   }
 
-  let signableMessage: string
-  if (message.protocol_version && message.protocol_version >= 2) {
-    if (!message.nonce || !message.message_type) {
-      return { success: false, error: 'v2 message missing nonce or message_type' }
-    }
-    const envelope: SignableEnvelopeV2 = {
-      protocol_version: message.protocol_version,
-      message_type: message.message_type,
-      message_version: message.message_version ?? 1,
-      from: message.from,
-      to: message.to,
-      nonce: message.nonce,
-      timestamp: message.timestamp,
-      payload: message.payload ?? {},
-    }
-    signableMessage = buildClientSignableV2(envelope)
-  } else {
-    // Legacy v1 verification path — retained for transition only.
-    signableMessage = buildLegacySignableV1(messageType, {
-      from: message.from,
-      to: message.to,
-      timestamp: message.timestamp,
-      ...message.payload,
-    })
-  }
+  const payload = message.payload ?? {}
+  const signableMessage = buildClientSignableV2({
+    protocol_version: message.protocol_version,
+    message_type: messageType,
+    message_version: message.message_version ?? 1,
+    from: message.from,
+    to: message.to,
+    nonce: message.nonce,
+    timestamp: message.timestamp,
+    payload,
+  })
 
   let isValid = false
   try {
@@ -406,10 +369,7 @@ export async function processFederationMessage(
     return { success: false, error: 'Invalid recipient handle' }
   }
 
-  // v2 puts domain-specific data in `payload`; v1 keeps legacy top-level fields.
-  const payload = message.payload ?? {}
-  const pick = (k: string): unknown =>
-    payload[k] ?? (message as unknown as Record<string, unknown>)[k]
+  const pick = (k: string): unknown => payload[k]
 
   switch (messageType) {
     case 'FRIEND_INVITE': {
@@ -427,7 +387,7 @@ export async function processFederationMessage(
     }
     case 'FRIEND_REJECT': {
       const { handleIncomingFriendReject } = await import('./friends.service')
-      return handleIncomingFriendReject(message.from)
+      return handleIncomingFriendReject(message.from, message.to)
     }
     case 'RELATIONSHIP_REVOKE': {
       const { handleIncomingRelationshipRevoke } = await import(
@@ -435,22 +395,11 @@ export async function processFederationMessage(
       )
       return handleIncomingRelationshipRevoke(message.from, message.to)
     }
-    case 'LOCATION_UPDATE': {
-      const encryptedLocation = pick('encryptedLocation') as string | undefined
-      const nonce = pick('nonce') as string | undefined
-      if (!encryptedLocation || !nonce) {
-        return { success: false, error: 'Missing encrypted location data' }
+    case 'LOCATION_UPDATE':
+      return {
+        success: false,
+        error: 'Cross-server location updates are not supported',
       }
-      const { handleIncomingLocationUpdate } = await import(
-        './location-e2ee.service'
-      )
-      return handleIncomingLocationUpdate(
-        message.from,
-        parsed.alias,
-        encryptedLocation,
-        nonce,
-      )
-    }
     case 'LOCATION_REQUEST': {
       const { handleIncomingLocationRequest } = await import(
         './location-e2ee.service'

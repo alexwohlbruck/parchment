@@ -41,7 +41,7 @@ const getInvitations = mock(
   async (_userId: string, _direction?: string) => [{ id: 'inv-1' }],
 )
 const removeFriend = mock(
-  async (_userId: string, _handle: string, _sig?: string) => ok(),
+  async (_userId: string, _handle: string, _revoke?: unknown) => ok(),
 )
 const syncFriendKeys = mock(async (_userId: string) => [{ handle: 'alice@peer.test', updated: true }])
 
@@ -178,7 +178,7 @@ describe('GET /friends/invitations', () => {
 describe('POST /friends/invite', () => {
   test('sends an invitation for a well-formed handle', async () => {
     const res = await req(app).post('/friends/invite', {
-      body: { handle: 'alice@peer.test', signature: 'sig' },
+      body: { handle: 'alice@peer.test', signature: 'sig', nonce: 'n', timestamp: 'ts' },
     })
 
     expect(res.status).toBe(200)
@@ -186,6 +186,7 @@ describe('POST /friends/invite', () => {
       TEST_USER.id,
       'alice@peer.test',
       'sig',
+      { nonce: 'n', timestamp: 'ts' },
     )
     expect(res.body.invitation).toEqual({ id: 'inv-1' })
   })
@@ -236,7 +237,7 @@ describe('POST /friends/invite', () => {
 describe('invitation lifecycle', () => {
   test('accept passes the caller’s signature through', async () => {
     const res = await req(app).post('/friends/invitations/inv-1/accept', {
-      body: { signature: 'accept-sig' },
+      body: { signature: 'accept-sig', nonce: 'n', timestamp: 'ts' },
     })
 
     expect(res.status).toBe(200)
@@ -244,6 +245,7 @@ describe('invitation lifecycle', () => {
       TEST_USER.id,
       'inv-1',
       'accept-sig',
+      { nonce: 'n', timestamp: 'ts' },
     )
   })
 
@@ -278,6 +280,7 @@ describe('invitation lifecycle', () => {
       TEST_USER.id,
       'inv-1',
       'reject-sig',
+      undefined,
     )
   })
 
@@ -326,12 +329,24 @@ describe('DELETE /friends/:handle', () => {
     expect(removeFriend.mock.calls[0][1]).toBe('alice@peer.test')
   })
 
-  test('forwards the revocation signature when supplied', async () => {
+  test('forwards the signed revocation envelope when supplied', async () => {
+    await req(app).delete('/friends/alice@peer.test', {
+      query: { revoke_signature: 'revoke-sig', revoke_nonce: 'n', revoke_timestamp: 'ts' },
+    })
+
+    expect(removeFriend.mock.calls[0][2]).toEqual({
+      signature: 'revoke-sig',
+      nonce: 'n',
+      timestamp: 'ts',
+    })
+  })
+
+  test('drops an incomplete revocation envelope', async () => {
     await req(app).delete('/friends/alice@peer.test', {
       query: { revoke_signature: 'revoke-sig' },
     })
 
-    expect(removeFriend.mock.calls[0][2]).toBe('revoke-sig')
+    expect(removeFriend.mock.calls[0][2]).toBeUndefined()
   })
 
   test('surfaces the service failure', async () => {

@@ -35,6 +35,7 @@ import {
   type FederationMessage,
 } from '../federation.service'
 import { parseHandle } from '../../lib/crypto'
+import { generateNonce } from '../../lib/federation-canonical'
 import { db } from '../../db'
 import { logger } from '../../lib/logger'
 import { eq } from 'drizzle-orm'
@@ -95,7 +96,10 @@ export const federationSubscriber: EventSubscriber = {
     const byPeer = groupByPeer(recipients.remoteHandles)
     for (const [peerHost, aliases] of byPeer) {
       const message: FederationMessage = {
-        type: 'REALTIME_EVENT',
+        protocol_version: 2,
+        message_type: 'REALTIME_EVENT',
+        message_version: 1,
+        nonce: generateNonce(),
         from: senderHandle,
         // `to` is required by the envelope but a REALTIME_EVENT is
         // multi-cast to multiple aliases on the peer — we set it to the

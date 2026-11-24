@@ -75,6 +75,9 @@ mock.module('./realtime/emit', () => ({
 
 const {
   sendFriendInvitation,
+  handleIncomingFriendAccept,
+  handleIncomingFriendReject,
+  removeFriend,
   getFriends,
   getInvitations,
   updateFriendKeys,
@@ -159,6 +162,109 @@ describe('sendFriendInvitation — guards', () => {
     await sendFriendInvitation('user-1', 'bob@peer.test', 'sig')
 
     expect(resolveHandle).not.toHaveBeenCalled()
+  })
+})
+
+describe('sendFriendInvitation — remote recipient', () => {
+  test('forwards the client-signed v2 envelope unchanged', async () => {
+    dbMock.queueSelect([])
+    dbMock.queueSelect([])
+
+    await sendFriendInvitation('user-1', 'bob@peer.test', 'sig', {
+      nonce: 'client-nonce',
+      timestamp: 'client-ts',
+    })
+
+    const [target, message] = sendFederationMessage.mock.calls[0] as [string, any]
+    expect(target).toBe('bob@peer.test')
+    expect(message).toMatchObject({
+      protocol_version: 2,
+      message_type: 'FRIEND_INVITE',
+      nonce: 'client-nonce',
+      timestamp: 'client-ts',
+      signature: 'sig',
+      from: 'alice@parchment.test',
+      to: 'bob@peer.test',
+      payload: {},
+    })
+  })
+
+  test('refuses without a signed envelope', async () => {
+    dbMock.queueSelect([])
+    dbMock.queueSelect([])
+
+    const result = await sendFriendInvitation('user-1', 'bob@peer.test', 'sig')
+
+    expect(result.success).toBe(false)
+    expect(sendFederationMessage).not.toHaveBeenCalled()
+  })
+})
+
+describe('removeFriend — remote friend', () => {
+  test('queues the revocation when no signed envelope is supplied', async () => {
+    dbMock.queueSelect([{ id: 'f-1' }])
+
+    await removeFriend('user-1', 'bob@peer.test')
+
+    expect(sendFederationMessage).not.toHaveBeenCalled()
+    expect(dbMock.inserted).toContainEqual(
+      expect.objectContaining({ userId: 'user-1', peerHandle: 'bob@peer.test' }),
+    )
+  })
+
+  test('forwards a signed envelope and queues nothing on delivery', async () => {
+    dbMock.queueSelect([{ id: 'f-1' }])
+
+    await removeFriend('user-1', 'bob@peer.test', {
+      signature: 'sig',
+      nonce: 'n',
+      timestamp: 'ts',
+    })
+
+    const message = sendFederationMessage.mock.calls[0][1] as any
+    expect(message).toMatchObject({ message_type: 'RELATIONSHIP_REVOKE', nonce: 'n' })
+    expect(dbMock.inserted).not.toContainEqual(
+      expect.objectContaining({ peerHandle: 'bob@peer.test' }),
+    )
+  })
+})
+
+describe('inbound friend responses', () => {
+  test('a reject with no matching outgoing invitation changes nothing', async () => {
+    dbMock.queueReturning([])
+
+    const result = await handleIncomingFriendReject('bob@peer.test', 'alice@parchment.test')
+
+    expect(result.success).toBe(false)
+  })
+
+  test('an accept with no pending outgoing invitation creates no friendship', async () => {
+    dbMock.queueSelect([{ id: 'user-1' }])
+    dbMock.queueReturning([])
+
+    const result = await handleIncomingFriendAccept(
+      'bob@peer.test',
+      'alice@parchment.test',
+      resolved,
+    )
+
+    expect(result.success).toBe(false)
+    expect(dbMock.insertCount).toBe(0)
+  })
+
+  test('an accept for an existing friendship does not insert a duplicate', async () => {
+    dbMock.queueSelect([{ id: 'user-1' }])
+    dbMock.queueReturning([{ id: 'inv-1' }])
+    dbMock.queueSelect([{ id: 'f-1' }])
+
+    const result = await handleIncomingFriendAccept(
+      'bob@peer.test',
+      'alice@parchment.test',
+      resolved,
+    )
+
+    expect(result.success).toBe(true)
+    expect(dbMock.insertCount).toBe(0)
   })
 })
 

@@ -23,7 +23,6 @@ import {
   generateNonce,
   nowIso,
   buildClientSignableV2,
-  buildLegacySignableV1,
 } from '../lib/federation-canonical'
 import { verifySignature } from '../lib/crypto'
 
@@ -126,46 +125,6 @@ describe('server wrapper signature round-trip', () => {
     })
 
     expect(verifySignature(canonicalTampered, sig, senderPubBase64)).toBe(false)
-  })
-})
-
-describe('client v1 signature round-trip', () => {
-  let clientPriv: Uint8Array
-  let clientPubBase64: string
-
-  beforeAll(() => {
-    clientPriv = new Uint8Array(32)
-    for (let i = 0; i < 32; i++) clientPriv[i] = (i * 3 + 1) & 0xff
-    clientPubBase64 = bytesToBase64(ed.getPublicKey(clientPriv))
-  })
-
-  test('v1 FRIEND_INVITE signed by the client verifies server-side', async () => {
-    const from = 'alice@a.example'
-    const to = 'bob@b.example'
-    const timestamp = '2026-04-20T12:00:00.000Z'
-
-    // Client produces the v1 signable. Must match what the legacy
-    // buildSignableMessage in web/src/lib/federation-crypto.ts produces.
-    const signable = buildLegacySignableV1('FRIEND_INVITE', {
-      from,
-      to,
-      timestamp,
-    })
-    expect(signable).toBe(
-      `{"type":"FRIEND_INVITE","from":"${from}","timestamp":"${timestamp}","to":"${to}"}`,
-    )
-
-    const sig = bytesToBase64(
-      await ed.signAsync(new TextEncoder().encode(signable), clientPriv),
-    )
-
-    // Server rebuilds and verifies.
-    const rebuilt = buildLegacySignableV1('FRIEND_INVITE', {
-      from,
-      to,
-      timestamp,
-    })
-    expect(verifySignature(rebuilt, sig, clientPubBase64)).toBe(true)
   })
 })
 

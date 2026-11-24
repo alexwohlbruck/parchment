@@ -17,7 +17,8 @@ import {
   exportPublicKey,
   importPublicKey,
   sign,
-  buildSignableMessage,
+  buildSignableMessageV2,
+  generateNonce,
   type DerivedKeys,
 } from '@/lib/identity/federation-crypto'
 import {
@@ -170,20 +171,40 @@ export async function getRecoveryKey(): Promise<string | null> {
   return exportRecoveryKey(seed)
 }
 
+export interface SignedFederationEnvelope {
+  signature: string
+  nonce: string
+  timestamp: string
+}
+
 /**
- * Sign a federation message
+ * Sign a v2 federation envelope. The server forwards the nonce and timestamp
+ * unchanged, so the recipient verifies exactly what was signed here.
  */
-export async function signFederationMessage(
-  type: string,
-  payload: Record<string, unknown>,
-): Promise<string> {
+export async function signFederationEnvelope(
+  messageType: string,
+  from: string,
+  to: string,
+  payload: Record<string, unknown> = {},
+): Promise<SignedFederationEnvelope> {
   const keys = await getLocalIdentity()
   if (!keys) {
     throw new Error('No identity found. Please set up your federation identity.')
   }
-  
-  const message = buildSignableMessage(type, payload)
-  return sign(message, keys.signing.privateKey)
+
+  const nonce = generateNonce()
+  const timestamp = new Date().toISOString()
+  const message = buildSignableMessageV2({
+    protocol_version: 2,
+    message_type: messageType,
+    message_version: 1,
+    from,
+    to,
+    nonce,
+    timestamp,
+    payload,
+  })
+  return { signature: await sign(message, keys.signing.privateKey), nonce, timestamp }
 }
 
 /**

@@ -31,7 +31,6 @@ ed.hashes.sha512 = (...m) => sha512(ed.etc.concatBytes(...m))
 
 import {
   buildServerSignableWrapper,
-  buildLegacySignableV1,
   buildClientSignableV2,
   canonicalJsonStringify,
   generateNonce,
@@ -274,24 +273,23 @@ async function sendFriendInvite(opts: SendOpts = {}): Promise<{
   const timestamp = opts.overrideTimestamp ?? nowIso()
   const nonce = opts.overrideNonce ?? generateNonce()
 
-  // Alice signs the v1 FRIEND_INVITE envelope.
-  const clientSignable = buildLegacySignableV1('FRIEND_INVITE', {
+  const envelope = {
+    protocol_version: 2,
+    message_type: 'FRIEND_INVITE',
+    message_version: 1,
     from: ALICE_HANDLE,
     to: BOB_HANDLE,
+    nonce,
     timestamp,
-  })
+    payload: {},
+  }
+  const clientSignable = buildClientSignableV2(envelope)
   let clientSig = await sign(clientSignable, ALICE_SEED)
   if (opts.tamperClientSig) {
     clientSig = await sign(clientSignable + 'tamper', ALICE_SEED)
   }
 
-  const message = {
-    type: 'FRIEND_INVITE',
-    from: ALICE_HANDLE,
-    to: BOB_HANDLE,
-    timestamp,
-    signature: clientSig,
-  }
+  const message = { ...envelope, signature: clientSig }
 
   const bodyJson = canonicalJsonStringify(message)
 
@@ -493,7 +491,7 @@ describe('federation two-server integration', () => {
     const bodyJson = canonicalJsonStringify(message)
 
     // Server A wraps it in the transport-level signed envelope.
-    const transportNonce = generateNonce()
+    const transportNonce = envelopeNonce
     const wrapperSignable = buildServerSignableWrapper({
       method: 'POST',
       path: '/federation/inbox',
@@ -583,7 +581,7 @@ describe('federation two-server integration', () => {
     }
     const bodyJson = canonicalJsonStringify(tamperedMessage)
 
-    const transportNonce = generateNonce()
+    const transportNonce = envelopeNonce
     const wrapperSignable = buildServerSignableWrapper({
       method: 'POST',
       path: '/federation/inbox',

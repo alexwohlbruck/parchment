@@ -17,7 +17,7 @@ import {
 } from '../schema/location.schema'
 import { friendships } from '../schema/friendships.schema'
 import { generateId } from '../util'
-import { buildHandle, sendFederationMessage } from './federation.service'
+import { buildHandle } from './federation.service'
 import { emit } from './realtime/emit'
 import { users } from '../schema/users.schema'
 import { logger } from '../lib/logger'
@@ -380,96 +380,8 @@ export async function getEncryptedLocationsFromFriends(
 }
 
 // ============================================================================
-// Federation helpers
-// ============================================================================
-
-/**
- * Send location update to a friend's server
- */
-export async function sendLocationUpdateToFriend(
-  fromHandle: string,
-  toHandle: string,
-  encryptedLocation: string,
-  nonce: string,
-  signature: string,
-): Promise<boolean> {
-  try {
-    await sendFederationMessage(toHandle, {
-      type: 'LOCATION_UPDATE',
-      from: fromHandle,
-      to: toHandle,
-      encryptedLocation,
-      nonce,
-      timestamp: new Date().toISOString(),
-      signature,
-    })
-    return true
-  } catch (error) {
-    logger.error({ err: error, fromHandle, toHandle }, 'Failed to send location update')
-    return false
-  }
-}
-
-/**
- * Request fresh location from a friend's server
- */
-export async function requestLocationFromFriend(
-  fromHandle: string,
-  toHandle: string,
-  signature: string,
-): Promise<boolean> {
-  try {
-    await sendFederationMessage(toHandle, {
-      type: 'LOCATION_REQUEST',
-      from: fromHandle,
-      to: toHandle,
-      timestamp: new Date().toISOString(),
-      signature,
-    })
-    return true
-  } catch (error) {
-    logger.error({ err: error, fromHandle, toHandle }, 'Failed to request location')
-    return false
-  }
-}
-
-// ============================================================================
 // Federation Handlers - Called by federation.service when receiving messages
 // ============================================================================
-
-/**
- * Handle incoming location update from a remote friend
- */
-export async function handleIncomingLocationUpdate(
-  senderHandle: string,
-  recipientAlias: string,
-  encryptedLocation: string,
-  nonce: string,
-): Promise<{ success: boolean; error?: string }> {
-  const { getLocalUserIdByAlias } = await import('./user.service')
-  const { isFriend } = await import('./friends.service')
-
-  const localUserId = await getLocalUserIdByAlias(recipientAlias)
-  if (!localUserId) {
-    return { success: false, error: 'Recipient not found' }
-  }
-
-  const areFriends = await isFriend(localUserId, senderHandle)
-  if (!areFriends) {
-    return { success: false, error: 'Not a friend' }
-  }
-
-  const result = await storeEncryptedLocation(
-    localUserId,
-    senderHandle,
-    encryptedLocation,
-    nonce,
-  )
-  if (!result.stored) {
-    return { success: false, error: 'Replayed nonce' }
-  }
-  return { success: true }
-}
 
 /**
  * Handle incoming location request from a remote friend

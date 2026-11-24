@@ -5,7 +5,7 @@
  */
 
 import { api } from '@/lib/api'
-import { signFederationMessage } from '@/services/identity.service'
+import { signFederationEnvelope } from '@/services/identity.service'
 
 export interface Friendship {
   id: string
@@ -72,17 +72,11 @@ export async function sendInvitation(
   myHandle: string,
 ): Promise<{ success: boolean; invitation?: FriendInvitation; error?: string }> {
   try {
-    // Create signature for the invitation
-    const timestamp = new Date().toISOString()
-    const signature = await signFederationMessage('FRIEND_INVITE', {
-      from: myHandle,
-      to: handle,
-      timestamp,
-    })
+    const envelope = await signFederationEnvelope('FRIEND_INVITE', myHandle, handle)
 
     const response = await api.post<{ invitation: FriendInvitation }>(
       '/friends/invite',
-      { handle, signature },
+      { handle, ...envelope },
     )
 
     return { success: true, invitation: response.data.invitation }
@@ -103,14 +97,9 @@ export async function acceptInvitation(
   theirHandle: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const timestamp = new Date().toISOString()
-    const signature = await signFederationMessage('FRIEND_ACCEPT', {
-      from: myHandle,
-      to: theirHandle,
-      timestamp,
-    })
+    const envelope = await signFederationEnvelope('FRIEND_ACCEPT', myHandle, theirHandle)
 
-    await api.post(`/friends/invitations/${invitationId}/accept`, { signature })
+    await api.post(`/friends/invitations/${invitationId}/accept`, envelope)
     return { success: true }
   } catch (error: any) {
     return {
@@ -129,18 +118,12 @@ export async function rejectInvitation(
   theirHandle?: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    let signature: string | undefined
-    
-    if (myHandle && theirHandle) {
-      const timestamp = new Date().toISOString()
-      signature = await signFederationMessage('FRIEND_REJECT', {
-        from: myHandle,
-        to: theirHandle,
-        timestamp,
-      })
-    }
+    const envelope =
+      myHandle && theirHandle
+        ? await signFederationEnvelope('FRIEND_REJECT', myHandle, theirHandle)
+        : {}
 
-    await api.post(`/friends/invitations/${invitationId}/reject`, { signature })
+    await api.post(`/friends/invitations/${invitationId}/reject`, envelope)
     return { success: true }
   } catch (error: any) {
     return {
@@ -172,9 +155,23 @@ export async function cancelInvitation(
  */
 export async function removeFriend(
   handle: string,
+  myHandle?: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await api.delete(`/friends/${encodeURIComponent(handle)}`)
+    const revoke = myHandle
+      ? await signFederationEnvelope('RELATIONSHIP_REVOKE', myHandle, handle).catch(
+          () => null,
+        )
+      : null
+    await api.delete(`/friends/${encodeURIComponent(handle)}`, {
+      params: revoke
+        ? {
+            revoke_signature: revoke.signature,
+            revoke_nonce: revoke.nonce,
+            revoke_timestamp: revoke.timestamp,
+          }
+        : undefined,
+    })
     return { success: true }
   } catch (error: any) {
     return {

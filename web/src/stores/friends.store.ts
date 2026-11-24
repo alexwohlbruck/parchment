@@ -203,7 +203,10 @@ export const useFriendsStore = defineStore('friends', () => {
   async function remove(
     friendship: Friendship,
   ): Promise<{ success: boolean; error?: string }> {
-    const result = await removeFriend(friendship.friendHandle)
+    const result = await removeFriend(
+      friendship.friendHandle,
+      identityStore.handle || undefined,
+    )
 
     if (result.success) {
       friends.value = friends.value.filter(f => f.id !== friendship.id)

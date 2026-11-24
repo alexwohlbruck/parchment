@@ -92,7 +92,7 @@ describe('forwarding', () => {
     })
 
     expect(messageAt().from).toBe('alex@local.test')
-    expect(messageAt().type).toBe('REALTIME_EVENT')
+    expect(messageAt().message_type).toBe('REALTIME_EVENT')
   })
 
   test('sets the envelope recipient to the first alias on the peer', async () => {

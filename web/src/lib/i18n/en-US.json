@@ -544,6 +544,10 @@
           "name": "Share",
           "description": "Send a link to this place"
         },
+        "book": {
+          "name": "Make a reservation",
+          "keywords": "book table reserve booking opentable resy"
+        },
         "edit": {
           "name": "Suggest an edit",
           "description": "Fix details on OpenStreetMap",
@@ -2765,6 +2769,21 @@
     "header": {
       "showMore": "Show more",
       "showLess": "Show less"
+    },
+    "booking": {
+      "bookTable": "Book a table",
+      "book": "Book ahead",
+      "policy": {
+        "yes": "Takes reservations",
+        "recommended": "Reservations recommended",
+        "required": "Reservations required"
+      },
+      "providers": {
+        "venue": "Their website",
+        "opentable": "OpenTable",
+        "resy": "Resy",
+        "search": "Search the web"
+      }
     },
     "details": {
       "address": "Address",

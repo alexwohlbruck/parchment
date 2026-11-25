@@ -538,6 +538,10 @@
           "name": "Compartir",
           "description": "Envía un enlace a este lugar"
         },
+        "book": {
+          "name": "Hacer una reserva",
+          "keywords": "reservar reserva mesa opentable resy"
+        },
         "edit": {
           "name": "Sugerir un cambio",
           "description": "Corrige los datos en OpenStreetMap",
@@ -2670,6 +2674,21 @@
     "header": {
       "showMore": "Ver más",
       "showLess": "Ver menos"
+    },
+    "booking": {
+      "bookTable": "Reservar mesa",
+      "book": "Reservar con antelación",
+      "policy": {
+        "yes": "Acepta reservas",
+        "recommended": "Se recomienda reservar",
+        "required": "Reserva obligatoria"
+      },
+      "providers": {
+        "venue": "Su web",
+        "opentable": "OpenTable",
+        "resy": "Resy",
+        "search": "Buscar en la web"
+      }
     },
     "details": {
       "address": "Dirección",

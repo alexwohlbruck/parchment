@@ -75,9 +75,9 @@ const SETTLE = 80
 const MOVING_GATHER = 350
 const AT_MOST = 300
 
-/** Longest a gather holds the main thread before yielding to a frame, in milliseconds: a fraction of a frame while moving, longer at rest. */
+/** Longest a gather holds the main thread before yielding, in milliseconds: a fraction of a frame while moving, under one at rest so the next gesture is never held up. */
 const SLICE = 3
-const RESTING_SLICE = 100
+const RESTING_SLICE = 12
 /** Candidates placed, or features read, between checks of the slice clock. */
 const STEP = 256
 const FEATURE_STEP = 8

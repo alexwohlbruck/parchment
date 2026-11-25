@@ -7,6 +7,8 @@
 
 ### Changed
 
+* Press Enter in search to see all results right away, without waiting for suggestions. A search that names exactly one place opens that place.
+
 ### Fixed
 
 ## [0.27.1] - 2026-11-25

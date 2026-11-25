@@ -2,6 +2,14 @@
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.27.0] - 2026-11-24
+
+### Added
+
 * If a friend's encryption keys change, their profile warns you and shows a safety number to compare. Nothing is shared with them until you confirm it matches.
 * Inside a station, step cards follow your steps and level changes without GPS, read each step aloud and show which level it leads to.
 * Where to board now names the exit or line it lines you up with, and navigation says it aloud. With minutes to spare on the platform, it tells you to walk there first.
@@ -13,7 +21,6 @@
 * Resetting your account asks you to confirm it's you with your passkey or an emailed code first.
 * Collections and routes can only be shared with friends.
 * Location sharing with friends on other servers isn't available yet, and the switch says so.
-
 * Water names are set in italic, in every map style.
 * A menu or dialog opened over a sheet now tucks that sheet behind it and dims the map, so it's clear what you're using. Tap outside to close it.
 * Your recovery key is now 24 words that are easier to write down and type back in. Anyone with an older recovery key will be asked to save the words instead.

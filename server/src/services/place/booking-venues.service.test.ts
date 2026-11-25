@@ -103,6 +103,12 @@ describe('getBookingVenues', () => {
     expect(fetchWikidataClaims).not.toHaveBeenCalled()
   })
 
+  test('returns a stored venue even when the place’s own tags don’t say it takes bookings', async () => {
+    tags = { amenity: 'restaurant' }
+    stored = { resy: { providerPlaceId: 'new-york-ny/carbone', confirmed: false } }
+    expect((await getBookingVenues('osm' as any, 'node/1')).venues).toEqual({ resy: 'new-york-ny/carbone' })
+  })
+
   test('has nothing for a place that cannot be booked', async () => {
     tags = { amenity: 'bench' }
     expect(await getBookingVenues('osm' as any, 'node/1')).toEqual({ venues: {}, unlisted: [] })

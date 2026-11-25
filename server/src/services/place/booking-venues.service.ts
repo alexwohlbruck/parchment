@@ -3,6 +3,7 @@ import { bookingKind, venueBookingUrl } from '../../lib/place/booking-kind'
 import {
   VENUE_PROVIDERS,
   WIKIDATA_VENUE_PROPERTY_IDS,
+  isVenueProvider,
   parseVenueUrl,
   venueProviderOf,
   venuesFromWikidata,
@@ -88,7 +89,8 @@ export async function getBookingVenues(source: Source, placeId: string): Promise
       )
     }),
   )
-  return bookingVenues(providers, stored)
+  const known = (Object.keys(stored) as VenueProvider[]).filter((p) => isVenueProvider(p) && !providers.includes(p))
+  return bookingVenues([...providers, ...known], stored)
 }
 
 export function resetBookingVenuesForTests(): void {

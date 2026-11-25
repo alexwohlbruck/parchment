@@ -1,5 +1,7 @@
 import {
   bookingKind,
+  isDiningPlace,
+  isLodgingPlace,
   venueBookingUrl,
   type BookingKind,
 } from '@server/lib/place/booking-kind'
@@ -44,6 +46,8 @@ export interface BookingTarget {
   unlisted?: VenueProvider[]
   /** Reservation and delivery pages from the place's data. */
   actions?: PlaceAction[]
+  /** Overrides the kind read from tags, for a place known to be bookable some other way. */
+  kind?: BookingKind | null
 }
 
 const US_STATES = new Set(
@@ -162,7 +166,7 @@ function directLink(raw: string, target: BookingTarget): BookingLink {
  * when nothing direct is. Empty when it can't be booked.
  */
 export function bookingLinks(target: BookingTarget): BookingLink[] {
-  const kind = bookingKind(target.tags)
+  const kind = target.kind ?? bookingKind(target.tags)
   if (!kind || !target.name.trim()) return []
 
   const links: BookingLink[] = []
@@ -219,4 +223,18 @@ export function deliveryLinks(actions: PlaceAction[] | undefined): DeliveryLink[
     if (!links.some(l => l.name === name)) links.push({ name, url: action.url })
   }
   return links
+}
+
+/**
+ * What booking a place means: from its tags, or, for a restaurant or lodging
+ * whose tags don't say, from a booking page known for it elsewhere.
+ */
+export function effectiveBookingKind(
+  tags: Record<string, string | undefined>,
+  knownElsewhere: boolean,
+): BookingKind | null {
+  const kind = bookingKind(tags)
+  if (kind || !knownElsewhere || tags.reservation === 'no') return kind
+  if (isLodgingPlace(tags)) return 'stay'
+  return isDiningPlace(tags) ? 'table' : null
 }

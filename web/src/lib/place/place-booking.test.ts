@@ -4,6 +4,7 @@ import {
   bookingKind,
   bookingLinks,
   deliveryLinks,
+  effectiveBookingKind,
   reservationPolicy,
   resySearchUrl,
   openTableSearchUrl,
@@ -136,6 +137,21 @@ describe('bookingLinks with known venues', () => {
     expect(links[0].url).toBe(
       'https://www.booking.com/hotel/us/the-iveys.html?checkin=2026-11-25&checkout=2026-11-26&group_adults=2&no_rooms=1',
     )
+  })
+})
+
+describe('effectiveBookingKind', () => {
+  it('books a table at a restaurant known on a booking site, even untagged', () => {
+    expect(effectiveBookingKind({ amenity: 'restaurant' }, true)).toBe('table')
+    expect(effectiveBookingKind({ amenity: 'restaurant' }, false)).toBeNull()
+  })
+
+  it('still respects a place tagged as not taking reservations', () => {
+    expect(effectiveBookingKind({ amenity: 'restaurant', reservation: 'no' }, true)).toBeNull()
+  })
+
+  it('ignores places that are neither dining nor lodging', () => {
+    expect(effectiveBookingKind({ shop: 'books' }, true)).toBeNull()
   })
 })
 

@@ -1,6 +1,13 @@
 import { computed, toValue, type MaybeRefOrGetter } from 'vue'
 import type { Place } from '@/types/place.types'
-import { bookingKind, bookingLinks, deliveryLinks, reservationPolicy } from '@/lib/place/place-booking'
+import {
+  bookingLinks,
+  deliveryLinks,
+  effectiveBookingKind,
+  isDiningPlace,
+  isLodgingPlace,
+  reservationPolicy,
+} from '@/lib/place/place-booking'
 import { addNights, tableTime, type BookingPlan } from '@/lib/place/place-stay'
 import { listingPlaceId } from '@/lib/place/listing-providers'
 import { fetchBookingVenues } from '@/services/place/booking.service'
@@ -11,14 +18,19 @@ export function usePlaceBooking(
   plan?: MaybeRefOrGetter<BookingPlan | null>,
 ) {
   const tags = computed(() => toValue(place)?.tags ?? {})
-  const kind = computed(() => bookingKind(tags.value))
   const placeId = computed(() => listingPlaceId(toValue(place)?.externalIds))
   const actions = computed(() => toValue(place)?.placeActions?.value ?? undefined)
 
   const { data: venues } = useBookingData(
-    () => (kind.value && kind.value !== 'ahead' && placeId.value) || null,
+    () => ((isDiningPlace(tags.value) || isLodgingPlace(tags.value)) && placeId.value) || null,
     fetchBookingVenues,
   )
+  const knownElsewhere = computed(
+    () =>
+      Object.keys(venues.value?.venues ?? {}).length > 0 ||
+      (actions.value ?? []).some(a => a.kind === 'reservation'),
+  )
+  const kind = computed(() => effectiveBookingKind(tags.value, knownElsewhere.value))
 
   const links = computed(() => {
     const p = toValue(place)
@@ -27,6 +39,7 @@ export function usePlaceBooking(
     return bookingLinks({
       name: p?.name?.value ?? '',
       tags: tags.value,
+      kind: kind.value,
       center: p?.geometry?.value?.center,
       locality: address?.locality,
       region: address?.region,

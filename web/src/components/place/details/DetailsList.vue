@@ -20,7 +20,7 @@ import DetailItem from './DetailItem.vue'
 import type { Place, DisplayChip, OpeningHours } from '@/types/place.types'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { getWifiStatus, parseCuisines } from '@/lib/place/place-details'
+import { getWifiStatus, parseCuisines, placeWebsites } from '@/lib/place/place-details'
 import {
   getLocalDayAndTime,
   resolveOpeningStatus,
@@ -74,17 +74,7 @@ const coordinates = computed(() => {
 const phoneValue = computed(() => props.place?.contactInfo?.phone?.value)
 const emailValue = computed(() => props.place?.contactInfo?.email?.value)
 
-/**
- * All website URLs for the place: the typed websites[] array is preferred
- * (populated by integrations with primary + sub-key URLs). Falls back to the
- * single contactInfo.website field for backward compatibility.
- */
-const websiteUrls = computed((): string[] => {
-  const all = props.place?.contactInfo?.websites?.value
-  if (all?.length) return all
-  const single = props.place?.contactInfo?.website?.value
-  return single ? [single] : []
-})
+const websiteUrls = computed(() => placeWebsites(props.place))
 
 /** Keep a single value accessor for old callers */
 const websiteValue = computed(() => websiteUrls.value[0] ?? null)

@@ -598,6 +598,7 @@ export class ObjectLayer {
   private scheduled = 0
   private gathering: Iterator<void> | null = null
   private slice = 0
+  private sliceFrame = 0
   private pendingSince = 0
   private onSourceData?: (event: { sourceId?: string }) => void
   private onMoveEnd?: () => void
@@ -821,7 +822,9 @@ export class ObjectLayer {
       if (this.needsGather) this.invalidate(true)
       return
     }
-    this.slice = setTimeout(() => this.runSlice(), 0) as unknown as number
+    // Mid-gesture one slice a frame: chained timeouts ran slice after slice between frames and starved the map.
+    if (this.map.isMoving?.()) this.sliceFrame = requestAnimationFrame(() => this.runSlice())
+    else this.slice = setTimeout(() => this.runSlice(), 0) as unknown as number
   }
 
   private upload(gl: WebGL2RenderingContext, target: number, data: ArrayBufferView) {
@@ -844,6 +847,7 @@ export class ObjectLayer {
     this.stopFlutter()
     if (this.scheduled) clearTimeout(this.scheduled)
     clearTimeout(this.slice)
+    cancelAnimationFrame(this.sliceFrame)
     this.scheduled = 0
     this.gathering = null
     this.map = null

@@ -5,8 +5,11 @@
 * The command palette lists the commands you use most at the top.
 * On a place, the command palette offers directions, call, website, share and edit, and **D** gets directions there.
 * Named buildings show their names when you zoom in, like the halls on a school or college campus.
+* Day & Night can show daylight and darkness at any time in the coming week, using the same time control as transit.
 
 ### Changed
+
+* The layers time control now sits in its own section and appears whenever transit or Day & Night is on.
 
 ### Fixed
 

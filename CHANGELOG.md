@@ -5,7 +5,7 @@
 * The command palette lists the commands you use most at the top.
 * On a place, the command palette offers directions, call, website, share and edit, and **D** gets directions there.
 * Named buildings show their names when you zoom in, like the halls on a school or college campus.
-* Restaurants that take reservations link straight to booking on OpenTable, Resy or their own site.
+* Restaurants that take reservations link to booking on OpenTable, Resy or their own site, and hotels link to Booking.com, Expedia and Google Hotels.
 
 ### Changed
 

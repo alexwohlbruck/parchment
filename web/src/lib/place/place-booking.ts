@@ -27,6 +27,11 @@ const VENUE_URL_KEYS = [
 
 const DINING_AMENITIES = new Set(['restaurant', 'cafe', 'bar', 'pub', 'biergarten', 'food_court'])
 
+const US_STATES = new Set(
+  ('AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM ' +
+    'NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY').split(' '),
+)
+
 const PROVIDER_HOSTS: Record<'opentable' | 'resy', RegExp> = {
   opentable: /(^|\.)opentable\.[a-z.]+$/,
   resy: /(^|\.)resy\.com$/,
@@ -83,12 +88,18 @@ export function openTableSearchUrl(target: BookingTarget): string {
   return url.toString()
 }
 
-/** Resy addresses its markets as `<city>-<state>`, so a search needs a US city and two-letter state. */
+function isInUS(target: BookingTarget): boolean {
+  const country = target.countryCode ?? target.tags['addr:country']
+  if (country) return country.trim().toUpperCase() === 'US'
+  return (target.center?.lng ?? 0) < -50
+}
+
+/** Resy addresses its markets as `<city>-<state>`, so a search needs a US city and state code. */
 export function resySearchUrl(target: BookingTarget): string | null {
-  const region = target.region?.trim() ?? ''
-  const city = slugify(target.locality ?? '')
-  if (target.countryCode?.toUpperCase() !== 'US' || !/^[a-z]{2}$/i.test(region) || !city) return null
-  const url = new URL(`https://resy.com/cities/${city}-${region.toLowerCase()}/search`)
+  const state = (target.region ?? target.tags['addr:state'])?.trim().toUpperCase() ?? ''
+  const city = slugify(target.locality ?? target.tags['addr:city'] ?? '')
+  if (!US_STATES.has(state) || !city || !isInUS(target)) return null
+  const url = new URL(`https://resy.com/cities/${city}-${state.toLowerCase()}/search`)
   url.searchParams.set('query', target.name)
   return url.toString()
 }

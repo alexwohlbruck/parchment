@@ -116,9 +116,21 @@ describe('resySearchUrl', () => {
       .toMatch(/^https:\/\/resy\.com\/cities\/san-jose-ca\/search/)
   })
 
-  it('needs a two-letter state and a city', () => {
+  it('needs a US state code and a city', () => {
     expect(resySearchUrl({ ...restaurant, region: 'North Carolina' })).toBeNull()
+    expect(resySearchUrl({ ...restaurant, region: 'ON', countryCode: 'CA' })).toBeNull()
     expect(resySearchUrl({ ...restaurant, locality: undefined })).toBeNull()
+  })
+
+  it('falls back to address tags', () => {
+    const target = { ...restaurant, locality: undefined, region: undefined, tags: { 'addr:city': 'Charlotte', 'addr:state': 'NC' } }
+    expect(resySearchUrl(target)).toMatch(/cities\/charlotte-nc\//)
+  })
+
+  it('places an address without a country by its longitude', () => {
+    expect(resySearchUrl({ ...restaurant, countryCode: undefined })).not.toBeNull()
+    expect(resySearchUrl({ ...restaurant, countryCode: undefined, locality: 'Perth', region: 'WA', center: { lat: -31.95, lng: 115.86 } }))
+      .toBeNull()
   })
 })
 

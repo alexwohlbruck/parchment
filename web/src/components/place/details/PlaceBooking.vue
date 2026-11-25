@@ -38,6 +38,7 @@ const title = computed(() =>
           rel="noopener noreferrer"
           variant="outline"
           size="sm"
+          class="gap-1.5"
         >
           {{ t(`place.booking.providers.${link.provider}`) }}
           <ExternalLinkIcon class="size-3.5 text-muted-foreground" />

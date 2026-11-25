@@ -21915,6 +21915,13 @@
                           "description": "The look chosen for each built-in layer, by layer id.",
                           "type": "object",
                           "properties": {}
+                        },
+                        "security": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "The signing key whose recovery words the user has confirmed they saved.",
+                          "type": "object",
+                          "properties": {}
                         }
                       }
                     }
@@ -22117,6 +22124,13 @@
                           "additionalProperties": true,
                           "maxProperties": 64,
                           "description": "The look chosen for each built-in layer, by layer id.",
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "security": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "The signing key whose recovery words the user has confirmed they saved.",
                           "type": "object",
                           "properties": {}
                         }
@@ -22323,6 +22337,13 @@
                           "description": "The look chosen for each built-in layer, by layer id.",
                           "type": "object",
                           "properties": {}
+                        },
+                        "security": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "The signing key whose recovery words the user has confirmed they saved.",
+                          "type": "object",
+                          "properties": {}
                         }
                       }
                     }
@@ -22343,7 +22364,7 @@
         "tags": [
           "Users"
         ],
-        "description": "Get current user preferences: language, unit system, navigation, Ask and app. Each navigation section (excludedModes, sortPreference, routing, speech, guidance) and app section (theme, map, general, layerAppearances) is absent until first saved."
+        "description": "Get current user preferences: language, unit system, navigation, Ask and app. Each navigation section (excludedModes, sortPreference, routing, speech, guidance) and app section (theme, map, general, layerAppearances, security) is absent until first saved."
       },
       "put": {
         "parameters": [],
@@ -22541,6 +22562,13 @@
                           "description": "The look chosen for each built-in layer, by layer id.",
                           "type": "object",
                           "properties": {}
+                        },
+                        "security": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "The signing key whose recovery words the user has confirmed they saved.",
+                          "type": "object",
+                          "properties": {}
                         }
                       }
                     }
@@ -22745,6 +22773,13 @@
                           "description": "The look chosen for each built-in layer, by layer id.",
                           "type": "object",
                           "properties": {}
+                        },
+                        "security": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "The signing key whose recovery words the user has confirmed they saved.",
+                          "type": "object",
+                          "properties": {}
                         }
                       }
                     }
@@ -22947,6 +22982,13 @@
                           "additionalProperties": true,
                           "maxProperties": 64,
                           "description": "The look chosen for each built-in layer, by layer id.",
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "security": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "The signing key whose recovery words the user has confirmed they saved.",
                           "type": "object",
                           "properties": {}
                         }
@@ -23182,6 +23224,13 @@
                         "description": "The look chosen for each built-in layer, by layer id.",
                         "type": "object",
                         "properties": {}
+                      },
+                      "security": {
+                        "additionalProperties": true,
+                        "maxProperties": 64,
+                        "description": "The signing key whose recovery words the user has confirmed they saved.",
+                        "type": "object",
+                        "properties": {}
                       }
                     }
                   },
@@ -23402,6 +23451,13 @@
                         "description": "The look chosen for each built-in layer, by layer id.",
                         "type": "object",
                         "properties": {}
+                      },
+                      "security": {
+                        "additionalProperties": true,
+                        "maxProperties": 64,
+                        "description": "The signing key whose recovery words the user has confirmed they saved.",
+                        "type": "object",
+                        "properties": {}
                       }
                     }
                   },
@@ -23620,6 +23676,13 @@
                         "additionalProperties": true,
                         "maxProperties": 64,
                         "description": "The look chosen for each built-in layer, by layer id.",
+                        "type": "object",
+                        "properties": {}
+                      },
+                      "security": {
+                        "additionalProperties": true,
+                        "maxProperties": 64,
+                        "description": "The signing key whose recovery words the user has confirmed they saved.",
                         "type": "object",
                         "properties": {}
                       }

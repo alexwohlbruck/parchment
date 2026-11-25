@@ -95,7 +95,7 @@ describe('getPlaceListings', () => {
 
     const listings = await getPlaceListings('osm' as any, 'node/1')
 
-    expect(listings.map((l) => l.provider)).toEqual(['liteapi', 'booking', 'expedia'])
+    expect(listings.map((l) => l.provider)).toEqual(['liteapi', 'bookingcom', 'expedia'])
     expect(listings[0]).toMatchObject({ searchable: true, acceptsUrl: false })
     expect(listings[0].listing).toMatchObject({ id: 'lp-1', name: 'The Ivey’s Hotel', address: '127 N Tryon St' })
   })
@@ -103,7 +103,7 @@ describe('getPlaceListings', () => {
   test('leaves LiteAPI out when it is not configured', async () => {
     osmTags = { tourism: 'hotel' }
     const listings = await getPlaceListings('osm' as any, 'node/1')
-    expect(listings.map((l) => l.provider)).toEqual(['booking', 'expedia'])
+    expect(listings.map((l) => l.provider)).toEqual(['bookingcom', 'expedia'])
   })
 })
 
@@ -147,7 +147,7 @@ describe('Google Hotels listings', () => {
     const listings = await getPlaceListings('osm' as any, 'node/1')
     expect(listings.map((l) => [l.provider, l.searchable])).toEqual([
       ['google_hotels', true],
-      ['booking', false],
+      ['bookingcom', false],
       ['expedia', false],
     ])
   })

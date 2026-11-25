@@ -756,11 +756,11 @@ async function saveProviderMatches(
   }
 }
 
-/** Booking-site venues a place's reservation links point at, stored so free lookups link straight to them. */
+/** Booking-site venues a place's reservation links point at, stored so free lookups link straight to them. They rank below tags and Wikidata, so they only fill empty sites. */
 async function saveBookingVenues(source: Source, id: string, stored: ProviderMatches, found: VenueIds): Promise<void> {
   try {
     await Promise.all(
-      Object.entries(venueUpserts(stored, found)).map(([provider, providerPlaceId]) =>
+      Object.entries(venueUpserts(stored, found, { replace: false })).map(([provider, providerPlaceId]) =>
         setProviderMatch(source, id, provider, { providerPlaceId, confirmed: false }),
       ),
     )

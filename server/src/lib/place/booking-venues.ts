@@ -3,18 +3,18 @@ import type { ProviderMatches } from './provider-matches'
 import type { PlaceAction } from '../../types/place.types'
 
 /** Booking sites a place's own venue page can be stored for, by match-store provider key. */
-export type VenueProvider = 'opentable' | 'resy' | 'tock' | 'sevenrooms' | 'booking' | 'expedia'
+export type VenueProvider = 'opentable' | 'resy' | 'tock' | 'sevenrooms' | 'bookingcom' | 'expedia' | 'hotelscom'
 
 export const VENUE_PROVIDERS: Readonly<Record<BookingKind, readonly VenueProvider[]>> = {
   table: ['opentable', 'resy', 'tock', 'sevenrooms'],
-  stay: ['booking', 'expedia'],
+  stay: ['bookingcom', 'expedia', 'hotelscom'],
   ahead: [],
 }
 
 /** The sites offered for correction on every place of a kind; the rest show once a venue is known there. */
 export const LISTED_VENUE_PROVIDERS: Readonly<Record<BookingKind, readonly VenueProvider[]>> = {
   table: ['opentable', 'resy'],
-  stay: ['booking', 'expedia'],
+  stay: ['bookingcom', 'expedia'],
   ahead: [],
 }
 
@@ -36,8 +36,9 @@ const ID_PATTERNS: Record<VenueProvider, RegExp> = {
   resy: new RegExp(`^${SLUG}/${SLUG}$`),
   tock: new RegExp(`^${SLUG}$`),
   sevenrooms: new RegExp(`^${SLUG}$`),
-  booking: new RegExp(`^[a-z]{2}/${SLUG}$`),
+  bookingcom: new RegExp(`^[a-z]{2}/${SLUG}$`),
   expedia: /^[1-9]\d*$/,
+  hotelscom: /^[1-9]\d*$/,
 }
 
 const HOSTS: Record<VenueProvider, RegExp> = {
@@ -45,8 +46,9 @@ const HOSTS: Record<VenueProvider, RegExp> = {
   resy: /(^|\.)resy\.com$/,
   tock: /(^|\.)exploretock\.com$/,
   sevenrooms: /(^|\.)sevenrooms\.com$/,
-  booking: /(^|\.)booking\.com$/,
+  bookingcom: /(^|\.)booking\.com$/,
   expedia: /(^|\.)expedia\.[a-z.]+$/,
+  hotelscom: /(^|\.)hotels\.com$/,
 }
 
 export function isVenueProvider(provider: string): provider is VenueProvider {
@@ -90,12 +92,14 @@ function idFrom(provider: VenueProvider, url: URL): string | null {
       return /^\/([^/]+)/.exec(path)?.[1] ?? null
     case 'sevenrooms':
       return /^\/(?:reservations|explore)\/([^/]+)/.exec(path)?.[1] ?? null
-    case 'booking': {
+    case 'bookingcom': {
       const match = /^\/hotel\/([a-z]{2})\/([^/.]+)(?:\.[a-z-]+)?\.html$/.exec(path)
       return match ? `${match[1]}/${match[2]}` : null
     }
     case 'expedia':
-      return /\.h(\d+)\.hotel-information$/.exec(path)?.[1] ?? url.searchParams.get('hotelId')
+      return /(?:^|[/.])h(\d+)\.hotel-information$/.exec(path)?.[1] ?? url.searchParams.get('hotelId')
+    case 'hotelscom':
+      return /^\/ho(\d+)(?:\/|$)/.exec(path)?.[1] ?? null
   }
 }
 
@@ -148,7 +152,7 @@ export function venuePageUrl(provider: VenueProvider, id: string, plan?: VenuePl
         url.searchParams.set('party_size', String(plan.party))
       }
       break
-    case 'booking':
+    case 'bookingcom':
       url = new URL(`https://www.booking.com/hotel/${id}.html`)
       if (plan) {
         url.searchParams.set('checkin', plan.day)
@@ -159,6 +163,14 @@ export function venuePageUrl(provider: VenueProvider, id: string, plan?: VenuePl
       break
     case 'expedia':
       url = new URL(`https://www.expedia.com/h${id}.Hotel-Information`)
+      if (plan) {
+        url.searchParams.set('chkin', plan.day)
+        url.searchParams.set('chkout', plan.checkout)
+        url.searchParams.set('rm1', `a${plan.party}`)
+      }
+      break
+    case 'hotelscom':
+      url = new URL(`https://www.hotels.com/ho${id}/`)
       if (plan) {
         url.searchParams.set('chkin', plan.day)
         url.searchParams.set('chkout', plan.checkout)
@@ -184,13 +196,43 @@ export function venuesFromActions(actions: PlaceAction[] | undefined): VenueIds 
   return venues
 }
 
-/** Venues worth storing: new or changed, never over a person's confirmed choice. */
-export function venueUpserts(stored: ProviderMatches, found: VenueIds): VenueIds {
+/**
+ * Venues worth storing, never over a person's confirmed choice. A source that
+ * outranks what is stored replaces it; a lower one only fills sites with nothing stored.
+ */
+export function venueUpserts(stored: ProviderMatches, found: VenueIds, { replace = true } = {}): VenueIds {
   const upserts: VenueIds = {}
   for (const [provider, id] of Object.entries(found) as [VenueProvider, string][]) {
     const current = stored[provider]
-    if (current?.confirmed || current?.providerPlaceId === id) continue
+    if (current?.confirmed || current?.providerPlaceId === id || (current && !replace)) continue
     upserts[provider] = id
   }
   return upserts
+}
+
+/** Wikidata properties holding a hotel's id on booking sites, and how each becomes our venue id. */
+const WIKIDATA_VENUE_PROPERTIES: [string, VenueProvider, (value: string) => string | null][] = [
+  ['P3607', 'bookingcom', (v) => v.replace(/^\/+|\.html$/g, '').toLowerCase()],
+  ['P5651', 'expedia', (v) => /^h?(\d+)$/i.exec(v)?.[1] ?? null],
+  ['P3898', 'hotelscom', (v) => /^(?:ho)?(\d+)$/i.exec(v)?.[1] ?? null],
+]
+
+export const WIKIDATA_VENUE_PROPERTY_IDS = WIKIDATA_VENUE_PROPERTIES.map(([property]) => property)
+
+type WikidataClaims = Record<string, { mainsnak?: { datavalue?: { value?: unknown } } }[] | undefined>
+
+/** Booking-site venues from a Wikidata item's claims. Legacy numeric Booking.com ids can't be linked, so they're skipped. */
+export function venuesFromWikidata(claims: WikidataClaims | null | undefined): VenueIds {
+  const venues: VenueIds = {}
+  for (const [property, provider, toId] of WIKIDATA_VENUE_PROPERTIES) {
+    for (const claim of claims?.[property] ?? []) {
+      const value = claim.mainsnak?.datavalue?.value
+      const id = typeof value === 'string' ? toId(value.trim()) : null
+      if (id && isVenueId(provider, id)) {
+        venues[provider] = id
+        break
+      }
+    }
+  }
+  return venues
 }

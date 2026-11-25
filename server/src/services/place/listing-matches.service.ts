@@ -18,10 +18,9 @@ import {
   hotelPricesCapability,
   hotelRatesCapability,
   forgetStayOffers,
-  labelGoogleHotel,
+  googleHotelName,
   searchGoogleHotels,
 } from '../stay.service'
-import { getListingLabel } from './listing-labels.service'
 
 const CANDIDATE_RADIUS_M = 500
 const MAX_HOTEL_CANDIDATES = 20
@@ -57,10 +56,6 @@ async function storedSummary(
   if (provider === LITEAPI_PROVIDER) {
     const hotel = await hotelRatesCapability()?.getHotel(id).catch(() => null)
     return hotel ? summarizeHotel(hotel, center) : null
-  }
-  if (provider === GOOGLE_HOTELS_PROVIDER) {
-    const label = await getListingLabel(provider, id).catch(() => null)
-    return label && { id, name: label.name, address: label.address, distance: null }
   }
   const found = hasCapability(provider, IntegrationCapabilityId.PLACE_INFO)
     ? await lookupPlaceById(provider as Source, id, options).catch(() => null)
@@ -206,8 +201,12 @@ export async function correctListing(
   provider: string,
   providerPlaceId: string | null,
 ): Promise<boolean> {
-  const stored = await setProviderMatch(source, placeId, provider, { providerPlaceId, confirmed: true })
-  if (provider === GOOGLE_HOTELS_PROVIDER && providerPlaceId) await labelGoogleHotel(providerPlaceId)
+  const name = provider === GOOGLE_HOTELS_PROVIDER && providerPlaceId ? googleHotelName(providerPlaceId) : undefined
+  const stored = await setProviderMatch(source, placeId, provider, {
+    providerPlaceId,
+    confirmed: true,
+    ...(name && { label: name }),
+  })
   forgetStayOffers(source, placeId)
   return stored
 }

@@ -9,7 +9,6 @@ import { cheapestRoomOffer, mergeOffers } from '../lib/place/stay-offers'
 import { logWarn } from '../lib/logger'
 import { lookupPlaceById } from './place.service'
 import { getProviderMatches, setProviderMatch } from './place/provider-matches.service'
-import { saveListingLabel } from './place/listing-labels.service'
 import type {
   HotelPricesCapability,
   HotelRatesCapability,
@@ -84,13 +83,15 @@ const matching = new Map<string, Promise<string | null>>()
 /**
  * The place's listing at a provider: the stored match, or a lookup made once
  * and stored unconfirmed, a miss as null, so a person can still correct it.
+ * `labelled` stores the listing's name with it, for ids that can't be looked up for free.
  * A stored null is never searched again. A match that fails to save is still used.
  */
 async function storedOrMatched(
   source: Source,
   placeId: string,
   provider: string,
-  find: (place: Place) => Promise<string | null>,
+  find: (place: Place) => Promise<HotelCandidate | null>,
+  { labelled = false } = {},
 ): Promise<string | null> {
   const stored = (await getProviderMatches(source, placeId))[provider]
   if (stored) return stored.providerPlaceId
@@ -101,11 +102,12 @@ async function storedOrMatched(
     pending = (async () => {
       const place = await lookupPlaceById(source, placeId)
       if (!place?.name?.value || !place.geometry?.value?.center) return null
-      const id = await find(place)
-      await setProviderMatch(source, placeId, provider, { providerPlaceId: id, confirmed: false }).catch((error) =>
-        logWarn(`Could not save ${provider} match`, error),
+      const hotel = await find(place)
+      const label = labelled && hotel ? { label: hotel.name } : {}
+      await setProviderMatch(source, placeId, provider, { providerPlaceId: hotel?.id ?? null, confirmed: false, ...label }).catch(
+        (error) => logWarn(`Could not save ${provider} match`, error),
       )
-      return id
+      return hotel?.id ?? null
     })().finally(() => matching.delete(key))
     matching.set(key, pending)
   }
@@ -128,13 +130,9 @@ function rememberGoogleHotels(candidates: HotelCandidate[]): void {
   while (seenGoogleHotels.size > SEEN_HOTELS_LIMIT) seenGoogleHotels.delete(seenGoogleHotels.keys().next().value!)
 }
 
-/** Stores the name of a Google Hotels listing a search returned, since its token can't be looked up for free. */
-export async function labelGoogleHotel(token: string): Promise<void> {
-  const hotel = seenGoogleHotels.get(token)
-  if (!hotel) return
-  await saveListingLabel(GOOGLE_HOTELS_PROVIDER, token, { name: hotel.name, address: hotel.address ?? null }).catch(
-    (error) => logWarn('Could not save Google Hotels label', error),
-  )
+/** The name of a Google Hotels listing one of our own searches returned, so a pick can be named without a paid lookup. */
+export function googleHotelName(token: string): string | undefined {
+  return seenGoogleHotels.get(token)?.name
 }
 
 /** Google Hotels resolves a query naming one hotel straight to it; its prices then come free with the match. */
@@ -150,9 +148,8 @@ async function googleOffers(source: Source, placeId: string, stay: Stay, prices:
     rememberGoogleHotels(found.candidates)
     const match = pickHotelMatch(found.candidates, target(place))
     if (match && found.property?.candidate.id === match.id) resolvedOffers.set(match.id, found.property.offers)
-    if (match) await labelGoogleHotel(match.id)
-    return match?.id ?? null
-  })
+    return match
+  }, { labelled: true })
   if (!token) return null
   const resolved = resolvedOffers.get(token)
   resolvedOffers.delete(token)
@@ -163,7 +160,7 @@ async function liteApiOffers(source: Source, placeId: string, stay: Stay, rates:
   const hotelId = await storedOrMatched(source, placeId, LITEAPI_PROVIDER, async (place) => {
     const center = place.geometry.value.center
     const named = pickHotelMatch(await rates.findHotels(center, HOTEL_SEARCH_RADIUS_M, place.name!.value!), target(place))
-    return (named ?? pickHotelMatch(await rates.findHotels(center, HOTEL_SEARCH_RADIUS_M), target(place)))?.id ?? null
+    return named ?? pickHotelMatch(await rates.findHotels(center, HOTEL_SEARCH_RADIUS_M), target(place))
   })
   if (!hotelId) return null
   const offer = cheapestRoomOffer(await rates.getStayRates({ ...stay, hotelId }), stay)

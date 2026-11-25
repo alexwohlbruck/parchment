@@ -63,10 +63,7 @@ mock.module('./place/provider-matches.service', () => ({
   setProviderMatch,
 }))
 
-const saveListingLabel = mock(async (..._args: unknown[]) => {})
-mock.module('./place/listing-labels.service', () => ({ saveListingLabel }))
-
-const { getStayOffers, resetStayOffersForTests, labelGoogleHotel, searchGoogleHotels } = await import('./stay.service')
+const { getStayOffers, resetStayOffersForTests, googleHotelName, searchGoogleHotels } = await import('./stay.service')
 
 const stay = { checkin: '2026-11-25', checkout: '2026-11-27', adults: 2, currency: 'USD', guestNationality: 'US' }
 const offers = (s = stay) => getStayOffers('osm' as any, 'node/1', s)
@@ -74,7 +71,7 @@ const sellers = async (s = stay) => (await offers(s))?.offers.map((o) => o.selle
 
 beforeEach(() => {
   resetStayOffersForTests()
-  for (const m of [searchHotels, getOffers, getStayRates, findHotels, setProviderMatch, saveListingLabel]) m.mockClear()
+  for (const m of [searchHotels, getOffers, getStayRates, findHotels, setProviderMatch]) m.mockClear()
   configured = ['hotelPrices']
   stored = {}
   placeName = 'Ivey’s Hotel'
@@ -94,21 +91,27 @@ describe('getStayOffers', () => {
   test('matches Google Hotels once by name and stores the property token unconfirmed', async () => {
     expect(await sellers()).toEqual(['Expedia.com', 'Booking.com'])
     expect(searchHotels.mock.calls[0][0]).toBe('Ivey’s Hotel, Charlotte')
-    expect(setProviderMatch).toHaveBeenCalledWith('osm', 'node/1', 'google_hotels', { providerPlaceId: 'tok-ivey', confirmed: false })
+    expect(setProviderMatch).toHaveBeenCalledWith('osm', 'node/1', 'google_hotels', {
+      providerPlaceId: 'tok-ivey',
+      confirmed: false,
+      label: 'The Ivey’s Hotel',
+    })
     expect(getOffers).toHaveBeenCalledWith('tok-ivey', stay)
   })
 
-  test('saves the matched hotel’s name, since its token can’t be looked up for free', async () => {
+  test('stores the matched hotel’s name with the match, since its token can’t be looked up for free', async () => {
     await offers()
-    expect(saveListingLabel).toHaveBeenCalledWith('google_hotels', 'tok-ivey', { name: 'The Ivey’s Hotel', address: null })
+    expect(setProviderMatch).toHaveBeenCalledWith('osm', 'node/1', 'google_hotels', {
+      providerPlaceId: 'tok-ivey',
+      confirmed: false,
+      label: 'The Ivey’s Hotel',
+    })
   })
 
-  test('names only hotels a search returned', async () => {
-    await labelGoogleHotel('never-seen')
-    expect(saveListingLabel).not.toHaveBeenCalled()
+  test('knows the names of hotels its own searches returned, and no others', async () => {
+    expect(googleHotelName('tok-other')).toBeUndefined()
     await searchGoogleHotels('Dunhill', stay)
-    await labelGoogleHotel('tok-other')
-    expect(saveListingLabel).toHaveBeenCalledWith('google_hotels', 'tok-other', { name: 'Dunhill Hotel', address: null })
+    expect(googleHotelName('tok-other')).toBe('Dunhill Hotel')
   })
 
   test('uses prices Google returned with the match instead of a second search', async () => {

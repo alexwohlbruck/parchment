@@ -35,11 +35,8 @@ const hotels = [
 let hotelRates: any = null
 let hotelPrices: any = null
 const forgetStayOffers = mock((..._args: unknown[]) => {})
-const labelGoogleHotel = mock(async (..._args: unknown[]) => {})
-let labels: Record<string, { name: string; address: string | null }> = {}
-mock.module('./listing-labels.service', () => ({
-  getListingLabel: async (_provider: string, id: string) => labels[id] ?? null,
-}))
+const seenNames: Record<string, string> = { ChoIp8: 'EVEN Hotel Brooklyn by IHG' }
+const googleHotelName = (token: string) => seenNames[token]
 const searchGoogleHotels = mock(async (..._args: unknown[]) => hotels)
 mock.module('../stay.service', () => ({
   LITEAPI_PROVIDER: 'liteapi',
@@ -48,7 +45,7 @@ mock.module('../stay.service', () => ({
   hotelPricesCapability: () => hotelPrices,
   searchGoogleHotels,
   forgetStayOffers,
-  labelGoogleHotel,
+  googleHotelName,
 }))
 
 const { getPlaceListings, searchListingCandidates, correctListing } = await import('./listing-matches.service')
@@ -59,8 +56,6 @@ beforeEach(() => {
   osmTags = {}
   hotelRates = null
   hotelPrices = null
-  labels = {}
-  labelGoogleHotel.mockClear()
   searchGoogleHotels.mockClear()
   setProviderMatch.mockClear()
   lookupPlacesByNameAndLocation.mockReset()
@@ -170,20 +165,18 @@ describe('Google Hotels listings', () => {
     ])
   })
 
-  test('names a stored Google Hotels match from its saved label, not its token', async () => {
-    osmTags = { tourism: 'hotel' }
-    hotelPrices = {}
-    stored = { google_hotels: { providerPlaceId: 'ChoIp8', confirmed: true } }
-    labels = { ChoIp8: { name: 'EVEN Hotel Brooklyn by IHG', address: '46 Nevins St' } }
-    const listing = (await getPlaceListings('osm' as any, 'node/1')).find((l) => l.provider === 'google_hotels')
-    expect(listing?.listing).toMatchObject({ id: 'ChoIp8', name: 'EVEN Hotel Brooklyn by IHG', address: '46 Nevins St' })
+  test('stores the name of a Google Hotels listing a person picks from our own search', async () => {
+    await correctListing('osm' as any, 'node/1', 'google_hotels', 'ChoIp8')
+    expect(setProviderMatch).toHaveBeenLastCalledWith('osm', 'node/1', 'google_hotels', {
+      providerPlaceId: 'ChoIp8',
+      confirmed: true,
+      label: 'EVEN Hotel Brooklyn by IHG',
+    })
   })
 
-  test('saves the name of a Google Hotels listing a person picks', async () => {
-    await correctListing('osm' as any, 'node/1', 'google_hotels', 'ChoIp8')
-    expect(labelGoogleHotel).toHaveBeenCalledWith('ChoIp8')
-    await correctListing('osm' as any, 'node/1', 'google_hotels', null)
-    expect(labelGoogleHotel).toHaveBeenCalledTimes(1)
+  test('stores no name for a token our searches never returned', async () => {
+    await correctListing('osm' as any, 'node/1', 'google_hotels', 'unseen')
+    expect(setProviderMatch).toHaveBeenLastCalledWith('osm', 'node/1', 'google_hotels', { providerPlaceId: 'unseen', confirmed: true })
   })
 
   test('searches Google Hotels in the place’s town, keeping hotels within 1 km, nearest first', async () => {

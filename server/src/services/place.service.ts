@@ -20,9 +20,12 @@ import { reverseGeocode } from './geocoding.service'
 import { isTappedPlace } from '../lib/tapped-place'
 import { logError, logWarn, logger } from '../lib/logger'
 import {
+  clearedProviders,
   matchedProviderIds,
   planMatchUpdate,
+  storedListingIds,
   type ProviderIds,
+  type ProviderMatches,
 } from '../lib/place/provider-matches'
 import {
   applyProviderMatchUpdate,
@@ -702,7 +705,7 @@ async function enrichPlaceWithFoursquareData(
   }
 }
 
-async function loadProviderMatches(source: Source, id: string): Promise<ProviderIds> {
+async function loadProviderMatches(source: Source, id: string): Promise<ProviderMatches> {
   try {
     return await getProviderMatches(source, id)
   } catch (error) {
@@ -740,7 +743,7 @@ async function resolveStoredMatches(
 async function saveProviderMatches(
   source: Source,
   id: string,
-  stored: ProviderIds,
+  stored: ProviderMatches,
   found: ProviderIds,
   stale: Source[],
 ): Promise<void> {
@@ -793,13 +796,14 @@ export async function lookupEnrichedPlaceById(
 
     const baseIds = { ...place.externalIds }
     const storedMatches = businessData ? await loadProviderMatches(source, id) : {}
+    const cleared = clearedProviders(storedMatches) as Source[]
     let staleMatches: Source[] = []
 
     if (place.name?.value && place.geometry.value.center && !skipThirdPartySearch) {
       const step2Start = Date.now()
       const { lat, lng } = place.geometry.value.center
 
-      const stored = await resolveStoredMatches(storedMatches, language)
+      const stored = await resolveStoredMatches(storedListingIds(storedMatches), language)
       staleMatches = stored.stale
       const thirdPartyPlaces = stored.places
 
@@ -809,7 +813,7 @@ export async function lookupEnrichedPlaceById(
           { lat, lng },
           {
             radius: 500,
-            sourceBlacklist: [source], // Exclude the original source
+            sourceBlacklist: [source, ...cleared],
             language,
             sameAs: place,
           },
@@ -837,7 +841,7 @@ export async function lookupEnrichedPlaceById(
       enrichPlaceWithWikiData(JSON.parse(JSON.stringify(place)), language),
       enrichPlaceWithAddressData(JSON.parse(JSON.stringify(place))),
       enrichPlaceWithFoursquareData(JSON.parse(JSON.stringify(place)), {
-        premiumData: businessData,
+        premiumData: businessData && !cleared.includes(SOURCE.FOURSQUARE),
         language,
       }),
     ])

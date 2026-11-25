@@ -72,7 +72,7 @@ interface CacheEntry {
  *
  * Conflation for enrichment uses the Place Match endpoint (`matchPlace`),
  * which returns a single best `fsq_place_id` + confidence — the id stored in
- * `place_provider_matches` so later opens skip the match.
+ * Barrelman's provider match store so later opens skip the match.
  */
 export class FoursquareIntegration
   implements Integration<FoursquareConfig>

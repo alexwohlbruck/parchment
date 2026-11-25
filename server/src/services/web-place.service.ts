@@ -17,7 +17,7 @@ import {
   sameName,
 } from '../lib/web-place/site-page'
 import { OverpassAdapter } from './integrations/adapters/overpass-adapter'
-import { forwardGeocode } from './geocoding.service'
+import { forwardGeocode, reverseGeocode } from './geocoding.service'
 import { lookupPlacesByNameAndLocation } from './place.service'
 import type { Language } from '../lib/i18n/i18n.types'
 import type { LanguageModelCapability } from '../types/language-model.types'
@@ -102,12 +102,13 @@ export async function findPlaceOnWeb(query: string, options: Options): Promise<W
 const SITE_BRIEF =
   "Find the business's own official website. Reply with only its URL, or NONE if it has no site of its own or you can't confirm the business exists. Never a directory, map, review, booking, delivery or social media page."
 
-async function findOfficialSite(query: string, { model, signal }: Options) {
+async function findOfficialSite(query: string, { model, near, signal }: Options) {
   if (!model) throw new WebPlaceError('Web search is not available here. Pass the business website instead.')
+  const area = query.includes(',') ? undefined : await areaName(near)
   const { message, citations = [] } = await model.complete({
     messages: [
       { role: 'system', content: SITE_BRIEF },
-      { role: 'user', content: query },
+      { role: 'user', content: area ? `${query}, ${area}` : query },
     ],
     webSearch: { maxResults: 5 },
     maxTokens: SITE_TOKENS,
@@ -120,6 +121,17 @@ async function findOfficialSite(query: string, { model, signal }: Options) {
     (other): other is string => !!other && other !== host,
   )
   return { website, corroboratedBy }
+}
+
+/** "Brooklyn, NY" for a point, so a bare business name finds the local one. */
+async function areaName({ lat, lng }: LatLng): Promise<string | undefined> {
+  try {
+    const address = (await reverseGeocode(lat, lng)).results[0]?.address?.value
+    const parts = [address?.locality, address?.region].filter(Boolean)
+    return parts.length ? parts.join(', ') : undefined
+  } catch {
+    return undefined
+  }
 }
 
 interface Page {

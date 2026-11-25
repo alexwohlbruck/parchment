@@ -49,6 +49,9 @@ import { ASK_OPTION } from '@/services/search-suggestions.service'
 import { useAskStore } from '@/stores/ask.store'
 import { isAskOffered } from '@/lib/ask/ask-access'
 import { groupByCategory } from '@/lib/command/group-by-category'
+import { groupByContext } from '@/lib/command/group-by-context'
+import { SUGGESTED_COMMAND_LIMIT } from '@/lib/command/command-usage'
+import { useCommandUsageStore } from '@/stores/command-usage.store'
 
 const emit = defineEmits<{
   (e: 'inputFocused'): void
@@ -127,19 +130,49 @@ const input = ref<InstanceType<typeof CommandInput>>()
 useTapToFocus(() => input.value?.inputElement)
 const { escape } = useMagicKeys()
 
-const filteredCommands = computed(() => {
-  const availableCommands = commandStore.commands.filter(command =>
+const commandUsageStore = useCommandUsageStore()
+
+function filterCommands(commands: TCommand[]) {
+  const available = commands.filter(command =>
     commandStore.commandIsAvailable(command),
   )
-
   return filterFunction.value
-    ? filterFunction.value(availableCommands, query.value)
-    : availableCommands
-})
+    ? filterFunction.value(available, query.value)
+    : available
+}
 
-const commandGroups = computed(() =>
-  groupByCategory(filteredCommands.value, !!query.value),
+const filteredCommands = computed(() => filterCommands(commandStore.commands))
+
+// While typing, only the closest matches are promoted, so a command used often
+// can't jump ahead of the one being spelled out.
+const suggestedCommands = computed<TCommand[]>(() =>
+  commandUsageStore.suggest(
+    query.value
+      ? filteredCommands.value.slice(0, SUGGESTED_COMMAND_LIMIT)
+      : filteredCommands.value,
+  ),
 )
+
+const commandGroups = computed(() => {
+  const suggested = new Set(suggestedCommands.value)
+  const byCategory = groupByCategory(
+    filteredCommands.value.filter(command => !suggested.has(command)),
+    !!query.value,
+  )
+  return [
+    ...groupByContext(filterCommands(commandStore.contextualCommands)).map(
+      group => ({ key: `context:${group.context}`, heading: group.context, items: group.items }),
+    ),
+    ...(suggested.size
+      ? [{ key: 'suggested', heading: t('palette.suggested'), items: suggestedCommands.value }]
+      : []),
+    ...byCategory.map(group => ({
+      key: group.category,
+      heading: t(`palette.categories.${group.category}`),
+      items: group.items,
+    })),
+  ]
+})
 
 // --- Settings entries in the palette ---------------------------------------
 // The settings index drives a "Settings" group in the palette so users can
@@ -560,12 +593,12 @@ const filterFunction = computed(() => {
         <CommandList v-if="!activeArgument" :style="listStyle">
           <CommandGroup
             v-for="group in commandGroups"
-            :key="group.category"
-            :heading="t(`palette.categories.${group.category}`)"
+            :key="group.key"
+            :heading="group.heading"
           >
             <CommandItem
               v-for="command in group.items"
-              :key="command.id"
+              :key="`${group.key}:${command.id}`"
               :value="command"
               class="flex gap-2"
               @select="onCommandSelected(command)"

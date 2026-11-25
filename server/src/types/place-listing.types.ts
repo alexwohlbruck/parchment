@@ -1,3 +1,5 @@
+import type { VenueIds, VenueProvider } from '../lib/place/booking-venues'
+
 export interface ListingSummary {
   id: string
   name: string | null
@@ -18,4 +20,11 @@ export interface ProviderListing {
   searchable: boolean
   /** Whether the listing is set by pasting its page URL, for providers with no search to offer. */
   acceptsUrl: boolean
+}
+
+export interface BookingVenues {
+  /** The place's own page on each booking site, by provider. */
+  venues: VenueIds
+  /** Booking sites a person said don't list this place, so they aren't searched. */
+  unlisted: VenueProvider[]
 }

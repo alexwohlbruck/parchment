@@ -11,18 +11,14 @@ import {
   type VenueProvider,
 } from '../../lib/place/booking-venues'
 import { fetchWikidataClaims } from '../wikidata.service'
+import type { BookingVenues } from '../../types/place-listing.types'
+
+export type { BookingVenues }
 import type { ProviderMatches } from '../../lib/place/provider-matches'
 import { logWarn } from '../../lib/logger'
 import type { Place } from '../../types/place.types'
 import { lookupPlaceById } from '../place.service'
 import { getProviderMatches, setProviderMatch } from './provider-matches.service'
-
-export interface BookingVenues {
-  /** The place's own page on each booking site, by provider. */
-  venues: Partial<Record<VenueProvider, string>>
-  /** Booking sites a person said don't list this place, so they aren't searched. */
-  unlisted: VenueProvider[]
-}
 
 /** The booking sites that apply to a place, for its kind. */
 export function venueProvidersFor(place: Place | null): VenueProvider[] {

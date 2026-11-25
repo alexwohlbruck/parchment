@@ -1,6 +1,7 @@
 import { integrationManager } from './integrations'
 import { LiteApiIntegration } from './integrations/liteapi-integration'
 import { SerpApiIntegration } from './integrations/serpapi-integration'
+import { fixtureHotelPrices, stayPriceFixturesEnabled } from './integrations/fixtures/stay-price-fixtures'
 import { IntegrationCapabilityId, IntegrationId } from '../types/integration.enums'
 import type { Source } from '../lib/constants'
 import { pickHotelMatch, HOTEL_SEARCH_RADIUS_M, type HotelCandidate } from '../lib/place/hotel-match'
@@ -61,8 +62,9 @@ export function hotelRatesCapability(): HotelRatesCapability | null {
   )
 }
 
-/** SerpApi from Settings, else `SERPAPI_API_KEY`. */
+/** SerpApi from Settings, else `SERPAPI_API_KEY`, else recorded prices in development with `STAY_PRICE_FIXTURES=1`. */
 export function hotelPricesCapability(): HotelPricesCapability | null {
+  if (stayPriceFixturesEnabled()) return fixtureHotelPrices
   return (
     configured(IntegrationCapabilityId.HOTEL_PRICES, 'hotelPrices') ??
     envCapabilities('serpapi', () => {

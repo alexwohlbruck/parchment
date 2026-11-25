@@ -79,6 +79,7 @@ beforeEach(() => {
 
 afterEach(() => {
   delete process.env.SERPAPI_API_KEY
+  delete process.env.STAY_PRICE_FIXTURES
 })
 
 describe('getStayOffers', () => {
@@ -164,6 +165,22 @@ describe('getStayOffers', () => {
       throw new Error('down')
     })
     await expect(offers()).rejects.toThrow('Hotel prices unavailable')
+  })
+
+  test('serves recorded prices only in development with the fixture flag', async () => {
+    configured = []
+    stored = { google_hotels: { providerPlaceId: 'any', confirmed: true } }
+    process.env.STAY_PRICE_FIXTURES = '1'
+    const env = process.env.NODE_ENV
+    try {
+      process.env.NODE_ENV = 'production'
+      expect(await offers()).toBeNull()
+      process.env.NODE_ENV = 'development'
+      resetStayOffersForTests()
+      expect((await offers())?.offers[0].seller).toBe('EVEN Hotel Brooklyn by IHG')
+    } finally {
+      process.env.NODE_ENV = env
+    }
   })
 
   test('falls back to SERPAPI_API_KEY', async () => {

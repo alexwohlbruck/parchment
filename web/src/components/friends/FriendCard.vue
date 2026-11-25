@@ -223,7 +223,11 @@ function openFriendDetail() {
           @update:model-value="emit('stopSharing', friend.friendHandle)"
         />
         <ShareDurationMenu v-else :disabled="locationSaving" @select="share">
-          <Switch :model-value="false" :disabled="locationSaving" />
+          <Switch
+            :model-value="false"
+            :disabled="locationSaving"
+            class="data-[state=open]:bg-input"
+          />
         </ShareDurationMenu>
       </div>
     </div>

@@ -493,7 +493,11 @@ watch([isLoading, friend], ([loading, f]) => {
         :disabled="isSavingConfig || isOnOtherServer"
         @select="shareFor"
       >
-        <Switch :model-value="false" :disabled="isSavingConfig || isOnOtherServer" />
+        <Switch
+          :model-value="false"
+          :disabled="isSavingConfig || isOnOtherServer"
+          class="data-[state=open]:bg-input"
+        />
       </ShareDurationMenu>
     </div>
 

@@ -34,6 +34,7 @@ const hotels = [
 ]
 let hotelRates: any = null
 let hotelPrices: any = null
+const forgetStayOffers = mock((..._args: unknown[]) => {})
 const searchGoogleHotels = mock(async (..._args: unknown[]) => hotels)
 mock.module('../stay.service', () => ({
   LITEAPI_PROVIDER: 'liteapi',
@@ -41,6 +42,7 @@ mock.module('../stay.service', () => ({
   hotelRatesCapability: () => hotelRates,
   hotelPricesCapability: () => hotelPrices,
   searchGoogleHotels,
+  forgetStayOffers,
 }))
 
 const { getPlaceListings, searchListingCandidates, correctListing } = await import('./listing-matches.service')
@@ -127,13 +129,21 @@ describe('searchListingCandidates', () => {
 })
 
 describe('searchListingCandidates for LiteAPI', () => {
+  test('falls back to every hotel nearby when none matches the name', async () => {
+    const findHotels = mock(async (_c: unknown, _r: number, name?: string) => (name ? [] : hotels))
+    hotelRates = { findHotels }
+    const found = await searchListingCandidates('osm' as any, 'node/1', 'liteapi', { query: 'Nothing like it' })
+    expect(findHotels).toHaveBeenCalledTimes(2)
+    expect(found).toHaveLength(2)
+  })
+
   test('searches LiteAPI hotels near the place, closest name first', async () => {
     const findHotels = mock(async () => hotels)
     hotelRates = { findHotels }
 
     const found = await searchListingCandidates('osm' as any, 'node/1', 'liteapi', { query: 'Iveys Hotel' })
 
-    expect(findHotels).toHaveBeenCalledWith({ lat: 35.2271, lng: -80.8431 }, 1000)
+    expect(findHotels).toHaveBeenCalledWith({ lat: 35.2271, lng: -80.8431 }, 1000, 'Iveys Hotel')
     expect(found.map((c) => c.id)).toEqual(['lp-1', 'lp-far'])
     expect(found[0]).toMatchObject({ name: 'The Ivey’s Hotel', address: '127 N Tryon St', distance: 11 })
     expect(lookupPlacesByNameAndLocation).not.toHaveBeenCalled()
@@ -164,5 +174,6 @@ describe('correctListing', () => {
   test('stores a person’s choice as confirmed, including no listing', async () => {
     await correctListing('osm' as any, 'node/1', 'foursquare', null)
     expect(setProviderMatch).toHaveBeenCalledWith('osm', 'node/1', 'foursquare', { providerPlaceId: null, confirmed: true })
+    expect(forgetStayOffers).toHaveBeenCalledWith('osm', 'node/1')
   })
 })

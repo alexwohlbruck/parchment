@@ -760,8 +760,8 @@ export interface StayRates {
 export interface HotelRatesCapability {
   /** Live room rates for one of the provider's hotels. */
   getStayRates(request: StayRatesRequest): Promise<StayRates>
-  /** The provider's hotels within `radius` metres. */
-  findHotels(center: { lat: number; lng: number }, radius: number): Promise<HotelCandidate[]>
+  /** The provider's hotels within `radius` metres, those loosely matching `name` when given. */
+  findHotels(center: { lat: number; lng: number }, radius: number, name?: string): Promise<HotelCandidate[]>
   /** One hotel by the provider's id, or null when it no longer exists. */
   getHotel(hotelId: string): Promise<HotelCandidate | null>
 }

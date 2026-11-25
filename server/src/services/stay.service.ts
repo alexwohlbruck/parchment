@@ -136,9 +136,11 @@ async function googleOffers(source: Source, placeId: string, stay: Stay, prices:
 }
 
 async function liteApiOffers(source: Source, placeId: string, stay: Stay, rates: HotelRatesCapability) {
-  const hotelId = await storedOrMatched(source, placeId, LITEAPI_PROVIDER, async (place) =>
-    pickHotelMatch(await rates.findHotels(place.geometry.value.center, HOTEL_SEARCH_RADIUS_M), target(place))?.id ?? null,
-  )
+  const hotelId = await storedOrMatched(source, placeId, LITEAPI_PROVIDER, async (place) => {
+    const center = place.geometry.value.center
+    const named = pickHotelMatch(await rates.findHotels(center, HOTEL_SEARCH_RADIUS_M, place.name!.value!), target(place))
+    return (named ?? pickHotelMatch(await rates.findHotels(center, HOTEL_SEARCH_RADIUS_M), target(place)))?.id ?? null
+  })
   if (!hotelId) return null
   const offer = cheapestRoomOffer(await rates.getStayRates({ ...stay, hotelId }), stay)
   return offer ? [offer] : []
@@ -190,6 +192,12 @@ export async function getStayOffers(source: Source, placeId: string, stay: Stay)
   const offers = !google && !partner ? null : { offers: mergeOffers(partner ?? [], google ?? []) }
   if (!failed) remember(key, offers)
   return offers
+}
+
+/** Drops a place's cached prices, after its listing is corrected. */
+export function forgetStayOffers(source: Source, placeId: string): void {
+  const prefix = `${source}|${placeId}|`
+  for (const key of cache.keys()) if (key.startsWith(prefix)) cache.delete(key)
 }
 
 export function resetStayOffersForTests(): void {

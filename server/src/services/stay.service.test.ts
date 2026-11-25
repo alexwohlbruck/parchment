@@ -146,6 +146,13 @@ describe('getStayOffers', () => {
     expect(setProviderMatch).toHaveBeenCalledWith('osm', 'node/1', 'liteapi', { providerPlaceId: 'lp-ivey', confirmed: false })
   })
 
+  test('matches LiteAPI by name first, then among every hotel nearby', async () => {
+    configured = ['hotelRates']
+    findHotels.mockImplementationOnce(async () => [])
+    expect(await sellers()).toEqual(['LiteAPI'])
+    expect(findHotels.mock.calls.map((c: any[]) => c[2])).toEqual(['Ivey’s Hotel', undefined])
+  })
+
   test('works with the booking partner alone', async () => {
     configured = ['hotelRates']
     expect(await sellers()).toEqual(['LiteAPI'])

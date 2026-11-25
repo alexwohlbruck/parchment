@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { hotelNameSimilarity, pickHotelMatch } from './hotel-match'
+import { hotelNameContains, hotelNameSimilarity, hotelQueryScore, pickHotelMatch } from './hotel-match'
 
 const at = { lat: 40.758, lng: -73.9855 }
 const near = (metresNorth: number) => at.lat + metresNorth / 111_320
@@ -39,5 +39,28 @@ describe('pickHotelMatch', () => {
 
   test('returns null when nothing nearby has a similar name', () => {
     expect(pickHotelMatch(candidates, { name: 'Pod Times Square', ...at })).toBeNull()
+  })
+})
+
+describe('short names', () => {
+  const even = { id: 'lp-even', name: 'EVEN Hotel Brooklyn by IHG', lat: near(20), lng: at.lng }
+
+  test('matches a shorter form of the name right next to the place', () => {
+    expect(hotelNameContains('EVEN Hotel', 'EVEN Hotel Brooklyn by IHG')).toBe(true)
+    expect(pickHotelMatch([even], { name: 'EVEN Hotel', ...at })?.id).toBe('lp-even')
+  })
+
+  test('needs to be within 75 m for that', () => {
+    expect(pickHotelMatch([{ ...even, lat: near(120) }], { name: 'EVEN Hotel', ...at })).toBeNull()
+  })
+
+  test('needs every word of the shorter name', () => {
+    expect(hotelNameContains('Pod Times Square', 'Example Suites Times Square')).toBe(false)
+  })
+})
+
+describe('hotelQueryScore', () => {
+  test('ranks the hotel containing the typed name above a lookalike', () => {
+    expect(hotelQueryScore('EVEN Hotel Brooklyn by IHG', 'EVEN Hotel')).toBeGreaterThan(hotelQueryScore('Essence hotel', 'EVEN Hotel'))
   })
 })

@@ -11,12 +11,13 @@ import { lookupPlaceById, lookupPlacesByNameAndLocation } from '../place.service
 import { getProviderMatches, setProviderMatch } from './provider-matches.service'
 import { LISTED_VENUE_PROVIDERS, isVenueProvider, venuePageUrl } from '../../lib/place/booking-venues'
 import { bookingKind } from '../../lib/place/booking-kind'
-import { HOTEL_SEARCH_RADIUS_M, hotelNameSimilarity, metresBetween, type HotelCandidate } from '../../lib/place/hotel-match'
+import { HOTEL_SEARCH_RADIUS_M, hotelQueryScore, metresBetween, type HotelCandidate } from '../../lib/place/hotel-match'
 import {
   GOOGLE_HOTELS_PROVIDER,
   LITEAPI_PROVIDER,
   hotelPricesCapability,
   hotelRatesCapability,
+  forgetStayOffers,
   searchGoogleHotels,
 } from '../stay.service'
 
@@ -159,9 +160,12 @@ export async function searchListingCandidates(
 
 /** LiteAPI hotels near the place, closest name first, then nearest. */
 async function searchHotelCandidates(center: { lat: number; lng: number }, query: string): Promise<ListingSummary[]> {
-  const hotels = (await hotelRatesCapability()?.findHotels(center, HOTEL_SEARCH_RADIUS_M)) ?? []
+  const rates = hotelRatesCapability()
+  if (!rates) return []
+  const named = await rates.findHotels(center, HOTEL_SEARCH_RADIUS_M, query)
+  const hotels = named.length ? named : await rates.findHotels(center, HOTEL_SEARCH_RADIUS_M)
   return hotels
-    .map((hotel) => ({ hotel, similarity: hotelNameSimilarity(hotel.name, query) }))
+    .map((hotel) => ({ hotel, similarity: hotelQueryScore(hotel.name, query) }))
     .sort((a, b) => b.similarity - a.similarity || metresBetween(center, a.hotel) - metresBetween(center, b.hotel))
     .slice(0, MAX_HOTEL_CANDIDATES)
     .map(({ hotel }) => summarizeHotel(hotel, center))
@@ -190,11 +194,13 @@ async function searchGoogleHotelCandidates(
 }
 
 /** A person's correction: this listing, or `null` for none. Automatic matching won't override it. */
-export function correctListing(
+export async function correctListing(
   source: Source,
   placeId: string,
   provider: string,
   providerPlaceId: string | null,
 ): Promise<boolean> {
-  return setProviderMatch(source, placeId, provider, { providerPlaceId, confirmed: true })
+  const stored = await setProviderMatch(source, placeId, provider, { providerPlaceId, confirmed: true })
+  forgetStayOffers(source, placeId)
+  return stored
 }

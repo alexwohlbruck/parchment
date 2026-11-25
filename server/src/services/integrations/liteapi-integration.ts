@@ -98,12 +98,13 @@ export class LiteApiIntegration implements Integration<LiteApiConfig> {
     return (await res.json()) as T
   }
 
-  private async findHotels(center: { lat: number; lng: number }, radius: number): Promise<HotelCandidate[]> {
+  private async findHotels(center: { lat: number; lng: number }, radius: number, name?: string): Promise<HotelCandidate[]> {
     const params = new URLSearchParams({
       latitude: String(center.lat),
       longitude: String(center.lng),
       radius: String(Math.max(radius, MIN_SEARCH_RADIUS_M)),
       limit: '50',
+      ...(name?.trim() && { hotelName: name.trim() }),
     })
     const { data = [] } = await this.request<{ data?: LiteApiHotel[] }>(`/data/hotels?${params}`)
     return data.map(adaptLiteApiHotel)

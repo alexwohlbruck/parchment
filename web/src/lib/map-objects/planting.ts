@@ -333,6 +333,7 @@ const SCREEN_OBJECTS = 9000
 const MIN_SPACING = 5
 const DITHER = 0.7
 const BLOCK_CELLS = 16
+const CACHE_LIMIT = 20000
 /** Levels a cell shown last gather may slip before it is thinned, so a small pan never drops a visible tree. */
 const HYSTERESIS = 0.5
 
@@ -502,6 +503,7 @@ export function plantedSpec(options: {
   type Shown = { points: PlantedPoint[]; levels: number[] }
   const planted = new Map<string, PlantedPoint[]>()
   const extents = new Map<string, Bounds>()
+  const rings = new Map<string, Ring[][]>()
   let shown = new Map<object, Shown>()
   let wasShown = new Set<number>()
   let nowShown = new Set<number>()
@@ -564,7 +566,6 @@ export function plantedSpec(options: {
     let extent = extents.get(key)
     if (!extent) {
       extent = extentOf(feature.geometry)
-      if (extents.size >= 20000) extents.clear()
       extents.set(key, extent)
     }
     let area = intersect(intersect(tile, extent), view ?? tile)
@@ -586,20 +587,28 @@ export function plantedSpec(options: {
 
   const cached = (b: Block) => planted.get(`${b.key}|${b.stride}`) ?? coarsened(b.key, b.stride)
 
-  function* plantSteps(feature: any, grid: Grid, b: Block, clear: boolean): Generator<void, PlantedPoint[]> {
-    if (clear && !exclusions) exclusions = map ? yield* exclusionsFor(map, basemap, detail) : buildExclusions([], [])
-    const planting = b.bounds.minX < b.bounds.maxX && b.bounds.minY < b.bounds.maxY
-      ? polygonsOf(feature.geometry).flatMap(rings => plant(rings, b.bounds, clear ? exclusions : null, grid, b.stride))
-      : []
-    if (planted.size >= 20000) planted.clear()
-    planted.set(`${b.key}|${b.stride}`, planting)
-    return planting
+  const ringsOf = (feature: any): Ring[][] => {
+    const key = pieceKey(feature)
+    let projected = rings.get(key)
+    if (!projected) {
+      projected = polygonsOf(feature.geometry)
+      rings.set(key, projected)
+    }
+    return projected
   }
 
-  const plantPiece = (feature: any, grid: Grid, tile: Bounds, clear: boolean): PlantedPoint[] => {
+  function* plantSteps(feature: any, grid: Grid, b: Block, clear: boolean): Generator<void> {
+    if (clear && !exclusions) exclusions = map ? yield* exclusionsFor(map, basemap, detail) : buildExclusions([], [])
+    const planting = b.bounds.minX < b.bounds.maxX && b.bounds.minY < b.bounds.maxY
+      ? ringsOf(feature).flatMap(polygon => plant(polygon, b.bounds, clear ? exclusions : null, grid, b.stride))
+      : []
+    planted.set(`${b.key}|${b.stride}`, planting)
+  }
+
+  /** Only what `prepareSteps` planted: planting here would run a whole piece in one task. */
+  const plantPiece = (feature: any, grid: Grid, tile: Bounds): PlantedPoint[] => {
     const points: PlantedPoint[] = []
-    for (const b of blocksOf(feature, grid, tile))
-      for (const p of cached(b) ?? finish(plantSteps(feature, grid, b, clear))) points.push(p)
+    for (const b of blocksOf(feature, grid, tile)) for (const p of cached(b) ?? []) points.push(p)
     return points
   }
 
@@ -616,7 +625,7 @@ export function plantedSpec(options: {
       const tile = tileBounds(feature)
       if (grid && tile) {
         const [sx, sy] = [grid.dx * MERCATOR_METRE, grid.dy * MERCATOR_METRE]
-        for (const p of plantPiece(feature, grid, tile, options.clear(feature))) {
+        for (const p of plantPiece(feature, grid, tile)) {
           const level = levelAt(grid, (p[2] + 0.5) * sx, (p[3] + 0.5) * sy)
           const id = cellId(p[2], p[3])
           const slack = wasShown.has(id) ? HYSTERESIS : 0
@@ -644,6 +653,8 @@ export function plantedSpec(options: {
       basemap = (spec as PlantedSpec).exclusionsFrom ?? BASEMAP_SOURCE
       detail = (spec as PlantedSpec).detailFrom ?? (layer => [DETAIL_SOURCE, layer])
       exclusions = null
+      // Evicted between gathers, never during one, so every block `prepareSteps` plants is still there for `positions`.
+      for (const cache of [planted, extents, rings] as Map<string, unknown>[]) if (cache.size >= CACHE_LIMIT) cache.clear()
       shown = new Map()
       strides = new Map()
       // A gather abandoned for a newer one leaves a partial set; keep the last full one instead.

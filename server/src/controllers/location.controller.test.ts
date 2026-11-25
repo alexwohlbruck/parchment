@@ -25,15 +25,20 @@ const getLocationSharingConfigs = mock(async (_userId: string) => [
   { friendHandle: 'alice@peer.test', enabled: true },
 ])
 const setLocationSharingConfig = mock(
-  async (_userId: string, handle: string, patch: { enabled?: boolean }) => ({
+  async (
+    _userId: string,
+    handle: string,
+    patch: { enabled?: boolean; expiresAt?: Date | null },
+  ) => ({
     friendHandle: handle,
     enabled: patch.enabled ?? false,
   }),
 )
 const disableLocationSharing = mock(async (_userId: string, _handle: string) => true)
+type ConfigRow = { enabled: boolean; expiresAt: Date | null }
 const getLocationSharingConfigForFriend = mock(
   async (_userId: string, _handle: string) =>
-    ({ enabled: true }) as { enabled: boolean } | null,
+    ({ enabled: true, expiresAt: null }) as ConfigRow | null,
 )
 const storeEncryptedLocation = mock(
   async (_userId: string, _handle: string, _cipher: string, _nonce: string) => ({
@@ -82,7 +87,10 @@ beforeEach(() => {
   setLocationSharingConfig.mockClear()
   disableLocationSharing.mockClear()
   getLocationSharingConfigForFriend.mockClear()
-  getLocationSharingConfigForFriend.mockImplementation(async () => ({ enabled: true }))
+  getLocationSharingConfigForFriend.mockImplementation(async () => ({
+    enabled: true,
+    expiresAt: null,
+  }))
   storeEncryptedLocation.mockClear()
   storeEncryptedLocation.mockImplementation(async () => ({ stored: true }))
   getEncryptedLocationsFromFriends.mockClear()
@@ -140,8 +148,35 @@ describe('POST /location/e2ee/config', () => {
     expect(setLocationSharingConfig).toHaveBeenCalledWith(
       TEST_USER.id,
       'alice@peer.test',
-      { enabled: true },
+      { enabled: true, expiresAt: null },
     )
+  })
+
+  test('shares until the requested time', async () => {
+    const until = new Date(Date.now() + 60 * 60_000).toISOString()
+
+    const res = await req(app).post('/location/e2ee/config', {
+      body: { friendHandle: 'alice@peer.test', enabled: true, expiresAt: until },
+    })
+
+    expect(res.status).toBe(200)
+    expect(setLocationSharingConfig.mock.calls[0][2]).toEqual({
+      enabled: true,
+      expiresAt: new Date(until),
+    })
+  })
+
+  test('refuses an expiry that has already passed', async () => {
+    const res = await req(app).post('/location/e2ee/config', {
+      body: {
+        friendHandle: 'alice@peer.test',
+        enabled: true,
+        expiresAt: new Date(Date.now() - 1000).toISOString(),
+      },
+    })
+
+    expect(res.status).toBe(400)
+    expect(setLocationSharingConfig).not.toHaveBeenCalled()
   })
 
   test('keeps the handle’s casing', async () => {
@@ -267,13 +302,30 @@ describe('POST /location/e2ee/update — authorization gates', () => {
   })
 
   test('refuses to store when the caller has not enabled sharing', async () => {
-    getLocationSharingConfigForFriend.mockResolvedValueOnce({ enabled: false })
+    getLocationSharingConfigForFriend.mockResolvedValueOnce({
+      enabled: false,
+      expiresAt: null,
+    })
 
     const res = await req(app).post('/location/e2ee/update', {
       body: { locations: [broadcast('alice@peer.test')] },
     })
 
     expect(res.body.results[0].reason).toBe('not-enabled')
+    expect(storeEncryptedLocation).not.toHaveBeenCalled()
+  })
+
+  test('refuses to store once the share has expired', async () => {
+    getLocationSharingConfigForFriend.mockResolvedValueOnce({
+      enabled: true,
+      expiresAt: new Date(Date.now() - 1000),
+    })
+
+    const res = await req(app).post('/location/e2ee/update', {
+      body: { locations: [broadcast('alice@peer.test')] },
+    })
+
+    expect(res.body.results[0].reason).toBe('expired')
     expect(storeEncryptedLocation).not.toHaveBeenCalled()
   })
 

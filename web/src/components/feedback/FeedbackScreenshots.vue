@@ -87,6 +87,7 @@ defineExpose({ add })
       type="button"
       variant="outline"
       size="sm"
+      class="gap-2"
       @click="input?.click()"
     >
       <ImagePlusIcon class="size-4" />

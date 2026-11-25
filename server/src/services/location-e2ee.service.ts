@@ -5,7 +5,7 @@
  * All location data is end-to-end encrypted - the server only stores ciphertext.
  */
 
-import { and, eq, lt } from 'drizzle-orm'
+import { and, eq, gt, isNull, lte, lt, or } from 'drizzle-orm'
 import { db } from '../db'
 import {
   locationSharingConfig,
@@ -21,21 +21,27 @@ import { buildHandle } from './federation.service'
 import { emit } from './realtime/emit'
 import { users } from '../schema/users.schema'
 import { logger } from '../lib/logger'
+import { isShareActive } from '../lib/location-share'
 
 // ============================================================================
 // Location Sharing Configuration
 // ============================================================================
 
-/**
- * Get all location sharing configs for a user
- */
+const unexpired = (now: Date) =>
+  or(
+    isNull(locationSharingConfig.expiresAt),
+    gt(locationSharingConfig.expiresAt, now),
+  )
+
+/** The user's sharing configs, leaving out shares that have expired. */
 export async function getLocationSharingConfigs(
   userId: string,
+  now = new Date(),
 ): Promise<LocationSharingConfig[]> {
   return await db
     .select()
     .from(locationSharingConfig)
-    .where(eq(locationSharingConfig.userId, userId))
+    .where(and(eq(locationSharingConfig.userId, userId), unexpired(now)))
 }
 
 /**
@@ -59,18 +65,11 @@ export async function getLocationSharingConfigForFriend(
   return config || null
 }
 
-/**
- * Enable or update location sharing with a friend.
- *
- * NOTE: the schema still has `refresh_interval` and `expires_at` columns
- * for backward compat; both are unused by code (real-time push replaced
- * polling, and expiry was never enforced). New rows use the column
- * defaults.
- */
+/** Enable or update location sharing with a friend; no expiry shares until turned off. */
 export async function setLocationSharingConfig(
   userId: string,
   friendHandle: string,
-  config: { enabled?: boolean },
+  config: { enabled?: boolean; expiresAt?: Date | null },
 ): Promise<LocationSharingConfig> {
   const existing = await getLocationSharingConfigForFriend(userId, friendHandle)
 
@@ -83,6 +82,7 @@ export async function setLocationSharingConfig(
       .update(locationSharingConfig)
       .set({
         enabled: config.enabled ?? existing.enabled,
+        expiresAt: config.expiresAt ?? null,
         updatedAt: new Date(),
       })
       .where(eq(locationSharingConfig.id, existing.id))
@@ -96,6 +96,7 @@ export async function setLocationSharingConfig(
     userId,
     friendHandle,
     enabled: config.enabled ?? true,
+    expiresAt: config.expiresAt ?? null,
   }
 
   const [created] = await db
@@ -201,19 +202,60 @@ export async function sweepStaleLocations(now = new Date()): Promise<number> {
   return removed.length
 }
 
+const EXPIRY_SWEEP_INTERVAL_MS = 60 * 1000
+
+/**
+ * End shares whose time is up: drop the config and the held location, and
+ * tell each viewer to remove the marker. Reads already hide expired shares;
+ * this makes the viewer's map catch up without a refetch.
+ */
+export async function sweepExpiredShares(now = new Date()): Promise<number> {
+  const expired = await db
+    .delete(locationSharingConfig)
+    .where(lte(locationSharingConfig.expiresAt, now))
+    .returning({
+      userId: locationSharingConfig.userId,
+      friendHandle: locationSharingConfig.friendHandle,
+    })
+
+  for (const row of expired) {
+    await clearStoredLocation(row.userId, row.friendHandle)
+  }
+  return expired.length
+}
+
 let retentionTimer: ReturnType<typeof setInterval> | null = null
+let expiryTimer: ReturnType<typeof setInterval> | null = null
+
+function every(
+  intervalMs: number,
+  sweep: () => Promise<number>,
+  label: string,
+): ReturnType<typeof setInterval> {
+  const run = () =>
+    sweep()
+      .then((count) => {
+        if (count > 0) logger.info({ count }, label)
+      })
+      .catch((err) => logger.error({ err }, `${label}: failed`))
+  void run()
+  const timer = setInterval(run, intervalMs)
+  timer.unref?.()
+  return timer
+}
 
 export function startLocationRetentionSweep(): void {
-  if (retentionTimer || process.env.NODE_ENV === 'test') return
-  const run = () =>
-    sweepStaleLocations()
-      .then((count) => {
-        if (count > 0) logger.info({ count }, 'Swept stale shared locations')
-      })
-      .catch((err) => logger.error({ err }, 'Shared location sweep failed'))
-  void run()
-  retentionTimer = setInterval(run, RETENTION_SWEEP_INTERVAL_MS)
-  retentionTimer.unref?.()
+  if (process.env.NODE_ENV === 'test') return
+  retentionTimer ??= every(
+    RETENTION_SWEEP_INTERVAL_MS,
+    () => sweepStaleLocations(),
+    'Swept stale shared locations',
+  )
+  expiryTimer ??= every(
+    EXPIRY_SWEEP_INTERVAL_MS,
+    () => sweepExpiredShares(),
+    'Ended expired location shares',
+  )
 }
 
 // ============================================================================
@@ -371,6 +413,7 @@ export interface FriendEncryptedLocation extends EncryptedLocation {
  */
 export async function getEncryptedLocationsFromFriends(
   userId: string,
+  now = new Date(),
 ): Promise<FriendEncryptedLocation[]> {
   const [user] = await db
     .select({ alias: users.alias })
@@ -413,6 +456,7 @@ export async function getEncryptedLocationsFromFriends(
           eq(locationSharingConfig.userId, encryptedLocations.userId),
           eq(locationSharingConfig.friendHandle, encryptedLocations.forFriendHandle),
           eq(locationSharingConfig.enabled, true),
+          unexpired(now),
         ),
       )
       .where(eq(encryptedLocations.forFriendHandle, userHandle)),
@@ -459,7 +503,7 @@ export async function handleIncomingLocationRequest(
     localUserId,
     senderHandle,
   )
-  if (!config || !config.enabled) {
+  if (!config || !isShareActive(config)) {
     return { success: false, error: 'Location sharing not enabled' }
   }
 

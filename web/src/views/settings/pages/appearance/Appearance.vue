@@ -39,7 +39,14 @@ import {
 import { useMapStore } from '@/stores/map.store'
 import { usePowerStore } from '@/stores/power.store'
 import { useMapService } from '@/services/map/map.service'
-import { MapEngine, ShadowMode, type MapStyleId, type PoiStyleId } from '@/types/map.types'
+import {
+  MAP_STYLE_IDS,
+  MAP_STYLE_NAMES,
+  MapEngine,
+  ShadowMode,
+  type MapStyleId,
+  type PoiStyleId,
+} from '@/types/map.types'
 import { palette } from '@/lib/palette'
 import type { PaletteColor } from '@/lib/palette'
 import { storeToRefs } from 'pinia'
@@ -376,10 +383,9 @@ const handleColorChange = (value: any) => {
             <SelectItem v-if="!isMaplibre" value="mapbox-standard">
               Mapbox Standard
             </SelectItem>
-            <SelectItem value="charlotte">Charlotte</SelectItem>
-            <SelectItem value="chart">Parchment</SelectItem>
-            <SelectItem value="cupertino">Cupertino</SelectItem>
-            <SelectItem value="mountain-view">Mountain View</SelectItem>
+            <SelectItem v-for="style in MAP_STYLE_IDS" :key="style" :value="style">
+              {{ MAP_STYLE_NAMES[style] }}
+            </SelectItem>
           </SelectContent>
         </Select>
       </SettingsItem>

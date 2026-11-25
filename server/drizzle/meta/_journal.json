@@ -470,6 +470,13 @@
       "when": 1795514081254,
       "tag": "0066_e2ee_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1795586409954,
+      "tag": "0067_location_share_expiry",
+      "breakpoints": true
     }
   ]
 }

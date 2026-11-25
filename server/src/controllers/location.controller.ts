@@ -7,6 +7,7 @@ import { isLocalHandle } from '../services/federation.service'
 import { parseHandle } from '../lib/crypto'
 import * as locationE2eeService from '../services/location-e2ee.service'
 import { i18nPlugin } from '../lib/i18n/plugin'
+import { isShareActive } from '../lib/location-share'
 
 const app = new Elysia({ prefix: '/location' }).use(i18nPlugin)
 
@@ -34,7 +35,7 @@ type BroadcastResult =
   | {
       friendHandle: string
       stored: false
-      reason: 'not-a-friend' | 'not-enabled' | 'replayed' | 'error'
+      reason: 'not-a-friend' | 'not-enabled' | 'expired' | 'replayed' | 'error'
     }
 
 async function storeBroadcastItem(
@@ -56,6 +57,9 @@ async function storeBroadcastItem(
     )
     if (!config?.enabled) {
       return { friendHandle, stored: false, reason: 'not-enabled' }
+    }
+    if (!isShareActive(config)) {
+      return { friendHandle, stored: false, reason: 'expired' }
     }
 
     const result = await locationE2eeService.storeEncryptedLocation(
@@ -94,6 +98,9 @@ app.use(permissions(PermissionId.LOCATION_SHARING)).get(
     detail: {
       tags: ['Location'],
       summary: 'Get location sharing configuration for all friends',
+      description:
+        'Shares whose `expiresAt` has passed are left out, as though sharing ' +
+        'had been turned off.',
     },
   },
 )
@@ -120,10 +127,15 @@ app.use(permissions(PermissionId.LOCATION_SHARING)).post(
       })
     }
 
+    const expiresAt = body.expiresAt ? new Date(body.expiresAt) : null
+    if (expiresAt && !(expiresAt > new Date())) {
+      return status(400, { message: t('errors.friends.shareExpiryInPast') })
+    }
+
     const config = await locationE2eeService.setLocationSharingConfig(
       user.id,
       body.friendHandle,
-      { enabled: body.enabled },
+      { enabled: body.enabled, expiresAt },
     )
 
     return { config }
@@ -132,6 +144,15 @@ app.use(permissions(PermissionId.LOCATION_SHARING)).post(
     body: t.Object({
       friendHandle: t.String({ maxLength: 320 }),
       enabled: t.Optional(t.Boolean()),
+      expiresAt: t.Optional(
+        t.Nullable(
+          t.String({
+            format: 'date-time',
+            description:
+              'When sharing ends. Null or omitted shares until turned off.',
+          }),
+        ),
+      ),
     }),
     detail: {
       tags: ['Location'],
@@ -139,7 +160,10 @@ app.use(permissions(PermissionId.LOCATION_SHARING)).post(
       description:
         'The handle must be an accepted friend on this server; sharing with ' +
         'friends on other servers is refused with 400. Turning sharing off ' +
-        'also deletes the location held for that friend and clears their marker.',
+        'also deletes the location held for that friend and clears their marker. ' +
+        'An `expiresAt` in the past is refused with 400. Once a share expires ' +
+        'the server stops accepting and serving locations for it, then removes ' +
+        'it and clears the friend’s marker.',
     },
   },
 )
@@ -226,6 +250,9 @@ app
       detail: {
         tags: ['Location'],
         summary: 'Broadcast encrypted location to friends',
+        description:
+          'Items for a friend whose share has expired are refused with reason ' +
+          '`expired`.',
       },
     },
   )

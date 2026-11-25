@@ -1,5 +1,5 @@
 {
-  "id": "5553472f-50b0-42ce-b872-b428bccccb12",
+  "id": "06fd070e-e7df-48ca-b26f-f3207e13ba8a",
   "prevId": "6094d758-fb61-4f7b-b926-8510e1536f24",
   "version": "7",
   "dialect": "postgresql",
@@ -1982,6 +1982,12 @@
           "notNull": true,
           "default": true
         },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -2909,59 +2915,6 @@
           "columns": [
             "user_id",
             "blob_type"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.place_provider_matches": {
-      "name": "place_provider_matches",
-      "schema": "",
-      "columns": {
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "place_id": {
-          "name": "place_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "provider": {
-          "name": "provider",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "provider_place_id": {
-          "name": "provider_place_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "matched_at": {
-          "name": "matched_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "place_provider_matches_source_place_id_provider_pk": {
-          "name": "place_provider_matches_source_place_id_provider_pk",
-          "columns": [
-            "source",
-            "place_id",
-            "provider"
           ]
         }
       },

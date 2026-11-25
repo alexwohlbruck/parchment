@@ -1,0 +1,1 @@
+ALTER TABLE "location_sharing_config" ADD COLUMN "expires_at" timestamp;

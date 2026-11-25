@@ -162,6 +162,7 @@ export const locationSharingConfig = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     friendHandle: text('friend_handle').notNull(), // bob@other.com
     enabled: boolean('enabled').default(true).notNull(),
+    expiresAt: timestamp('expires_at'), // Null shares until turned off
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },

@@ -21,36 +21,52 @@ import { useLocationClock } from '@/composables/friends/useLocationClock'
 import { isLocationStale } from '@/lib/friends/friend-location'
 import { handleDomain, isRemoteHandle } from '@/lib/identity/handle'
 import { useIdentityStore } from '@/stores/identity.store'
+import { isShareActive } from '@server/lib/location-share'
+import {
+  formatShareTimeLeft,
+  type LocationShareState,
+  type ShareDuration,
+} from '@/lib/friends/share-duration'
+import ShareDurationMenu from './ShareDurationMenu.vue'
 
 const router = useRouter()
 const { t } = useI18n()
 const now = useLocationClock()
 
-interface LocationConfig {
-  enabled: boolean
-}
-
 interface Props {
   friend: Friendship
   friendLocation?: FriendLocation
-  locationConfig?: LocationConfig
+  locationConfig?: LocationShareState
   locationSaving?: boolean
 }
 
 const props = defineProps<Props>()
 
+const isSharing = computed(
+  () => !!props.locationConfig && isShareActive(props.locationConfig, now.value),
+)
+const timeLeft = computed(() =>
+  isSharing.value
+    ? formatShareTimeLeft(props.locationConfig?.expiresAt ?? null, t, now.value)
+    : null,
+)
+
 const identityStore = useIdentityStore()
 const sharingUnavailable = computed(
   () =>
-    !props.locationConfig?.enabled &&
+    !isSharing.value &&
     isRemoteHandle(props.friend.friendHandle, handleDomain(identityStore.handle ?? '')),
 )
 
 const emit = defineEmits<{
   remove: [friend: Friendship]
-  toggleLocation: [friendHandle: string, enabled: boolean]
+  share: [friendHandle: string, duration: ShareDuration]
+  stopSharing: [friendHandle: string]
   syncKeys: []
 }>()
+
+const share = (duration: ShareDuration) =>
+  emit('share', props.friend.friendHandle, duration)
 
 const alias = computed(() => {
   return props.friend.friendHandle.split('@')[0]
@@ -176,9 +192,7 @@ function openFriendDetail() {
       <div class="flex items-center gap-2 text-xs">
         <MapPin
           class="size-3.5 shrink-0"
-          :class="
-            locationConfig?.enabled ? 'text-primary' : 'text-muted-foreground'
-          "
+          :class="isSharing ? 'text-primary' : 'text-muted-foreground'"
         />
         <span class="text-muted-foreground">{{
           t('friends.locationSharing')
@@ -192,13 +206,29 @@ function openFriendDetail() {
         {{ t('friends.remoteLocationUnavailable') }}
       </span>
       <div v-else class="flex items-center gap-2">
-        <Switch
-          :model-value="locationConfig?.enabled ?? false"
-          @update:model-value="(v: boolean) => emit('toggleLocation', friend.friendHandle, v)"
-          :disabled="locationSaving"
-          size="sm"
-        />
         <Spinner v-if="locationSaving" class="size-3.5" />
+        <ShareDurationMenu v-if="timeLeft" :disabled="locationSaving" @select="share">
+          <button
+            type="button"
+            class="text-xs text-muted-foreground tabular-nums hover:text-foreground transition-colors"
+            :aria-label="t('friends.sharing.change')"
+          >
+            {{ timeLeft }}
+          </button>
+        </ShareDurationMenu>
+        <Switch
+          v-if="isSharing"
+          :model-value="true"
+          :disabled="locationSaving"
+          @update:model-value="emit('stopSharing', friend.friendHandle)"
+        />
+        <ShareDurationMenu v-else :disabled="locationSaving" @select="share">
+          <Switch
+            :model-value="false"
+            :disabled="locationSaving"
+            class="data-[state=open]:bg-input"
+          />
+        </ShareDurationMenu>
       </div>
     </div>
   </Card>

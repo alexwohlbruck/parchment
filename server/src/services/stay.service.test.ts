@@ -63,7 +63,10 @@ mock.module('./place/provider-matches.service', () => ({
   setProviderMatch,
 }))
 
-const { getStayOffers, resetStayOffersForTests } = await import('./stay.service')
+const saveListingLabel = mock(async (..._args: unknown[]) => {})
+mock.module('./place/listing-labels.service', () => ({ saveListingLabel }))
+
+const { getStayOffers, resetStayOffersForTests, labelGoogleHotel, searchGoogleHotels } = await import('./stay.service')
 
 const stay = { checkin: '2026-11-25', checkout: '2026-11-27', adults: 2, currency: 'USD', guestNationality: 'US' }
 const offers = (s = stay) => getStayOffers('osm' as any, 'node/1', s)
@@ -71,7 +74,7 @@ const sellers = async (s = stay) => (await offers(s))?.offers.map((o) => o.selle
 
 beforeEach(() => {
   resetStayOffersForTests()
-  for (const m of [searchHotels, getOffers, getStayRates, findHotels, setProviderMatch]) m.mockClear()
+  for (const m of [searchHotels, getOffers, getStayRates, findHotels, setProviderMatch, saveListingLabel]) m.mockClear()
   configured = ['hotelPrices']
   stored = {}
   placeName = 'Ivey’s Hotel'
@@ -93,6 +96,19 @@ describe('getStayOffers', () => {
     expect(searchHotels.mock.calls[0][0]).toBe('Ivey’s Hotel, Charlotte')
     expect(setProviderMatch).toHaveBeenCalledWith('osm', 'node/1', 'google_hotels', { providerPlaceId: 'tok-ivey', confirmed: false })
     expect(getOffers).toHaveBeenCalledWith('tok-ivey', stay)
+  })
+
+  test('saves the matched hotel’s name, since its token can’t be looked up for free', async () => {
+    await offers()
+    expect(saveListingLabel).toHaveBeenCalledWith('google_hotels', 'tok-ivey', { name: 'The Ivey’s Hotel', address: null })
+  })
+
+  test('names only hotels a search returned', async () => {
+    await labelGoogleHotel('never-seen')
+    expect(saveListingLabel).not.toHaveBeenCalled()
+    await searchGoogleHotels('Dunhill', stay)
+    await labelGoogleHotel('tok-other')
+    expect(saveListingLabel).toHaveBeenCalledWith('google_hotels', 'tok-other', { name: 'Dunhill Hotel', address: null })
   })
 
   test('uses prices Google returned with the match instead of a second search', async () => {

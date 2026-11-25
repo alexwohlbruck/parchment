@@ -9,6 +9,7 @@ import { cheapestRoomOffer, mergeOffers } from '../lib/place/stay-offers'
 import { logWarn } from '../lib/logger'
 import { lookupPlaceById } from './place.service'
 import { getProviderMatches, setProviderMatch } from './place/provider-matches.service'
+import { saveListingLabel } from './place/listing-labels.service'
 import type {
   HotelPricesCapability,
   HotelRatesCapability,
@@ -115,6 +116,27 @@ function target(place: Place): { name: string; lat: number; lng: number } {
   return { name: place.name!.value!, ...place.geometry.value.center }
 }
 
+const SEEN_HOTELS_LIMIT = 500
+const seenGoogleHotels = new Map<string, HotelCandidate>()
+
+/** Hotels a Google Hotels search returned, so a pick from them can be named without a paid lookup. */
+function rememberGoogleHotels(candidates: HotelCandidate[]): void {
+  for (const candidate of candidates) {
+    seenGoogleHotels.delete(candidate.id)
+    seenGoogleHotels.set(candidate.id, candidate)
+  }
+  while (seenGoogleHotels.size > SEEN_HOTELS_LIMIT) seenGoogleHotels.delete(seenGoogleHotels.keys().next().value!)
+}
+
+/** Stores the name of a Google Hotels listing a search returned, since its token can't be looked up for free. */
+export async function labelGoogleHotel(token: string): Promise<void> {
+  const hotel = seenGoogleHotels.get(token)
+  if (!hotel) return
+  await saveListingLabel(GOOGLE_HOTELS_PROVIDER, token, { name: hotel.name, address: hotel.address ?? null }).catch(
+    (error) => logWarn('Could not save Google Hotels label', error),
+  )
+}
+
 /** Google Hotels resolves a query naming one hotel straight to it; its prices then come free with the match. */
 const resolvedOffers = new Map<string, StayOffer[]>()
 
@@ -125,8 +147,10 @@ function googleHotelsQuery(place: Place): string {
 async function googleOffers(source: Source, placeId: string, stay: Stay, prices: HotelPricesCapability) {
   const token = await storedOrMatched(source, placeId, GOOGLE_HOTELS_PROVIDER, async (place) => {
     const found = await prices.searchHotels(googleHotelsQuery(place), stay)
+    rememberGoogleHotels(found.candidates)
     const match = pickHotelMatch(found.candidates, target(place))
     if (match && found.property?.candidate.id === match.id) resolvedOffers.set(match.id, found.property.offers)
+    if (match) await labelGoogleHotel(match.id)
     return match?.id ?? null
   })
   if (!token) return null
@@ -159,7 +183,9 @@ function remember(key: string, offers: StayOffers | null): void {
 
 /** Hotels near a point at Google Hotels, for picking a place's listing by hand. */
 export async function searchGoogleHotels(query: string, stay: Stay): Promise<HotelCandidate[]> {
-  return (await hotelPricesCapability()?.searchHotels(query, stay))?.candidates ?? []
+  const candidates = (await hotelPricesCapability()?.searchHotels(query, stay))?.candidates ?? []
+  rememberGoogleHotels(candidates)
+  return candidates
 }
 
 /**
@@ -202,6 +228,7 @@ export function forgetStayOffers(source: Source, placeId: string): void {
 
 export function resetStayOffersForTests(): void {
   cache.clear()
+  seenGoogleHotels.clear()
   matching.clear()
   resolvedOffers.clear()
   fromEnv.clear()

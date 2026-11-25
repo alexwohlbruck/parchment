@@ -2,6 +2,8 @@
 
 ### Added
 
+* Attach up to 4 screenshots when you send feedback, or paste one straight into the form.
+
 ### Changed
 
 ### Fixed

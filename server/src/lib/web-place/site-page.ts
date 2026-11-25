@@ -30,9 +30,10 @@ export function hostOf(url: string): string | undefined {
 
 const MAX_TEXT = 12_000
 
-/** The words a reader sees on the page, without markup, scripts or styles. */
+/** The words a reader sees on the page, plus its description, without markup, scripts or styles. */
 export function pageText(html: string): string {
-  return decodeEntities(
+  const description = metaDescription(html)
+  const body = decodeEntities(
     html
       .replace(/<(script|style|noscript|svg|template)\b[\s\S]*?<\/\1>/gi, ' ')
       .replace(/<!--[\s\S]*?-->/g, ' ')
@@ -42,7 +43,18 @@ export function pageText(html: string): string {
     .replace(/[ \t\f\v\r]+/g, ' ')
     .replace(/\s*\n\s*/g, '\n')
     .trim()
-    .slice(0, MAX_TEXT)
+  return [description, body].filter(Boolean).join('\n').slice(0, MAX_TEXT)
+}
+
+/** Script-rendered sites often state their address only here. */
+function metaDescription(html: string): string | undefined {
+  for (const [tag] of html.matchAll(/<meta\b[^>]*>/gi)) {
+    if (!/(?:name|property)\s*=\s*["'](?:og:)?description["']/i.test(tag)) continue
+    const content = tag.match(/content\s*=\s*"([^"]*)"|content\s*=\s*'([^']*)'/i)
+    const text = decodeEntities(content?.[1] ?? content?.[2] ?? '').trim()
+    if (text) return text
+  }
+  return undefined
 }
 
 export function pageTitle(html: string): string | undefined {

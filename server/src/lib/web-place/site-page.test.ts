@@ -22,6 +22,11 @@ describe('pageText', () => {
       <body><h1>Joe&rsquo;s &amp; Co</h1><p>12 Main St<br>Open daily&nbsp;9&ndash;5</p><!-- hidden --></body></html>`
     expect(pageText(html)).toBe('Joe’s & Co\n12 Main St\nOpen daily 9–5')
   })
+
+  test('leads with the meta description, where script-rendered sites put their address', () => {
+    const html = `<head><meta name="description" content="Lady Delilah, New York. 353 W 14th St." /></head><body><div id="root"></div></body>`
+    expect(pageText(html)).toBe('Lady Delilah, New York. 353 W 14th St.')
+  })
 })
 
 describe('contactLinks', () => {

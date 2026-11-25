@@ -19,6 +19,7 @@
 * Your recovery key is now 24 words that are easier to write down and type back in. Anyone with an older recovery key will be asked to save the words instead.
 * Deleting a passkey tells you when it's one that can unlock your encrypted data on a new device, and when it's the only one.
 * Passkeys from more password managers can unlock your encrypted data, since adding one now checks a second time before giving up.
+* On phones, a place's ⋯ menu opens right under the button instead of covering the place with a second sheet.
 
 ### Fixed
 

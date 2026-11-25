@@ -3021,6 +3021,13 @@
     "list": {
       "empty": "No places found",
       "emptyDescription": "Try a different search or area"
+    },
+    "unmapped": {
+      "title": "Not on the map yet",
+      "description": "Found on {site}. Add it so others can find it too.",
+      "add": "Add to map",
+      "note": "Tell mappers",
+      "noteText": "{name} is missing from the map. Address: {address}. Website: {website}"
     }
   },
   "settings": {

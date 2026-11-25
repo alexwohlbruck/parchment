@@ -9,6 +9,7 @@ import { MessageSquareIcon, SendIcon } from 'lucide-vue-next'
 const props = defineProps<{
   lat: number
   lng: number
+  initialText?: string
   isSubmitting: boolean
 }>()
 
@@ -18,7 +19,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-const text = ref('')
+const text = ref(props.initialText ?? '')
 </script>
 
 <template>

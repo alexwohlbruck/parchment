@@ -2917,6 +2917,13 @@
     "unavailable": {
       "title": "Lugar no disponible",
       "description": "No pudimos cargar este lugar"
+    },
+    "unmapped": {
+      "title": "Aún no está en el mapa",
+      "description": "Encontrado en {site}. Añádelo para que otros también lo encuentren.",
+      "add": "Añadir al mapa",
+      "note": "Avisar a los mapeadores",
+      "noteText": "{name} no aparece en el mapa. Dirección: {address}. Sitio web: {website}"
     }
   },
   "settings": {

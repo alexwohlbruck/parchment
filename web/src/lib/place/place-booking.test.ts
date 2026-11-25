@@ -206,3 +206,27 @@ describe('webSearchUrl', () => {
       .toBe('Supperland Charlotte reservations')
   })
 })
+
+describe('prefilled plan', () => {
+  const plan = { party: 4, day: '2026-11-27', checkout: '2026-11-29', tableTime: '2026-11-27T19:00' }
+
+  it('asks OpenTable and Resy for the party and time', () => {
+    const open = new URL(openTableSearchUrl({ ...restaurant, plan }))
+    expect(open.searchParams.get('covers')).toBe('4')
+    expect(open.searchParams.get('dateTime')).toBe('2026-11-27T19:00')
+    const resy = new URL(resySearchUrl({ ...restaurant, plan })!)
+    expect(resy.searchParams.get('seats')).toBe('4')
+    expect(resy.searchParams.get('date')).toBe('2026-11-27')
+  })
+
+  it('asks Booking.com for the dates and guests', () => {
+    const url = new URL(bookingComSearchUrl({ ...hotel, plan }))
+    expect(url.searchParams.get('checkin')).toBe('2026-11-27')
+    expect(url.searchParams.get('checkout')).toBe('2026-11-29')
+    expect(url.searchParams.get('group_adults')).toBe('4')
+  })
+
+  it('leaves the links bare without a plan', () => {
+    expect(new URL(openTableSearchUrl(restaurant)).searchParams.has('covers')).toBe(false)
+  })
+})

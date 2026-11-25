@@ -23,6 +23,8 @@ export interface BookingTarget {
   locality?: string
   region?: string
   countryCode?: string
+  /** Prefills party size and dates on providers that take them. */
+  plan?: { party: number; day: string; checkout: string; tableTime: string }
 }
 
 const POLICIES: ReservationPolicy[] = ['yes', 'recommended', 'required']
@@ -114,6 +116,10 @@ export function openTableSearchUrl(target: BookingTarget): string {
     url.searchParams.set('latitude', target.center.lat.toFixed(5))
     url.searchParams.set('longitude', target.center.lng.toFixed(5))
   }
+  if (target.plan) {
+    url.searchParams.set('covers', String(target.plan.party))
+    url.searchParams.set('dateTime', target.plan.tableTime)
+  }
   return url.toString()
 }
 
@@ -130,6 +136,10 @@ export function resySearchUrl(target: BookingTarget): string | null {
   if (!US_STATES.has(state) || !city || !isInUS(target)) return null
   const url = new URL(`https://resy.com/cities/${city}-${state.toLowerCase()}/search`)
   url.searchParams.set('query', target.name)
+  if (target.plan) {
+    url.searchParams.set('date', target.plan.day)
+    url.searchParams.set('seats', String(target.plan.party))
+  }
   return url.toString()
 }
 
@@ -140,12 +150,23 @@ function stayQuery(target: BookingTarget): string {
 export function bookingComSearchUrl(target: BookingTarget): string {
   const url = new URL('https://www.booking.com/searchresults.html')
   url.searchParams.set('ss', stayQuery(target))
+  if (target.plan) {
+    url.searchParams.set('checkin', target.plan.day)
+    url.searchParams.set('checkout', target.plan.checkout)
+    url.searchParams.set('group_adults', String(target.plan.party))
+    url.searchParams.set('no_rooms', '1')
+  }
   return url.toString()
 }
 
 export function expediaSearchUrl(target: BookingTarget): string {
   const url = new URL('https://www.expedia.com/Hotel-Search')
   url.searchParams.set('destination', stayQuery(target))
+  if (target.plan) {
+    url.searchParams.set('startDate', target.plan.day)
+    url.searchParams.set('endDate', target.plan.checkout)
+    url.searchParams.set('adults', String(target.plan.party))
+  }
   return url.toString()
 }
 

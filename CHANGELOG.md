@@ -7,7 +7,7 @@
 * Share your location with a friend for 1 hour, 4 hours, until tomorrow morning or until you turn it off. Your friends list shows how long is left.
 * Switch the app style or the map style from the command palette.
 * Named buildings show their names when you zoom in, like the halls on a school or college campus.
-* Restaurants that take reservations link to booking on OpenTable, Resy or their own site, and hotels link to Booking.com, Expedia and Google Hotels.
+* Restaurants that take reservations link to booking on OpenTable, Resy or their own site, and hotels link to Booking.com, Expedia and Google Hotels, with your party size and dates already filled in.
 
 ### Changed
 

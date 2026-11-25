@@ -19,8 +19,10 @@ export function createS3Store(config: S3StoreConfig): BlobStore {
     },
 
     async get(key) {
-      const file = client.file(key)
-      return (await file.exists()) ? file : null
+      const response = await fetch(client.presign(key))
+      if (response.status === 404) return null
+      if (!response.ok) throw new Error(`S3 GET ${key} failed with ${response.status}`)
+      return response.blob()
     },
 
     async delete(key) {

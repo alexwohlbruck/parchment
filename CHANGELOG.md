@@ -6,6 +6,8 @@
 
 ### Fixed
 
+* Uploaded profile photos show up instead of a blank square.
+
 ## [0.27.0] - 2026-11-24
 
 ### Added

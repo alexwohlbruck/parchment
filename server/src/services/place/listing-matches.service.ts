@@ -115,7 +115,7 @@ export async function getPlaceListings(
       const id = match?.providerPlaceId
       let listing: ListingSummary | null = null
       if (id) {
-        listing = (await storedSummary(provider, id, center, options)) ?? { id, name: null, address: null, distance: null }
+        listing = (await storedSummary(provider, id, center, options)) ?? { id, name: match?.label ?? null, address: null, distance: null }
       }
       return {
         provider,

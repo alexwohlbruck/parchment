@@ -8,6 +8,11 @@ export interface ProviderMatch {
   providerPlaceId: string | null
   /** A person chose this match; automatic matching leaves it alone. */
   confirmed: boolean
+  /**
+   * The listing's display name, for providers whose ids can't be looked up for
+   * free. Left out of a write, Barrelman keeps the stored name while the id is unchanged.
+   */
+  label?: string | null
 }
 
 /** Stored matches for one place, keyed by provider. */

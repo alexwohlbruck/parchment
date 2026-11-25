@@ -14,7 +14,6 @@
     {
       "source": "EVEN Hotel Brooklyn by IHG",
       "link": "https://www.google.com/aclk?sa=l&ai=DChsS&adurl",
-      "logo": "https://www.gstatic.com/travel-hotels/branding/even.png",
       "official": true,
       "num_guests": 2,
       "rate_per_night": {
@@ -43,7 +42,7 @@
     {
       "source": "Expedia.com",
       "link": "https://www.google.com/aclk?sa=l&ai=EXP&adurl",
-      "logo": "https://www.gstatic.com/travel-hotels/branding/expedia.png",
+      "logo": "https://www.gstatic.com/travel-hotels/branding/ac238c97-1652-4830-8da8-bb8d8883af88.png",
       "num_guests": 2,
       "rate_per_night": {
         "lowest": "$249",
@@ -67,7 +66,6 @@
     {
       "source": "EVEN Hotel Brooklyn by IHG",
       "link": "https://www.google.com/travel/lodging/clk?pc=AA80Osx&pcurl=https://www.ihg.com/evenhotels/hotels/us/en/brooklyn/nycev/hoteldetail?qCiD%3D25%26qCoD%3D26%26qAdlt%3D2&s=AD1XQ&ap=1",
-      "logo": "https://www.gstatic.com/travel-hotels/branding/even.png",
       "num_guests": 2,
       "rate_per_night": {
         "lowest": "$289",
@@ -90,7 +88,7 @@
     {
       "source": "Expedia.com",
       "link": "https://www.google.com/travel/lodging/clk?pc=AA80Osx&pcurl=https://www.expedia.com/Brooklyn-Hotels-EVEN-Hotel-Brooklyn.h12345.Hotel-Information?chkin%3D2026-11-25%26chkout%3D2026-11-26%26rm1%3Da2&s=AD1XQ&ap=1",
-      "logo": "https://www.gstatic.com/travel-hotels/branding/expedia.png",
+      "logo": "https://www.gstatic.com/travel-hotels/branding/ac238c97-1652-4830-8da8-bb8d8883af88.png",
       "num_guests": 2,
       "rate_per_night": {
         "lowest": "$289",
@@ -115,7 +113,7 @@
     {
       "source": "Booking.com",
       "link": "https://www.google.com/travel/lodging/clk?pc=AA80Osx&pcurl=https://www.booking.com/hotel/us/even-brooklyn.html?checkin%3D2026-11-25%26checkout%3D2026-11-26%26group_adults%3D2&s=AD1XQ&ap=1",
-      "logo": "https://www.gstatic.com/travel-hotels/branding/booking.png",
+      "logo": "https://www.gstatic.com/travel-hotels/branding/icon_184.png",
       "num_guests": 2,
       "rate_per_night": {
         "lowest": "$289",

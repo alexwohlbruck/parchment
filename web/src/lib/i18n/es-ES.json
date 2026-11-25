@@ -2744,20 +2744,22 @@
       },
       "offers": {
         "title": "Comparar precios",
-        "compare": "Comparar en",
         "withTaxes": "{price} con impuestos y tasas",
         "freeCancellation": "Cancelación gratis",
         "freeCancellationOnly": "Solo cancelación gratis",
         "none": "No hay precios para estas fechas",
         "noneFree": "No hay cancelación gratis para estas fechas",
         "allOptions": "Todas las opciones",
-        "bookHere": "Reservar aquí",
         "official": "Sitio oficial",
         "seePrice": "Ver precio",
         "morePricesFrom": "Más precios desde {price}",
-        "morePrices": "{n} precios más"
+        "morePrices": "{n} precios más",
+        "moreOnGoogleHotels": "Más en Google Hotels",
+        "inApp": "Reserva en la app"
       },
-      "delivery": "Pedir a domicilio"
+      "delivery": "Pedir a domicilio",
+      "searchOn": "Buscar en {site}",
+      "searchWeb": "Buscar en la web"
     },
     "details": {
       "address": "Dirección",

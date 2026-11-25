@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import type { StayMoney, StayOffer, StayOffers } from '@server/types/integration.types'
 import { groupOffers } from '@/lib/place/place-stay'
+import { APP_NAME_SHORT } from '@/lib/constants'
 
 const props = defineProps<{
   offers: StayOffers | null
@@ -25,14 +26,20 @@ function money({ amount, currency }: StayMoney) {
   return new Intl.NumberFormat(locale.value, { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount)
 }
 
-function detail(offer: StayOffer): string {
+/** Short markers under a seller, each its own chip so none gets cut off. */
+function markers(offer: StayOffer): { key: string; label: string; icon?: typeof ShieldCheckIcon; tone: string }[] {
   return [
-    offer.total && t('place.booking.offers.withTaxes', { price: money(offer.total) }),
-    offer.freeCancellation && t('place.booking.offers.freeCancellation'),
-  ]
-    .filter(Boolean)
-    .join(' · ')
+    offer.bookHere && { key: 'app', label: t('place.booking.offers.inApp'), tone: 'text-primary border-primary/30' },
+    offer.official && { key: 'official', label: t('place.booking.offers.official'), icon: ShieldCheckIcon, tone: 'text-muted-foreground' },
+    offer.freeCancellation && {
+      key: 'free',
+      label: t('place.booking.offers.freeCancellation'),
+      tone: 'text-forest-700 border-forest-300 dark:text-forest-300 dark:border-forest-800',
+    },
+  ].filter((m): m is Exclude<typeof m, false | undefined> => !!m)
 }
+
+const sellerName = (offer: StayOffer) => (offer.bookHere ? APP_NAME_SHORT : offer.seller)
 </script>
 
 <template>
@@ -88,20 +95,22 @@ function detail(offer: StayOffer): string {
             v-else
             class="flex size-5 shrink-0 items-center justify-center rounded bg-muted text-[10px] font-medium text-muted-foreground"
           >{{ offer.seller.charAt(0) }}</span>
-          <div class="flex min-w-0 flex-1 flex-col">
-            <div class="flex min-w-0 items-center gap-1.5">
-              <span class="truncate text-sm font-medium">
-                {{ offer.bookHere ? t('place.booking.offers.bookHere') : offer.seller }}
-              </span>
+          <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span class="text-sm font-medium leading-snug break-words">{{ sellerName(offer) }}</span>
+            <span v-if="offer.total" class="text-xs text-muted-foreground">
+              {{ t('place.booking.offers.withTaxes', { price: money(offer.total) }) }}
+            </span>
+            <div v-if="markers(offer).length" class="flex flex-wrap gap-1 pt-0.5">
               <span
-                v-if="offer.official"
-                class="inline-flex shrink-0 items-center gap-0.5 rounded-full border px-1.5 text-[10px] text-muted-foreground"
+                v-for="marker in markers(offer)"
+                :key="marker.key"
+                class="inline-flex items-center gap-0.5 rounded-full border px-1.5 text-[10px] leading-4"
+                :class="marker.tone"
               >
-                <ShieldCheckIcon class="size-3" />
-                {{ t('place.booking.offers.official') }}
+                <component :is="marker.icon" v-if="marker.icon" class="size-3" />
+                {{ marker.label }}
               </span>
             </div>
-            <span v-if="detail(offer)" class="truncate text-xs text-muted-foreground">{{ detail(offer) }}</span>
           </div>
           <span class="text-sm font-semibold tabular-nums">
             {{ offer.nightly ? money(offer.nightly) : t('place.booking.offers.seePrice') }}

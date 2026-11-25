@@ -2839,20 +2839,22 @@
       },
       "offers": {
         "title": "Compare prices",
-        "compare": "Compare on",
         "withTaxes": "{price} with taxes + fees",
         "freeCancellation": "Free cancellation",
         "freeCancellationOnly": "Free cancellation only",
         "none": "No prices for these dates",
         "noneFree": "No free cancellation for these dates",
         "allOptions": "All options",
-        "bookHere": "Book here",
         "official": "Official site",
         "seePrice": "See price",
         "morePricesFrom": "More prices from {price}",
-        "morePrices": "{n} more prices"
+        "morePrices": "{n} more prices",
+        "moreOnGoogleHotels": "More on Google Hotels",
+        "inApp": "Book in app"
       },
-      "delivery": "Order delivery"
+      "delivery": "Order delivery",
+      "searchOn": "Search {site}",
+      "searchWeb": "Search the web"
     },
     "details": {
       "address": "Address",

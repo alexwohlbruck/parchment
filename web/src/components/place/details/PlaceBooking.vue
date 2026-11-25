@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { BedDoubleIcon, CalendarCheckIcon, ExternalLinkIcon, ShoppingBagIcon } from 'lucide-vue-next'
+import { BedDoubleIcon, CalendarCheckIcon, ExternalLinkIcon, SearchIcon, ShoppingBagIcon } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Chip } from '@/components/ui/chip'
 import PlaceSection from './PlaceSection.vue'
@@ -26,7 +26,7 @@ const props = defineProps<{
 
 const { t, locale } = useI18n()
 const plan = ref(defaultPlan())
-const { policy, kind, placeId, links, delivery } = usePlaceBooking(() => props.place, plan)
+const { policy, kind, placeId, links, delivery, googleHotelsUrl } = usePlaceBooking(() => props.place, plan)
 
 const isStay = computed(() => kind.value === 'stay')
 const icon = computed(() => (!kind.value ? ShoppingBagIcon : isStay.value ? BedDoubleIcon : CalendarCheckIcon))
@@ -44,6 +44,14 @@ const stayQuery = computed(() =>
 )
 const { data: offers, loading } = useBookingData(stayQuery, fetchStayOffers)
 const comparing = computed(() => !!offers.value || loading.value)
+/** Sellers already have priced rows, so the links below would only repeat them. */
+const priced = computed(() => !!offers.value?.offers.length)
+
+function linkLabel(link: { provider: string; name?: string; search?: boolean }) {
+  if (link.provider === 'search') return t('place.booking.searchWeb')
+  const site = link.name ?? t(`place.booking.providers.${link.provider}`)
+  return link.search ? t('place.booking.searchOn', { site }) : site
+}
 
 const title = computed(() => {
   if (comparing.value) return t('place.booking.offers.title')
@@ -70,7 +78,7 @@ const nightOptions = computed(() => STAY_NIGHTS.map((n) => ({ value: n, label: t
         <component :is="icon" class="size-4 shrink-0 text-muted-foreground" />
         <div class="flex flex-col min-w-0">
           <span class="font-medium text-sm">{{ title }}</span>
-          <span v-if="policy" class="text-xs text-muted-foreground">{{ t(`place.booking.policy.${policy}`) }}</span>
+          <span v-if="policy && !isStay" class="text-xs text-muted-foreground">{{ t(`place.booking.policy.${policy}`) }}</span>
         </div>
       </div>
 
@@ -104,8 +112,18 @@ const nightOptions = computed(() => STAY_NIGHTS.map((n) => ({ value: n, label: t
 
       <StayPrices v-if="comparing" :offers="offers" :loading="loading" class="pl-7" />
 
-      <div v-if="links.length" class="flex flex-wrap items-center gap-2 pl-7">
-        <span v-if="comparing" class="w-full text-xs text-muted-foreground">{{ t('place.booking.offers.compare') }}</span>
+      <a
+        v-if="priced"
+        :href="googleHotelsUrl"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="ml-7 inline-flex items-center gap-1.5 self-start text-xs font-medium text-primary hover:underline"
+      >
+        {{ t('place.booking.offers.moreOnGoogleHotels') }}
+        <ExternalLinkIcon class="size-3" />
+      </a>
+
+      <div v-else-if="links.length && !loading" class="flex flex-wrap items-center gap-2 pl-7">
         <Button
           v-for="link in links"
           :key="link.provider + (link.name ?? '')"
@@ -113,13 +131,15 @@ const nightOptions = computed(() => STAY_NIGHTS.map((n) => ({ value: n, label: t
           :href="link.url"
           target="_blank"
           rel="noopener noreferrer"
-          :variant="comparing ? 'ghost' : 'outline'"
+          :variant="link.search ? 'ghost' : 'outline'"
           size="sm"
           class="gap-1.5"
-          :class="comparing && 'h-7 px-2 text-xs'"
+          :class="link.search && 'h-7 px-2 text-xs text-muted-foreground'"
+          data-testid="booking-link"
         >
-          {{ link.name ?? t(`place.booking.providers.${link.provider}`) }}
-          <ExternalLinkIcon class="size-3.5 text-muted-foreground" />
+          <SearchIcon v-if="link.search" class="size-3.5" />
+          {{ linkLabel(link) }}
+          <ExternalLinkIcon v-if="!link.search" class="size-3.5 text-muted-foreground" />
         </Button>
       </div>
 

@@ -39,7 +39,7 @@ describe('adaptSerpOffers', () => {
       total: { amount: 289, currency: 'USD' },
       freeCancellation: true,
       official: false,
-      logo: 'https://www.gstatic.com/travel-hotels/branding/booking.png',
+      logo: 'https://www.gstatic.com/travel-hotels/branding/icon_184.png',
     })
     expect(bySeller['EVEN Hotel Brooklyn by IHG'].official).toBe(true)
   })

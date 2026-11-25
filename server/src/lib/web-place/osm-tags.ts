@@ -1,0 +1,112 @@
+import type { SiteBusiness } from './schema-org'
+
+/** schema.org business types and the OSM tags that say the same thing. */
+export const CATEGORY_TAGS: Record<string, Record<string, string>> = {
+  Restaurant: { amenity: 'restaurant' },
+  FastFoodRestaurant: { amenity: 'fast_food' },
+  CafeOrCoffeeShop: { amenity: 'cafe' },
+  BarOrPub: { amenity: 'bar' },
+  NightClub: { amenity: 'nightclub' },
+  Brewery: { craft: 'brewery' },
+  Winery: { craft: 'winery' },
+  Bakery: { shop: 'bakery' },
+  IceCreamShop: { amenity: 'ice_cream' },
+  Hotel: { tourism: 'hotel' },
+  Motel: { tourism: 'motel' },
+  Hostel: { tourism: 'hostel' },
+  BedAndBreakfast: { tourism: 'guest_house' },
+  Campground: { tourism: 'camp_site' },
+  Dentist: { amenity: 'dentist', healthcare: 'dentist' },
+  Physician: { amenity: 'doctors', healthcare: 'doctor' },
+  Pharmacy: { amenity: 'pharmacy', healthcare: 'pharmacy' },
+  VeterinaryCare: { amenity: 'veterinary' },
+  Optician: { shop: 'optician' },
+  HairSalon: { shop: 'hairdresser' },
+  BeautySalon: { shop: 'beauty' },
+  NailSalon: { shop: 'beauty', beauty: 'nails' },
+  TattooParlor: { shop: 'tattoo' },
+  ExerciseGym: { leisure: 'fitness_centre' },
+  BowlingAlley: { leisure: 'bowling_alley' },
+  BookStore: { shop: 'books' },
+  ClothingStore: { shop: 'clothes' },
+  ShoeStore: { shop: 'shoes' },
+  GroceryStore: { shop: 'supermarket' },
+  ConvenienceStore: { shop: 'convenience' },
+  Florist: { shop: 'florist' },
+  HardwareStore: { shop: 'hardware' },
+  JewelryStore: { shop: 'jewelry' },
+  LiquorStore: { shop: 'alcohol' },
+  PetStore: { shop: 'pet' },
+  BikeStore: { shop: 'bicycle' },
+  ElectronicsStore: { shop: 'electronics' },
+  MobilePhoneStore: { shop: 'mobile_phone' },
+  FurnitureStore: { shop: 'furniture' },
+  GardenStore: { shop: 'garden_centre' },
+  ToyStore: { shop: 'toys' },
+  SportingGoodsStore: { shop: 'sports' },
+  DryCleaningOrLaundry: { shop: 'dry_cleaning' },
+  AutoRepair: { shop: 'car_repair' },
+  Bank: { amenity: 'bank' },
+  Library: { amenity: 'library' },
+  ChildCare: { amenity: 'childcare' },
+  MovieTheater: { amenity: 'cinema' },
+  Museum: { tourism: 'museum' },
+  ArtGallery: { tourism: 'gallery' },
+  Zoo: { tourism: 'zoo' },
+  AmusementPark: { tourism: 'theme_park' },
+  PlaceOfWorship: { amenity: 'place_of_worship' },
+  Attorney: { office: 'lawyer' },
+  LegalService: { office: 'lawyer' },
+  AccountingService: { office: 'accountant' },
+  RealEstateAgent: { office: 'estate_agent' },
+}
+
+const SERVES_FOOD = new Set(['restaurant', 'fast_food', 'cafe'])
+
+/** The OSM tags a new node for this business would carry, from the business's own site. */
+export function businessTags(business: SiteBusiness, website: string): Record<string, string> {
+  const category = business.types.map((type) => CATEGORY_TAGS[type]).find(Boolean)
+  const tags: Record<string, string> = { ...category, name: business.name, website }
+  Object.assign(tags, addressTags(business.address))
+  if (business.phone) tags.phone = business.phone
+  if (business.email) tags.email = business.email
+  if (business.openingHours) tags.opening_hours = business.openingHours
+  if (business.cuisine?.length && SERVES_FOOD.has(category?.amenity ?? '')) {
+    tags.cuisine = business.cuisine.map((item) => item.toLowerCase().replace(/[\s-]+/g, '_')).join(';')
+  }
+  return tags
+}
+
+const UNIT = /^(?:suite|ste\.?|unit|apt\.?|#)\s*(.+)$/i
+
+function addressTags(address: SiteBusiness['address']): Record<string, string> {
+  if (!address?.street) return {}
+  const [first, ...rest] = address.street.split(',').map((part) => part.trim())
+  const tags: Record<string, string> = splitStreet(first)
+  const unit = rest.map((part) => part.match(UNIT)?.[1]).find(Boolean)
+  if (unit) tags['addr:unit'] = unit
+  if (address.locality) tags['addr:city'] = address.locality
+  if (address.postalCode) tags['addr:postcode'] = address.postalCode
+  if (address.region && /^[A-Z]{2}$/.test(address.region)) tags['addr:state'] = address.region
+  if (address.country && /^[A-Z]{2}$/i.test(address.country)) {
+    tags['addr:country'] = address.country.toUpperCase()
+  }
+  return tags
+}
+
+/** "123 Main Street" and "Hauptstraße 5" as a house number and a street. */
+export function splitStreet(line: string): Record<string, string> {
+  const leading = line.match(/^(\d+[A-Za-z]?(?:[-–]\d+[A-Za-z]?)?)\s+(.+)$/)
+  if (leading) return { 'addr:housenumber': leading[1], 'addr:street': leading[2] }
+  const trailing = line.match(/^(.+?)\s+(\d+[A-Za-z]?(?:[-–]\d+[A-Za-z]?)?)$/)
+  if (trailing) return { 'addr:housenumber': trailing[2], 'addr:street': trailing[1] }
+  return { 'addr:street': line }
+}
+
+/** The address as one line, for geocoding. */
+export function addressLine(address: SiteBusiness['address']): string | undefined {
+  if (!address?.street) return undefined
+  return [address.street, address.locality, address.region, address.postalCode, address.country]
+    .filter(Boolean)
+    .join(', ')
+}

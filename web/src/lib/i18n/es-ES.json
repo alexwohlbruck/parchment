@@ -349,6 +349,16 @@
           }
         }
       },
+      "updateUiTheme": {
+        "name": "Estilo de la aplicación",
+        "description": "Cambiar la aplicación entre Moderno y Pergamino",
+        "keywords": "tema aplicación interfaz moderno pergamino",
+        "arguments": {
+          "style": {
+            "name": "Estilo"
+          }
+        }
+      },
       "chooseMapEngine": {
         "name": "Elegir motor de mapas",
         "description": "Cambiar el motor de JavaScript utilizado para renderizar el mapa",
@@ -384,6 +394,16 @@
               "albers": "Albers",
               "lambertConformalConic": "Coniforme de Lambert"
             }
+          }
+        }
+      },
+      "mapStyle": {
+        "name": "Estilo del mapa",
+        "description": "Cambiar el aspecto del mapa",
+        "keywords": "tema mapa base charlotte pergamino cupertino mountain view",
+        "arguments": {
+          "style": {
+            "name": "Estilo"
           }
         }
       },

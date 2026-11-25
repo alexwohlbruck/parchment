@@ -353,6 +353,16 @@
           }
         }
       },
+      "updateUiTheme": {
+        "name": "App style",
+        "description": "Switch the app between Modern and Parchment",
+        "keywords": "app theme ui interface look modern parchment chart",
+        "arguments": {
+          "style": {
+            "name": "Style"
+          }
+        }
+      },
       "chooseMapEngine": {
         "name": "Choose map engine",
         "description": "Changes how the map looks and what it can show",
@@ -388,6 +398,16 @@
               "albers": "Albers",
               "lambertConformalConic": "Lambert Conformal Conic"
             }
+          }
+        }
+      },
+      "mapStyle": {
+        "name": "Map style",
+        "description": "Change how the map looks",
+        "keywords": "map theme basemap look charlotte parchment chart cupertino mountain view",
+        "arguments": {
+          "style": {
+            "name": "Style"
           }
         }
       },

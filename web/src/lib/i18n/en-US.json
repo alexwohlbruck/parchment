@@ -546,7 +546,7 @@
         },
         "book": {
           "name": "Make a reservation",
-          "keywords": "book table reserve booking opentable resy"
+          "keywords": "book table room hotel reserve booking opentable resy expedia"
         },
         "edit": {
           "name": "Suggest an edit",
@@ -2771,8 +2771,11 @@
       "showLess": "Show less"
     },
     "booking": {
-      "bookTable": "Book a table",
-      "book": "Book ahead",
+      "title": {
+        "table": "Book a table",
+        "stay": "Book a room",
+        "ahead": "Book ahead"
+      },
       "policy": {
         "yes": "Takes reservations",
         "recommended": "Reservations recommended",
@@ -2782,6 +2785,9 @@
         "venue": "Their website",
         "opentable": "OpenTable",
         "resy": "Resy",
+        "bookingCom": "Booking.com",
+        "expedia": "Expedia",
+        "googleHotels": "Google Hotels",
         "search": "Search the web"
       }
     },

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { CalendarCheckIcon, ExternalLinkIcon } from 'lucide-vue-next'
+import { BedDoubleIcon, CalendarCheckIcon, ExternalLinkIcon } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import PlaceSection from './PlaceSection.vue'
 import type { Place } from '@/types/place.types'
@@ -12,20 +12,19 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const { policy, dining, links } = usePlaceBooking(() => props.place)
+const { policy, kind, links } = usePlaceBooking(() => props.place)
 
-const title = computed(() =>
-  dining.value ? t('place.booking.bookTable') : t('place.booking.book'))
+const icon = computed(() => (kind.value === 'stay' ? BedDoubleIcon : CalendarCheckIcon))
 </script>
 
 <template>
-  <PlaceSection v-if="links.length && policy">
+  <PlaceSection v-if="kind && links.length">
     <template #main>
       <div class="flex gap-3 items-center">
-        <CalendarCheckIcon class="size-4 shrink-0 text-muted-foreground" />
+        <component :is="icon" class="size-4 shrink-0 text-muted-foreground" />
         <div class="flex flex-col min-w-0">
-          <span class="font-medium text-sm">{{ title }}</span>
-          <span class="text-xs text-muted-foreground">{{ t(`place.booking.policy.${policy}`) }}</span>
+          <span class="font-medium text-sm">{{ t(`place.booking.title.${kind}`) }}</span>
+          <span v-if="policy" class="text-xs text-muted-foreground">{{ t(`place.booking.policy.${policy}`) }}</span>
         </div>
       </div>
       <div class="flex flex-wrap gap-2 pl-7">

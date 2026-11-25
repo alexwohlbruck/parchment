@@ -540,7 +540,7 @@
         },
         "book": {
           "name": "Hacer una reserva",
-          "keywords": "reservar reserva mesa opentable resy"
+          "keywords": "reservar reserva mesa habitación hotel opentable resy expedia"
         },
         "edit": {
           "name": "Sugerir un cambio",
@@ -2676,8 +2676,11 @@
       "showLess": "Ver menos"
     },
     "booking": {
-      "bookTable": "Reservar mesa",
-      "book": "Reservar con antelación",
+      "title": {
+        "table": "Reservar mesa",
+        "stay": "Reservar habitación",
+        "ahead": "Reservar con antelación"
+      },
       "policy": {
         "yes": "Acepta reservas",
         "recommended": "Se recomienda reservar",
@@ -2687,6 +2690,9 @@
         "venue": "Su web",
         "opentable": "OpenTable",
         "resy": "Resy",
+        "bookingCom": "Booking.com",
+        "expedia": "Expedia",
+        "googleHotels": "Google Hotels",
         "search": "Buscar en la web"
       }
     },

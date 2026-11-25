@@ -1,6 +1,6 @@
 import { computed, toValue, type MaybeRefOrGetter } from 'vue'
 import type { Place } from '@/types/place.types'
-import { bookingLinks, isDiningPlace, reservationPolicy } from '@/lib/place/place-booking'
+import { bookingKind, bookingLinks, reservationPolicy } from '@/lib/place/place-booking'
 
 export function usePlaceBooking(place: MaybeRefOrGetter<Partial<Place> | null | undefined>) {
   const tags = computed(() => toValue(place)?.tags ?? {})
@@ -20,7 +20,7 @@ export function usePlaceBooking(place: MaybeRefOrGetter<Partial<Place> | null | 
 
   return {
     policy: computed(() => reservationPolicy(tags.value)),
-    dining: computed(() => isDiningPlace(tags.value)),
+    kind: computed(() => bookingKind(tags.value)),
     links,
   }
 }

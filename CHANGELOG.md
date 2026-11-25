@@ -2,6 +2,8 @@
 
 ### Added
 
+* Ask now has a shortcut in the home screen's navigation on phones.
+
 ### Changed
 
 ### Fixed

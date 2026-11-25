@@ -438,6 +438,12 @@ export interface ContactInfo {
   socials?: Record<string, string> // platform -> URL
 }
 
+/** What looking a business up on its own website found. */
+export type WebPlaceLookup =
+  | { status: 'found'; place: Place; corroboratedBy: string[] }
+  | { status: 'mapped'; place: Place }
+  | { status: 'not-found'; reason: string }
+
 export interface Place {
   id: string // A unique identifier
   externalIds: Record<SourceId, string> // Source -> external ID mapping

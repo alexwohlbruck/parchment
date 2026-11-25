@@ -21,7 +21,7 @@ import { forwardGeocode } from './geocoding.service'
 import { lookupPlacesByNameAndLocation } from './place.service'
 import type { Language } from '../lib/i18n/i18n.types'
 import type { LanguageModelCapability } from '../types/language-model.types'
-import type { Place } from '../types/place.types'
+import type { Place, WebPlaceLookup } from '../types/place.types'
 import type { LatLng } from '../types/ask.types'
 
 /** How far from where the user is looking a namesake still counts as the place they mean. */
@@ -31,11 +31,6 @@ const SAME_PLACE_M = 300
 const FETCH_TIMEOUT_MS = 8000
 const MAX_REDIRECTS = 4
 const MAX_CONTACT_PAGES = 2
-
-export type WebPlaceLookup =
-  | { status: 'found'; place: Place; corroboratedBy: string[] }
-  | { status: 'mapped'; place: Place }
-  | { status: 'not-found'; reason: string }
 
 export class WebPlaceError extends Error {}
 

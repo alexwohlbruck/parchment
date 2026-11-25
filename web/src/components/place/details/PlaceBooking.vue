@@ -105,7 +105,7 @@ const nightOptions = computed(() => STAY_NIGHTS.map((n) => ({ value: n, label: t
       <StayPrices v-if="comparing" :offers="offers" :loading="loading" class="pl-7" />
 
       <div v-if="links.length" class="flex flex-wrap items-center gap-2 pl-7">
-        <span v-if="comparing" class="text-xs text-muted-foreground">{{ t('place.booking.offers.compare') }}</span>
+        <span v-if="comparing" class="w-full text-xs text-muted-foreground">{{ t('place.booking.offers.compare') }}</span>
         <Button
           v-for="link in links"
           :key="link.provider + (link.name ?? '')"
@@ -124,7 +124,7 @@ const nightOptions = computed(() => STAY_NIGHTS.map((n) => ({ value: n, label: t
       </div>
 
       <div v-if="delivery.length" class="flex flex-wrap items-center gap-2 pl-7">
-        <span v-if="kind && links.length" class="text-xs text-muted-foreground">{{ t('place.booking.delivery') }}</span>
+        <span v-if="kind && links.length" class="w-full text-xs text-muted-foreground">{{ t('place.booking.delivery') }}</span>
         <Button
           v-for="link in delivery"
           :key="link.name"

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ChevronRightIcon, ShieldCheckIcon } from 'lucide-vue-next'
+import { BedDoubleIcon, ChevronRightIcon, ShieldCheckIcon } from 'lucide-vue-next'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import type { StayMoney, StayOffer, StayOffers } from '@server/types/integration.types'
@@ -15,6 +15,7 @@ const props = defineProps<{
 const { t, locale } = useI18n()
 const freeCancellationOnly = ref(false)
 const expanded = ref(false)
+const brokenLogos = ref(new Set<string>())
 watch(() => props.offers, () => (expanded.value = false))
 
 const groups = computed(() => groupOffers(props.offers?.offers ?? [], freeCancellationOnly.value, expanded.value))
@@ -70,13 +71,18 @@ function detail(offer: StayOffer): string {
           class="-mx-2 flex items-center gap-3 rounded-md px-2 py-2 hover:bg-accent"
           data-testid="stay-offer"
         >
+          <span
+            v-if="offer.bookHere"
+            class="flex size-5 shrink-0 items-center justify-center rounded bg-primary/10 text-primary"
+          ><BedDoubleIcon class="size-3.5" /></span>
           <img
-            v-if="offer.logo"
+            v-else-if="offer.logo && !brokenLogos.has(offer.logo)"
             :src="offer.logo"
             alt=""
             referrerpolicy="no-referrer"
             loading="lazy"
             class="size-5 shrink-0 rounded object-contain"
+            @error="brokenLogos = new Set(brokenLogos).add(offer.logo!)"
           />
           <span
             v-else

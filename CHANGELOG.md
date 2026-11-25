@@ -16,6 +16,7 @@
 
 * Water names are set in italic, in every map style.
 * A menu or dialog opened over a sheet now tucks that sheet behind it and dims the map, so it's clear what you're using. Tap outside to close it.
+* On phones, a place's ⋯ menu opens right under the button instead of covering the place with a second sheet.
 
 ### Fixed
 

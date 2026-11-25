@@ -7,6 +7,8 @@
 
 ### Changed
 
+* Photos, hours and ratings from business listings load faster when you reopen a place, and the place keeps the same listing each time.
+
 ### Fixed
 
 * Sharing a place copies its link when the browser can't open a share sheet.

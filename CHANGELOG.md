@@ -44,6 +44,7 @@
 * Location sharing with friends on other servers isn't available yet, and the switch says so.
 * Water names are set in italic, in every map style.
 * A menu or dialog opened over a sheet now tucks that sheet behind it and dims the map, so it's clear what you're using. Tap outside to close it.
+* Ferry routes draw as the map's own dashed ferry lanes, so busy harbours no longer turn into a solid band over the water.
 * Your recovery key is now 24 words that are easier to write down and type back in. Anyone with an older recovery key will be asked to save the words instead.
 * Deleting a passkey tells you when it's one that can unlock your encrypted data on a new device, and when it's the only one.
 * Passkeys from more password managers can unlock your encrypted data, since adding one now checks a second time before giving up.

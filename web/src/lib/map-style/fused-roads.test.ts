@@ -52,12 +52,15 @@ describe.each([
     expect(new Set(plain.map(l => fusedRoadId(l.id))).size).toBe(fused.length)
   })
 
-  test('paints every way exactly as its rung did, and stacks the rungs in their order', { timeout: 60000 }, () => {
-    for (const layer of fused.filter(l => plain.every(p => p.id !== l.id))) {
-      const members = plain.filter(p => fusedRoadId(p.id) === layer.id)
+  const fusedLayers = fused.filter(l => plain.every(p => p.id !== l.id))
+  const membersOf = (layer: any) => plain.filter(p => fusedRoadId(p.id) === layer.id)
+
+  test('paints every way as the topmost rung drawing it did, and stacks the rungs in their order', { timeout: 60000 }, () => {
+    for (const layer of fusedLayers) {
+      const members = membersOf(layer)
       for (const feature of FEATURES) {
         for (const zoom of ZOOMS) {
-          const rank = members.findIndex(m => takes(m, zoom, feature))
+          const rank = members.findLastIndex(m => takes(m, zoom, feature))
           expect(takes(layer, zoom, feature), `${layer.id} ${JSON.stringify(feature.properties)}`).toBe(rank >= 0)
           if (rank < 0) continue
           const member = members[rank]
@@ -74,6 +77,26 @@ describe.each([
         }
       }
     }
+  })
+
+  /** `Minor road` takes trunks as well as `Major road` does; the one beneath edges out by at most half a pixel a side. */
+  test('hides no more than a sub-pixel fringe a lower rung showed around the way', () => {
+    const peeking: string[] = []
+    for (const layer of fusedLayers) {
+      const members = membersOf(layer)
+      for (const feature of FEATURES) {
+        for (const zoom of ZOOMS) {
+          const drawing = members.filter(m => takes(m, zoom, feature))
+          const top = drawing.pop()
+          if (!top) continue
+          const width = (m: any) => evaluate(m, 'paint', 'line-width', zoom, feature) as number
+          for (const below of drawing) {
+            if (width(below) > width(top) + 1) peeking.push(`${below.id} under ${top.id} z${zoom} ${feature.properties.class}: ${width(below).toFixed(2)} > ${width(top).toFixed(2)}`)
+          }
+        }
+      }
+    }
+    expect([...new Set(peeking)]).toEqual([])
   })
 })
 

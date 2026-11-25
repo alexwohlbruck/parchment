@@ -104,16 +104,19 @@ export function fuseLayers(id: string, members: Layer[]): Layer | null {
   if (!['type', 'source', 'source-layer', 'minzoom', 'maxzoom'].every(alike)) return null
   if (first.type !== 'line' || members.some(m => m.layout?.['line-sort-key'] !== undefined)) return null
 
-  const when = members.map(m => combineFilters([m.filter]) ?? true)
-  const layout = mergeBlock('layout', members, when)
-  const paint = mergeBlock('paint', members, when)
+  // The rungs' filters overlap (`Minor road` takes trunks too), so a feature
+  // takes the paint of the topmost rung drawing it: the one that showed.
+  const topFirst = [...members].reverse()
+  const when = topFirst.map(m => combineFilters([m.filter]) ?? true)
+  const layout = mergeBlock('layout', topFirst, when)
+  const paint = mergeBlock('paint', topFirst, when)
   if (!layout || !paint) return null
 
   return {
     ...first,
     id,
     filter: ['any', ...when],
-    layout: { ...layout, 'line-sort-key': caseOf(members.map((_, i) => i), when) },
+    layout: { ...layout, 'line-sort-key': caseOf(topFirst.map((_, i) => members.length - 1 - i), when) },
     paint,
   }
 }

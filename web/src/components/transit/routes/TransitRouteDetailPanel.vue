@@ -261,7 +261,7 @@ function isStopPassedBySelected(displayIndex: number): boolean {
   const sv = selectedVehicleOnRoute.value
   const stop = displayStops.value[displayIndex]
   if (!stop) return false
-  if (!sv) return isStopInPast(stop)
+  if (!sv) return displayIndex < firstTimedIndex.value || isStopInPast(stop)
   return store.isReversed
     ? stop.distanceAlongRoute > sv.distanceAlongRoute
     : stop.distanceAlongRoute < sv.distanceAlongRoute
@@ -305,6 +305,12 @@ function isStopInPast(stop: RouteDetailStop): boolean {
   const ms = stopTimeMs(stop)
   return ms !== null && ms < currentTime.value.valueOf()
 }
+
+/** A live run lists only the calls still ahead of it, so an untimed stop before its first time is behind it. */
+const firstTimedIndex = computed(() => {
+  if (!store.tripStopTimes.length) return -1
+  return displayStops.value.findIndex(stop => stopTimeMs(stop) !== null)
+})
 
 /** Where the followed run is by its timetable, for a run with no position to show: between the last call it has made and the next. */
 const tripMarkerTop = computed((): number | null => {

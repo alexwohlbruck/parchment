@@ -1,7 +1,7 @@
 {
   "name": "parchment",
   "private": true,
-  "version": "0.26.0",
+  "version": "0.27.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
@@ -52,6 +52,7 @@
     "@noble/curves": "^2.0.1",
     "@noble/ed25519": "^3.0.0",
     "@noble/hashes": "^2.0.1",
+    "@scure/bip39": "^2.4.0",
     "@simplewebauthn/browser": "^10.0.0",
     "@tanstack/vue-table": "^8.17.0",
     "@tanstack/vue-virtual": "^3.13.24",

@@ -57,9 +57,7 @@ async function seedUsers() {
   aliceHandle = buildHandle(ALICE_ALIAS)
   bobHandle = buildHandle(BOB_ALIAS)
 
-  // Friendships both ways — createShare doesn't require them but some
-  // downstream helpers (verifyShareFromFriend) do. Not strictly needed
-  // for the flows tested here; keeps the fixture realistic.
+  // createShare only shares with accepted friends.
   await db.insert(friendships).values({
     id: generateId(),
     userId: aliceId,
@@ -146,6 +144,21 @@ describe('createShare', () => {
     expect(incoming.status).toBe('accepted')
     expect(incoming.role).toBe('viewer')
     expect(incoming.senderHandle).toBe(aliceHandle)
+  })
+
+  test('refuses a recipient who is not a friend', async () => {
+    const collectionId = await makeCollection(aliceId)
+
+    await expect(
+      sharingService.createShare({
+        userId: aliceId,
+        recipientHandle: buildHandle(`stranger_${RUN_SUFFIX}`),
+        resourceType: 'collection',
+        resourceId: collectionId,
+        encryptedData: 'ciphertext==',
+        nonce: 'nonce==',
+      }),
+    ).rejects.toBeInstanceOf(sharingService.NotFriendsError)
   })
 
   test('same-server without payload does not create incoming row', async () => {
@@ -266,6 +279,31 @@ describe('updateShareRole', () => {
         ),
       )
     expect(incoming.role).toBe('editor')
+  })
+
+  test('demotes the recipient even after the owner renames', async () => {
+    const collectionId = await makeCollection(aliceId)
+    const share = await sharingService.createShare({
+      userId: aliceId,
+      recipientHandle: bobHandle,
+      resourceType: 'collection',
+      resourceId: collectionId,
+      encryptedData: 'ct',
+      nonce: 'n',
+      role: 'editor',
+    })
+    await db
+      .update(users)
+      .set({ alias: `${ALICE_ALIAS}_r` })
+      .where(eq(users.id, aliceId))
+    try {
+      await sharingService.updateShareRole(aliceId, share.id, 'viewer')
+      expect(
+        await sharingService.getEffectiveRoleOnCollection(bobId, collectionId),
+      ).toBe('viewer')
+    } finally {
+      await db.update(users).set({ alias: ALICE_ALIAS }).where(eq(users.id, aliceId))
+    }
   })
 
   test('returns null when share does not exist', async () => {
@@ -504,6 +542,36 @@ describe('cross-server shares naming local resources', () => {
       id: generateId(),
       userId: bobId,
       senderHandle: MALLORY,
+      resourceType: 'collection',
+      resourceId: collectionId,
+      encryptedData: 'ct',
+      nonce: 'n',
+      role: 'editor',
+      status: 'accepted',
+    })
+    expect(
+      await sharingService.getEffectiveRoleOnCollection(bobId, collectionId),
+    ).toBeNull()
+  })
+
+  test('a share from someone other than the owner grants no access', async () => {
+    const collectionId = await makeCollection(aliceId)
+    const shareId = generateId()
+    await db.insert(shares).values({
+      id: shareId,
+      userId: bobId,
+      recipientHandle: bobHandle,
+      recipientUserId: bobId,
+      resourceType: 'collection',
+      resourceId: collectionId,
+      role: 'editor',
+      status: 'accepted',
+    })
+    await db.insert(incomingShares).values({
+      id: generateId(),
+      userId: bobId,
+      senderHandle: bobHandle,
+      shareId,
       resourceType: 'collection',
       resourceId: collectionId,
       encryptedData: 'ct',

@@ -82,8 +82,9 @@ describe('resolveCollectionRecipients', () => {
 
   test('owner + same-server recipient via incoming_shares', async () => {
     const coll = await makeCollection(idA)
+    const shareId = generateId()
     await db.insert(shares).values({
-      id: generateId(),
+      id: shareId,
       userId: idA,
       recipientHandle: handleB,
       recipientUserId: idB,
@@ -96,6 +97,7 @@ describe('resolveCollectionRecipients', () => {
       id: generateId(),
       userId: idB,
       senderHandle: handleA,
+      shareId,
       resourceType: 'collection',
       resourceId: coll,
       encryptedData: 'ct',

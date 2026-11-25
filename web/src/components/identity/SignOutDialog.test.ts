@@ -2,12 +2,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import SignOutDialog from './SignOutDialog.vue'
 
-const { fetchRecoveryKey, copy } = vi.hoisted(() => ({
-  fetchRecoveryKey: vi.fn(),
+const { fetchRecoveryWords, copy } = vi.hoisted(() => ({
+  fetchRecoveryWords: vi.fn(),
   copy: vi.fn(),
 }))
 vi.mock('@/stores/identity.store', () => ({
-  useIdentityStore: () => ({ fetchRecoveryKey }),
+  useIdentityStore: () => ({ fetchRecoveryWords }),
 }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/composables/useClipboard', async () => {
@@ -37,22 +37,22 @@ function mountDialog() {
   return wrapper
 }
 
-describe('sign-out recovery key', () => {
-  it('shows the saved key in groups and copies the original key without confirming sign-out', async () => {
-    const key = 'abcdefghij1234567890'
-    fetchRecoveryKey.mockResolvedValue(key)
+describe('sign-out recovery words', () => {
+  it('shows the words numbered and copies them as one phrase without confirming sign-out', async () => {
+    const words = ['abandon', 'ability', 'able']
+    fetchRecoveryWords.mockResolvedValue(words)
     const wrapper = mountDialog()
     await flushPromises()
 
-    expect(wrapper.text()).toContain('abcde fghij 12345 67890')
+    expect(wrapper.findAll('li').map(item => item.text())).toEqual(['1abandon', '2ability', '3able'])
     const copyButton = wrapper.findAll('button').find(button => button.text().includes('copyToClipboard'))!
     await copyButton.trigger('click')
-    expect(copy).toHaveBeenCalledWith(key, 'settings.identity.recoveryKey.setup.keyCopiedToast')
+    expect(copy).toHaveBeenCalledWith('abandon ability able', 'settings.identity.recoveryKey.setup.keyCopiedToast')
     expect(wrapper.emitted('submit')).toBeUndefined()
   })
 
   it('keeps cancellation and sign-out available when no local key exists', async () => {
-    fetchRecoveryKey.mockResolvedValue(null)
+    fetchRecoveryWords.mockResolvedValue(null)
     const wrapper = mountDialog()
     await flushPromises()
 

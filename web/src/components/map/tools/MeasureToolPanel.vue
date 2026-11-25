@@ -39,6 +39,7 @@ onUnmounted(() => (mapToolsStore.sheetHeight = 0))
 
 <template>
   <BottomSheet
+    panel
     v-if="isMobileScreen"
     fit-content
     dismissable

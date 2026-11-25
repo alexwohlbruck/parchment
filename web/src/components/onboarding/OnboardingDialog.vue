@@ -16,7 +16,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { ArrowRight, ArrowLeft, Check } from 'lucide-vue-next'
 import OnboardingCompletion from './OnboardingCompletion.vue'
 import ProfileSetupStep from './ProfileSetupStep.vue'
-import RecoveryKeyStep from './RecoveryKeyStep.vue'
+import RecoveryWordsStep from './RecoveryWordsStep.vue'
 import PasskeyStep from './PasskeyStep.vue'
 import IntegrationsSetupStep from './IntegrationsSetupStep.vue'
 import OpenStreetMapStep from './OpenStreetMapStep.vue'
@@ -43,11 +43,13 @@ const integrations = useIntegrationsStore()
 const skippingOsm = computed(() => currentStep.value.id === 'openstreetmap' && !integrations.osmProfile)
 const skippingPasskey = computed(() => currentStep.value.id === 'passkey')
 
-// Setting up a recovery key replaces existing keys, so only offer it once the server confirms there are none.
+// Setting up recovery words replaces existing keys, so only offer it once the server confirms there are none.
 const needsKeys = ref(false)
-fetchIdentityFromServer().then(identity => {
-  needsKeys.value = !!identity && !identity.signingKey
-})
+fetchIdentityFromServer()
+  .then(identity => {
+    needsKeys.value = !identity.signingKey
+  })
+  .catch(() => {})
 
 const currentIndex = ref(0)
 const completing = ref(false)
@@ -89,7 +91,7 @@ const steps = computed<StepDef[]>(() => {
     { id: 'theme', component: ThemeStep },
     ...(needsKeys.value
       ? [
-          { id: 'recovery-key', component: RecoveryKeyStep },
+          { id: 'recovery-key', component: RecoveryWordsStep },
           { id: 'passkey', component: PasskeyStep },
         ] satisfies StepDef[]
       : []),

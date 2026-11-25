@@ -16,6 +16,10 @@ import { useAuthStore } from '@/stores/auth.store'
 import { registerRealtimeHandlers } from '@/lib/realtime/realtime-events'
 import { PermissionId } from '@/types/auth.types'
 
+function logRefetchFailure(err: unknown) {
+  console.warn('[friends] realtime refetch failed', err)
+}
+
 /** Guard — skip the fetch when the user lacks SOCIAL_READ (free tier). */
 function canReadSocial(): boolean {
   return useAuthStore().permissions.includes(PermissionId.SOCIAL_READ)
@@ -23,17 +27,17 @@ function canReadSocial(): boolean {
 
 function refetchFriends() {
   if (!canReadSocial()) return
-  void useFriendsStore().loadFriends()
+  useFriendsStore().loadFriends().catch(logRefetchFailure)
 }
 
 function refetchInvitations() {
   if (!canReadSocial()) return
-  void useFriendsStore().loadInvitations()
+  useFriendsStore().loadInvitations().catch(logRefetchFailure)
 }
 
 function refetchAll() {
   if (!canReadSocial()) return
-  void useFriendsStore().loadAll()
+  useFriendsStore().loadAll().catch(logRefetchFailure)
 }
 
 registerRealtimeHandlers('friends', {

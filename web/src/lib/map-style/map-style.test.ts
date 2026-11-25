@@ -227,10 +227,11 @@ describe('flavors', () => {
      *
      * The planted family goes the same way through `DARK_FOLIAGE`: theirs is
      * blue at the ground's own lightness, which hides a wooded county. So does
-     * the rest of the night land, through `DARK_LAND`.
+     * the rest of the night land, through `DARK_LAND`. Night water names are
+     * lifted off MapTiler's ink, which sits a shade from the water it names.
      */
     const authored =
-      /^(poi_|road_|label_|shield_ink|path_surface|path_casing|building_3d_|building_roof_edge$|sand_fill_color$|(wood|grass|stadium|cemetery)_fill_color$|stadium_outline_color$|background_|residential_|industrial_|airport_zone_|school_|hospital_|pier_|bridge_outline_|water_|river_line|aqueduct_line|major_rail_|building_fill_)/
+      /^(poi_|road_|label_|shield_ink|path_surface|path_casing|building_3d_|building_roof_edge$|sand_fill_color$|(wood|grass|stadium|cemetery)_fill_color$|stadium_outline_color$|background_|residential_|industrial_|airport_zone_|school_|hospital_|pier_|bridge_outline_|water_|(river|lake|ocean)_labels_text_color|ferry_text_color$|river_line|aqueduct_line|major_rail_|building_fill_)/
 
     const wrong: string[] = []
     let checked = 0
@@ -1825,11 +1826,11 @@ describe('label typography', () => {
     expect(lettered.length).toBeGreaterThan(15)
   })
 
-  /** Only four faces are generated; see `build-glyphs.mjs`. */
+  /** Only these Geist faces are generated; see `build-glyphs.mjs`. */
   test('every label names a weight we ship', () => {
     const faces = new Set(lettered.map(l => JSON.stringify(l.layout['text-font'])))
     for (const f of faces) {
-      expect(['Geist Regular', 'Geist Medium', 'Geist SemiBold', 'Geist Bold']).toContain(
+      expect(['Geist Regular', 'Geist Medium', 'Geist SemiBold', 'Geist Bold', 'Geist Italic']).toContain(
         JSON.parse(f)[0],
       )
     }
@@ -2974,5 +2975,25 @@ describe('poiBadgeColors', () => {
 
   test('fall back to the default category', () => {
     expect(poiBadgeColors('unknown', 'light')).toEqual(poiBadgeColors('default', 'light'))
+  })
+})
+
+describe('pond labels', () => {
+  const pond = layers.find(l => l.id === 'Pond labels')
+  const shows = (zoom: number, properties: Record<string, unknown>) =>
+    featureFilter(pond.filter, 'layers[0].filter').filter({ zoom }, { type: 1, properties } as any)
+  const named = { class: 'lake', name: 'Brownie Lake' }
+
+  test('names a pond once the name fits across and down it', () => {
+    expect(shows(14, { ...named, room_x: 60, room_y: 40 })).toBe(false)
+    expect(shows(16, { ...named, room_x: 60, room_y: 40 })).toBe(true)
+  })
+
+  test('keeps the name out of a lake too narrow for a line of text', () => {
+    expect(shows(14, { ...named, room_x: 400, room_y: 8 })).toBe(false)
+  })
+
+  test('names every pond in tiles that carry no measure', () => {
+    expect(shows(14, named)).toBe(true)
   })
 })

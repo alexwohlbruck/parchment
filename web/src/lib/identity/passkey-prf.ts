@@ -17,10 +17,8 @@
  *      the wrappedKm. If the server lied, verification fails.
  *   4. HKDF → wrap key → decrypt wrappedKm → recover K_m.
  *
- * The per-user PRF salt (passed as `prf.eval.first`) is derived from the
- * user id: `HKDF(userId_bytes, info="parchment-prf-salt-v1", 32B)`.
- * Keying the salt to the user means the same passkey used with different
- * Parchment accounts produces different PRF outputs.
+ * The PRF salt (passed as `prf.eval.first`) is one constant for the whole
+ * app; see `derivePrfSalt`.
  */
 
 import { hkdf } from '@noble/hashes/hkdf.js'

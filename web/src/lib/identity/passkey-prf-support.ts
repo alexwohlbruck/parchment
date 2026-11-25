@@ -11,7 +11,7 @@
  *   2. `extractPrfOutputFromRegistration()` / `extractPrfOutputFromAssertion()`
  *      — pull the raw 32-byte PRF output from a simplewebauthn ceremony
  *      response. Returns null if the extension didn't fire (caller then
- *      knows to prompt a second ceremony or fall back to recovery key).
+ *      knows to prompt a second ceremony or fall back to recovery words).
  *
  * Note: `@simplewebauthn/browser` exposes `clientExtensionResults` on the
  * `RegistrationResponseJSON` / `AuthenticationResponseJSON` as
@@ -149,17 +149,6 @@ export function extractPrfOutputFromRegistration(
 }
 
 /**
- * Check whether the newly-registered credential at least advertises PRF
- * support (`prf.enabled === true`). If false, the authenticator doesn't
- * support PRF at all — we must not build a slot for it.
- */
-export function registrationHasPrfEnabled(
-  response: ResponseWithExtensions,
-): boolean {
-  return response.clientExtensionResults?.prf?.enabled === true
-}
-
-/**
  * PRF output from an authentication assertion. Same shape as registration
  * but without the `enabled` flag.
  */
@@ -169,4 +158,18 @@ export function extractPrfOutputFromAssertion(
   return coercePrfFirstToBytes(
     response.clientExtensionResults?.prf?.results?.first,
   )
+}
+
+/**
+ * The response as the server should see it: the PRF output unwraps the
+ * seed, so it never leaves the device. `prf.enabled` stays.
+ */
+export function withoutPrfOutput<T extends object>(response: T): T {
+  const extensions = (response as ResponseWithExtensions).clientExtensionResults
+  if (!extensions?.prf?.results) return response
+  const { results: _results, ...prf } = extensions.prf
+  return {
+    ...response,
+    clientExtensionResults: { ...extensions, prf },
+  }
 }

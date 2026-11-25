@@ -14,8 +14,9 @@ import { i18nPlugin } from '../lib/i18n/plugin'
  * requiring peer-to-peer networking. It never sees plaintext and cannot
  * decrypt what it stores.
  *
- * Rate limits: 3 active sessions per user per hour (enforced in-app, see
- * createSession below).
+ * Rate limits: 3 sessions per user per hour, counted from the session rows.
+ * Cancelling or consuming a session only empties it, and rows outlive the
+ * window, so neither frees up a slot early.
  */
 
 const app = new Elysia().use(i18nPlugin)
@@ -176,7 +177,7 @@ app.use(requireAuth).get(
     // Atomically mark consumed. If someone else grabbed it first, bail.
     const consumedResult = await db
       .update(deviceTransferSessions)
-      .set({ consumed: true })
+      .set({ consumed: true, sealedSeed: null, senderSignature: null })
       .where(
         and(
           eq(deviceTransferSessions.id, params.id),
@@ -212,7 +213,13 @@ app.use(requireAuth).delete(
   '/device-transfer/:id',
   async ({ user, params }) => {
     await db
-      .delete(deviceTransferSessions)
+      .update(deviceTransferSessions)
+      .set({
+        consumed: true,
+        sealedSeed: null,
+        senderSignature: null,
+        expiresAt: new Date(),
+      })
       .where(
         and(
           eq(deviceTransferSessions.id, params.id),
@@ -225,20 +232,31 @@ app.use(requireAuth).delete(
     params: t.Object({ id: t.String() }),
     detail: {
       tags: ['DeviceTransfer'],
-      description: 'Cancel a device-transfer session',
+      description:
+        'Cancel a device-transfer session. Empties it rather than deleting ' +
+        'it, so it still counts toward the hourly limit.',
     },
   },
 )
 
 /**
- * Periodic sweep of expired sessions. Not automatically scheduled; ops
- * can run via a cron or a Bun worker. Kept as an endpoint so a background
- * loop can poke it without depending on runtime state.
+ * Periodic sweep. Not automatically scheduled; ops can run via a cron or a
+ * Bun worker. Empties expired sessions at once, and deletes rows only once
+ * they've aged out of the rate-limit window.
  */
 app.post('/device-transfer/sweep', async () => {
   await db
-    .delete(deviceTransferSessions)
+    .update(deviceTransferSessions)
+    .set({ sealedSeed: null, senderSignature: null })
     .where(lte(deviceTransferSessions.expiresAt, new Date()))
+  await db
+    .delete(deviceTransferSessions)
+    .where(
+      lte(
+        deviceTransferSessions.createdAt,
+        new Date(Date.now() - RATE_LIMIT_WINDOW_MS),
+      ),
+    )
   return { success: true }
 })
 

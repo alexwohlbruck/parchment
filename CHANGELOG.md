@@ -6,6 +6,43 @@
 
 ### Fixed
 
+## [0.27.0] - 2026-11-24
+
+### Added
+
+* If a friend's encryption keys change, their profile warns you and shows a safety number to compare. Nothing is shared with them until you confirm it matches.
+* Inside a station, step cards follow your steps and level changes without GPS, read each step aloud and show which level it leads to.
+* Where to board now names the exit or line it lines you up with, and navigation says it aloud. With minutes to spare on the platform, it tells you to walk there first.
+* The floor picker switches to the floor of the station step you're looking at, in trip details and while navigating. Tap a step to see that part of the walk on the map.
+
+### Changed
+
+* Rotating your keys shows your new recovery words before it finishes, since the old ones stop working.
+* Resetting your account asks you to confirm it's you with your passkey or an emailed code first.
+* Collections and routes can only be shared with friends.
+* Location sharing with friends on other servers isn't available yet, and the switch says so.
+* Water names are set in italic, in every map style.
+* A menu or dialog opened over a sheet now tucks that sheet behind it and dims the map, so it's clear what you're using. Tap outside to close it.
+* Your recovery key is now 24 words that are easier to write down and type back in. Anyone with an older recovery key will be asked to save the words instead.
+* Deleting a passkey tells you when it's one that can unlock your encrypted data on a new device, and when it's the only one.
+* Passkeys from more password managers can unlock your encrypted data, since adding one now checks a second time before giving up.
+* On phones, a place's ⋯ menu opens right under the button instead of covering the place with a second sheet.
+
+### Fixed
+
+* Turning off location sharing from a friend's profile now removes your last position from their map.
+* Friends' markers turn grey once their location is old, instead of looking live until the next update.
+* Your location keeps reaching friends while the friends layer is hidden, and stops as soon as you turn sharing off.
+* Making a collection private no longer removes its places from your other collections.
+* Removing someone from a private collection now stops with a message, instead of cutting off others whose keys haven't synced.
+* Changing someone's role on a shared collection takes effect even after you change your username.
+* Rotating your keys no longer leaves saved routes, canvases or shared private collections unreadable, and stops instead of skipping anything it can't carry over.
+* Setting up encryption can no longer replace keys your account already has after a failed connection.
+* A device with outdated keys can no longer overwrite your synced data after you rotate keys elsewhere.
+* A friend's location disappears from your map a day after they last shared it, instead of staying forever.
+* Changes to collections shared with friends on other servers now show up for them right away.
+* Ponds and smaller lakes now show their names, when the name fits inside the water.
+
 ## [0.26.0] - 2026-11-24
 
 ### Added
@@ -24,6 +61,7 @@
 * Places suggested during navigation look like the map's own places, numbered to match the list.
 * The satellite map now shows sharp USGS aerial photos across the contiguous US, with Esri imagery everywhere else.
 * Satellite and hybrid maps no longer draw 3D trees, street furniture, landmarks or raised bridges over the photos, and hybrid shows street names without drawing the streets.
+* The timeline is easier to scan: each trip leads with how you got there and how far, distances follow your unit setting, and one date control replaces the two pickers.
 
 ### Fixed
 
@@ -32,9 +70,11 @@
 * Tapping a suggested place on the map during navigation now adds it to your route instead of closing the list.
 * Transit rides in offline directions now show their line colour in the trip timeline.
 * Tapping the basemap that's already selected keeps it, instead of switching to the standard map.
+* Your timeline no longer lists a drive twice when it crosses midnight.
 * In 3D, road names and one-way arrows on bridges sit on the bridge instead of on the water or ground below.
 * Expanding the sheet while saving an offline map no longer shrinks the area you framed.
 * The list of upcoming trains during navigation no longer skips trains that only appear in live data.
+* Walking or cycling in a saved area with no connection, a wrong turn now gets a new route instead of leaving you on the old one.
 
 ## [0.25.1-1] - 2026-11-23
 

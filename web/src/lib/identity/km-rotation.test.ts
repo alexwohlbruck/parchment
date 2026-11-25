@@ -73,7 +73,6 @@ import {
   generateSeed,
   deriveAllKeys,
   derivePersonalKey,
-  bytesToBase64,
   exportPublicKey,
   type DerivedKeys,
 } from '@/lib/identity/federation-crypto'
@@ -86,7 +85,24 @@ import {
   encryptCollectionMetadata,
   encryptCollectionPoint,
 } from '@/lib/identity/library-crypto'
-import { rotateMasterKey, RotationConflictError } from './km-rotation'
+import {
+  rotateMasterKey,
+  RotationAbortedError,
+  RotationCancelledError,
+  RotationConflictError,
+} from './km-rotation'
+import {
+  openCollectionShare,
+  sealCollectionShare,
+} from '@/lib/identity/collection-share'
+import {
+  decryptCanvasBody,
+  decryptRouteMetadata,
+  encryptCanvasBody,
+  encryptRouteMetadata,
+} from '@/lib/identity/library-crypto'
+import { deriveCollectionKey, importPublicKey } from '@/lib/identity/federation-crypto'
+import { seedToRecoveryWords } from '@/lib/identity/recovery-words'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -119,10 +135,19 @@ function makeAssertionWithPrf(prfOutput: Uint8Array) {
   }
 }
 
+const hooks = {
+  friendEncryptionKey: (_handle: string): string | null => null,
+  confirmRecoveryWords: async (_words: string[]) => true,
+}
+
 beforeEach(() => {
   state.storedSeed = null
   getHandlers.clear()
   postHandlers.clear()
+  getHandlers.set('/library/routes', () => ({ data: [] }))
+  getHandlers.set('/library/canvases', () => ({ data: [] }))
+  getHandlers.set('/sharing/outgoing', () => ({ data: { shares: [] } }))
+  getHandlers.set('/sharing/incoming', () => ({ data: { shares: [] } }))
   apiGetSpy.mockClear()
   apiPostSpy.mockClear()
   storeSeedSpy.mockClear()
@@ -204,6 +229,7 @@ describe('rotateMasterKey — happy path', () => {
     })
 
     const result = await rotateMasterKey({
+      ...hooks,
       userId,
       oldSeed,
       currentKmVersion: 1,
@@ -301,6 +327,7 @@ describe('rotateMasterKey — private collections', () => {
     })
 
     const result = await rotateMasterKey({
+      ...hooks,
       userId,
       oldSeed,
       currentKmVersion: 1,
@@ -343,6 +370,7 @@ describe('rotateMasterKey — commit conflict', () => {
 
     await expect(
       rotateMasterKey({
+        ...hooks,
         userId: 'u',
         oldSeed,
         currentKmVersion: 1,
@@ -371,6 +399,7 @@ describe('rotateMasterKey — commit conflict', () => {
 
     await expect(
       rotateMasterKey({
+        ...hooks,
         userId: 'u',
         oldSeed,
         currentKmVersion: 1,
@@ -435,6 +464,7 @@ describe('rotateMasterKey — slot reseal failures', () => {
     })
 
     const result = await rotateMasterKey({
+      ...hooks,
       userId,
       oldSeed,
       currentKmVersion: 1,
@@ -471,6 +501,7 @@ describe('rotateMasterKey — slot reseal failures', () => {
       throw err
     })
     const result = await rotateMasterKey({
+      ...hooks,
       userId,
       oldSeed,
       currentKmVersion: 1,
@@ -487,19 +518,17 @@ describe('rotateMasterKey — slot reseal failures', () => {
 // Data-rebuild skip cases
 // ---------------------------------------------------------------------------
 
-describe('rotateMasterKey — skipping undecryptable data', () => {
+describe('rotateMasterKey — undecryptable or skipped data', () => {
   const userId = 'user-skip'
 
   beforeEach(() => {
     getHandlers.set('/users/me/wrapped-keys', () => ({ data: { slots: [] } }))
   })
 
-  test('blob that fails to decrypt under the old key is skipped', async () => {
+  test('a blob that will not decrypt aborts before anything is committed', async () => {
     const oldSeed = generateSeed()
     state.storedSeed = oldSeed
 
-    // The blob envelope is NOT the old personal key — simulate data
-    // already re-encrypted under a newer seed from a parallel rotation.
     const wrongEnvelope = encryptEnvelopeString({
       plaintext: '"hello"',
       key: derivePersonalKey(generateSeed()),
@@ -518,20 +547,17 @@ describe('rotateMasterKey — skipping undecryptable data', () => {
     }))
     getHandlers.set('/library/collections', () => ({ data: [] }))
 
-    let body: { blobs: unknown[] } | undefined
-    postHandlers.set('/users/me/km-version/commit', (b) => {
-      body = b as { blobs: unknown[] }
-      return { data: { kmVersion: 2 } }
-    })
-
-    await rotateMasterKey({
-      userId,
-      oldSeed,
-      currentKmVersion: 1,
-      assertPasskeyForSlot: vi.fn(),
-    })
-
-    expect(body?.blobs).toEqual([]) // skipped
+    await expect(
+      rotateMasterKey({
+        ...hooks,
+        userId,
+        oldSeed,
+        currentKmVersion: 1,
+        assertPasskeyForSlot: vi.fn(),
+      }),
+    ).rejects.toBeInstanceOf(RotationAbortedError)
+    expect(apiPostSpy).not.toHaveBeenCalled()
+    expect(storeSeedSpy).not.toHaveBeenCalled()
   })
 
   test('collection without an envelope is silently skipped', async () => {
@@ -552,6 +578,7 @@ describe('rotateMasterKey — skipping undecryptable data', () => {
     })
 
     await rotateMasterKey({
+      ...hooks,
       userId,
       oldSeed,
       currentKmVersion: 1,
@@ -582,6 +609,7 @@ describe('rotateMasterKey — skipping undecryptable data', () => {
     })
 
     await rotateMasterKey({
+      ...hooks,
       userId,
       oldSeed,
       currentKmVersion: 1,
@@ -589,5 +617,289 @@ describe('rotateMasterKey — skipping undecryptable data', () => {
     })
 
     expect(body?.blobs).toEqual([])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Routes, canvases and shares
+// ---------------------------------------------------------------------------
+
+describe('rotateMasterKey — routes, canvases and shares', () => {
+  const userId = 'owner'
+
+  beforeEach(() => {
+    getHandlers.set('/me/blobs', () => ({ data: { blobs: [] } }))
+    getHandlers.set('/library/collections', () => ({ data: [] }))
+    getHandlers.set('/users/me/wrapped-keys', () => ({ data: { slots: [] } }))
+  })
+
+  function captureCommit() {
+    const captured: { body?: any } = {}
+    postHandlers.set('/users/me/km-version/commit', (body) => {
+      captured.body = body
+      return { data: { kmVersion: 2 } }
+    })
+    return captured
+  }
+
+  test('re-encrypts routes and canvases under the new seed', async () => {
+    const oldSeed = generateSeed()
+    getHandlers.set('/library/routes', () => ({
+      data: [
+        {
+          id: 'r1',
+          metadataEncrypted: encryptRouteMetadata({
+            metadata: { name: 'Loop' },
+            seed: oldSeed,
+            userId,
+            routeId: 'r1',
+          }),
+          bodyEncrypted: null,
+        },
+        { id: 'r2', metadataEncrypted: null, bodyEncrypted: null },
+      ],
+    }))
+    getHandlers.set('/library/canvases', () => ({
+      data: [
+        {
+          id: 'cv1',
+          metadataEncrypted: null,
+          bodyEncrypted: encryptCanvasBody({
+            body: { layers: [1] },
+            seed: oldSeed,
+            userId,
+            canvasId: 'cv1',
+          }),
+        },
+      ],
+    }))
+    const commit = captureCommit()
+
+    const result = await rotateMasterKey({
+      ...hooks,
+      userId,
+      oldSeed,
+      currentKmVersion: 1,
+      assertPasskeyForSlot: vi.fn(),
+    })
+
+    expect(commit.body.routes).toHaveLength(1)
+    expect(
+      decryptRouteMetadata({
+        envelope: commit.body.routes[0].metadataEncrypted,
+        seed: result.newSeed,
+        userId,
+        routeId: 'r1',
+      }).name,
+    ).toBe('Loop')
+    expect(
+      decryptCanvasBody({
+        envelope: commit.body.canvases[0].bodyEncrypted,
+        seed: result.newSeed,
+        userId,
+        canvasId: 'cv1',
+      }),
+    ).toEqual({ layers: [1] })
+  })
+
+  test('re-seals a private collection share so the recipient gets the new key', async () => {
+    const oldSeed = generateSeed()
+    const friend = deriveAllKeys(generateSeed())
+    const friendKey = exportPublicKey(friend.encryption.publicKey)
+    getHandlers.set('/library/collections', () => ({
+      data: [
+        { id: 'c1', scheme: 'user-e2ee', metadataEncrypted: null, metadataKeyVersion: 3 },
+      ],
+    }))
+    getHandlers.set('/library/collections/c1/encrypted-points', () => ({
+      data: { points: [] },
+    }))
+    getHandlers.set('/sharing/outgoing', () => ({
+      data: {
+        shares: [
+          {
+            id: 's1',
+            recipientHandle: 'friend@here',
+            recipientUserId: 'friend',
+            resourceType: 'collection',
+            resourceId: 'c1',
+            status: 'accepted',
+          },
+          {
+            id: 's-old',
+            recipientHandle: 'gone@here',
+            recipientUserId: 'gone',
+            resourceType: 'collection',
+            resourceId: 'c1',
+            status: 'revoked',
+          },
+        ],
+      },
+    }))
+    const commit = captureCommit()
+
+    const result = await rotateMasterKey({
+      ...hooks,
+      friendEncryptionKey: (h) => (h === 'friend@here' ? friendKey : null),
+      userId,
+      oldSeed,
+      currentKmVersion: 1,
+      assertPasskeyForSlot: vi.fn(),
+    })
+
+    expect(commit.body.shares.map((s: any) => s.id)).toEqual(['s1'])
+    const opened = openCollectionShare({
+      envelope: commit.body.shares[0],
+      recipientPrivateKey: friend.encryption.privateKey,
+      senderPublicKey: result.newKeys.encryption.publicKey,
+    })
+    expect(opened.key).toEqual(deriveCollectionKey(result.newSeed, 'c1', 3))
+    expect(opened.keyVersion).toBe(3)
+  })
+
+  test('refuses while a private collection is shared with another server', async () => {
+    getHandlers.set('/library/collections', () => ({
+      data: [
+        { id: 'c1', scheme: 'user-e2ee', metadataEncrypted: null, metadataKeyVersion: 1 },
+      ],
+    }))
+    getHandlers.set('/library/collections/c1/encrypted-points', () => ({
+      data: { points: [] },
+    }))
+    getHandlers.set('/sharing/outgoing', () => ({
+      data: {
+        shares: [
+          {
+            id: 's1',
+            recipientHandle: 'bob@elsewhere.test',
+            recipientUserId: null,
+            resourceType: 'collection',
+            resourceId: 'c1',
+            status: 'accepted',
+          },
+        ],
+      },
+    }))
+
+    await expect(
+      rotateMasterKey({
+        ...hooks,
+        userId,
+        oldSeed: generateSeed(),
+        currentKmVersion: 1,
+        assertPasskeyForSlot: vi.fn(),
+      }),
+    ).rejects.toThrow('bob@elsewhere.test')
+    expect(apiPostSpy).not.toHaveBeenCalled()
+  })
+
+  test('re-seals a collection shared with this user under its new key', async () => {
+    const oldSeed = generateSeed()
+    const oldKeys = deriveAllKeys(oldSeed)
+    const sender = deriveAllKeys(generateSeed())
+    const collectionKey = new Uint8Array(32).fill(7)
+    const envelope = sealCollectionShare({
+      share: { collectionId: 'theirs', scheme: 'user-e2ee', key: collectionKey, keyVersion: 1 },
+      ownerPrivateKey: sender.encryption.privateKey,
+      recipientPublicKey: oldKeys.encryption.publicKey,
+    })
+    getHandlers.set('/sharing/incoming', () => ({
+      data: {
+        shares: [
+          {
+            id: 'in-1',
+            senderHandle: 'sender@here',
+            resourceType: 'collection',
+            status: 'accepted',
+            ...envelope,
+          },
+        ],
+      },
+    }))
+    const commit = captureCommit()
+
+    const result = await rotateMasterKey({
+      ...hooks,
+      friendEncryptionKey: () => exportPublicKey(sender.encryption.publicKey),
+      userId,
+      oldSeed,
+      currentKmVersion: 1,
+      assertPasskeyForSlot: vi.fn(),
+    })
+
+    const resealed = commit.body.incomingShares[0]
+    expect(resealed.id).toBe('in-1')
+    expect(
+      openCollectionShare({
+        envelope: resealed,
+        recipientPrivateKey: result.newKeys.encryption.privateKey,
+        senderPublicKey: importPublicKey(exportPublicKey(sender.encryption.publicKey)),
+      }).key,
+    ).toEqual(collectionKey)
+  })
+})
+
+describe('rotateMasterKey — recovery words', () => {
+  beforeEach(() => {
+    getHandlers.set('/me/blobs', () => ({ data: { blobs: [] } }))
+    getHandlers.set('/library/collections', () => ({ data: [] }))
+    getHandlers.set('/users/me/wrapped-keys', () => ({ data: { slots: [] } }))
+  })
+
+  test('shows the new recovery words and commits only once they are saved', async () => {
+    let shown: string[] | undefined
+    let body: any
+    postHandlers.set('/users/me/km-version/commit', (b) => {
+      body = b
+      return { data: { kmVersion: 2 } }
+    })
+
+    const result = await rotateMasterKey({
+      ...hooks,
+      confirmRecoveryWords: async (words) => {
+        shown = words
+        return true
+      },
+      userId: 'u',
+      oldSeed: generateSeed(),
+      currentKmVersion: 1,
+      assertPasskeyForSlot: vi.fn(),
+    })
+
+    expect(shown).toEqual(seedToRecoveryWords(result.newSeed))
+    expect(body.recoveryKeyConfirmed).toBe(true)
+  })
+
+  test('backing out of the recovery words leaves the keys unchanged', async () => {
+    await expect(
+      rotateMasterKey({
+        ...hooks,
+        confirmRecoveryWords: async () => false,
+        userId: 'u',
+        oldSeed: generateSeed(),
+        currentKmVersion: 1,
+        assertPasskeyForSlot: vi.fn(),
+      }),
+    ).rejects.toBeInstanceOf(RotationCancelledError)
+    expect(apiPostSpy).not.toHaveBeenCalled()
+    expect(storeSeedSpy).not.toHaveBeenCalled()
+  })
+
+  test('surfaces the server refusing an incomplete rotation', async () => {
+    postHandlers.set('/users/me/km-version/commit', () => {
+      const err = new Error('422') as Error & { response?: unknown }
+      err.response = { status: 422, data: { message: 'Rotation is missing re-encrypted data: route r9.' } }
+      throw err
+    })
+
+    await expect(
+      rotateMasterKey({
+        ...hooks,
+        userId: 'u',
+        oldSeed: generateSeed(),
+        currentKmVersion: 1,
+        assertPasskeyForSlot: vi.fn(),
+      }),
+    ).rejects.toThrow('route r9')
   })
 })

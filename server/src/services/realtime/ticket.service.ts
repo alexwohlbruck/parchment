@@ -11,7 +11,8 @@
  * Tickets:
  *   - are random 32 bytes, base64url-encoded
  *   - live for 30 seconds, one-time-use
- *   - bind to a userId; the WS controller resolves ticket → userId
+ *   - bind to a userId and session; the WS controller resolves ticket →
+ *     both, so the socket can be closed when that session ends
  *
  * One-time-use is what keeps a leaked ticket from granting more than a
  * single connection. The TTL keeps the in-memory map bounded.
@@ -19,8 +20,12 @@
 
 import { randomBytes } from 'node:crypto'
 
-interface TicketEntry {
+export interface TicketOwner {
   userId: string
+  sessionId: string
+}
+
+interface TicketEntry extends TicketOwner {
   expiresAt: number
 }
 
@@ -39,29 +44,32 @@ function sweepExpired(): void {
  * via the usual session middleware — this function is only called from
  * `POST /realtime/ticket`, which sits behind `requireAuth`.
  */
-export function mintTicket(userId: string): {
+export function mintTicket(
+  userId: string,
+  sessionId: string,
+): {
   ticket: string
   expiresAt: number
 } {
   sweepExpired()
   const token = randomBytes(32).toString('base64url')
   const expiresAt = Date.now() + TTL_MS
-  tickets.set(token, { userId, expiresAt })
+  tickets.set(token, { userId, sessionId, expiresAt })
   return { ticket: token, expiresAt }
 }
 
 /**
- * Redeem a ticket for its userId. Removes it on use (one-time) and returns
+ * Redeem a ticket for its owner. Removes it on use (one-time) and returns
  * null for unknown / expired / already-redeemed tickets. The caller
  * (WS upgrade handler) treats null as "401, reject upgrade".
  */
-export function redeemTicket(token: string): string | null {
+export function redeemTicket(token: string): TicketOwner | null {
   sweepExpired()
   const entry = tickets.get(token)
   if (!entry) return null
   tickets.delete(token)
   if (entry.expiresAt <= Date.now()) return null
-  return entry.userId
+  return { userId: entry.userId, sessionId: entry.sessionId }
 }
 
 /**

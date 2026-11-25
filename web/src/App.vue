@@ -54,6 +54,7 @@ import HotkeysMenu from '@/components/HotkeysMenu.vue'
 import ImpersonationBanner from '@/components/ImpersonationBanner.vue'
 import OnboardingDialog from '@/components/onboarding/OnboardingDialog.vue'
 import KeyRestoreDialog from '@/components/identity/KeyRestoreDialog.vue'
+import RecoveryWordsPrompt from '@/components/identity/RecoveryWordsPrompt.vue'
 import { Toaster } from '@/components/ui/sonner'
 import SyncQueueDialog from '@/components/sync/SyncQueueDialog.vue'
 import { TransitionSlide } from '@morev/vue-transitions'
@@ -261,7 +262,7 @@ async function bootstrapAuthenticatedUser() {
   // Initialize friend locations layer (watches visibility and polls accordingly)
   // Requires social permissions — skip for free users to avoid 403s
   if (authService.hasPermission(PermissionId.SOCIAL_READ)) {
-    friendLocationsLayer.initialize()
+    void friendLocationsLayer.initialize()
   }
   // Initialize tracker locations layer (handles marker click → detail navigation)
   trackerLocationsLayer.initialize()
@@ -319,6 +320,7 @@ watch(
     if (id && !previous) void bootstrapAuthenticatedUser()
     else if (!id && previous) {
       authBootstrapped = false
+      friendLocationsLayer.cleanup()
       realtimeDisconnect()
     }
   },
@@ -362,7 +364,10 @@ function beforeNavTransition(value: boolean) {
     @chrome="onboardingChromeIn = true"
     @complete="onboardingFinishing = false; onboardingChromeIn = false"
   />
-  <KeyRestoreDialog v-else-if="authStore.me" />
+  <template v-else-if="authStore.me">
+    <KeyRestoreDialog />
+    <RecoveryWordsPrompt />
+  </template>
 
   <div v-for="dialog in dialogs" :key="dialog.id">
     <component

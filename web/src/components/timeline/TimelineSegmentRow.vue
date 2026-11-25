@@ -1,99 +1,54 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import {
-  CarIcon,
-  FootprintsIcon,
-  BikeIcon,
-  TrainIcon,
-} from 'lucide-vue-next'
-import { TravelMode } from '@server/types/unified-routing.types'
-import { getTravelModeColor } from '@/lib/directions/travel-mode-colors'
+import { useI18n } from 'vue-i18n'
+import dayjs from 'dayjs'
 import type { LocationHistorySegment } from '@server/types/location-history.types'
+import { getModeIcon } from '@/lib/directions/travel-mode-icons'
+import { getTravelModeColor } from '@/lib/directions/travel-mode-colors'
+import { formatDurationCompact } from '@/lib/time-format'
+import { distancePrecision, segmentModeKey } from '@/lib/timeline/timeline-days'
+import { useUnits } from '@/composables/useUnits'
 
 const props = defineProps<{
   segment: LocationHistorySegment
+  /** YYYY-MM-DD of the day this row is listed under. */
+  day: string
 }>()
 
-const modeIcon = computed(() => {
-  switch (props.segment.mode) {
-    case TravelMode.DRIVING:
-    case TravelMode.MOTORCYCLE:
-    case TravelMode.TRUCK:
-      return CarIcon
-    case TravelMode.CYCLING:
-      return BikeIcon
-    case TravelMode.TRANSIT:
-      return TrainIcon
-    case TravelMode.WALKING:
-    default:
-      return FootprintsIcon
-  }
-})
+const { t } = useI18n()
+const { formatDistance } = useUnits()
 
-const modeColor = computed(() => getTravelModeColor(props.segment.mode))
+const title = computed(() =>
+  t(`timeline.modes.${segmentModeKey(props.segment.mode)}`, {
+    distance: formatDistance(props.segment.distance, {
+      precision: distancePrecision(props.segment.distance),
+    }),
+  }),
+)
 
-const modeVerb = computed(() => {
-  switch (props.segment.mode) {
-    case TravelMode.DRIVING:
-    case TravelMode.MOTORCYCLE:
-    case TravelMode.TRUCK:
-      return 'Drove'
-    case TravelMode.CYCLING:
-      return 'Cycled'
-    case TravelMode.TRANSIT:
-      return 'Transit'
-    case TravelMode.WALKING:
-    default:
-      return 'Walked'
-  }
-})
-
-const timeLabel = computed(() => {
-  const d = new Date(props.segment.startTime)
-  const h = d.getHours()
-  const m = d.getMinutes()
-  const ampm = h >= 12 ? 'PM' : 'AM'
-  const h12 = h % 12 || 12
-  return `${h12}:${m.toString().padStart(2, '0')} ${ampm}`
-})
-
-const distanceLabel = computed(() => {
-  const km = props.segment.distance / 1000
-  if (km < 1) return `${Math.round(props.segment.distance)} m`
-  return `${km.toFixed(km < 10 ? 1 : 0)} km`
-})
-
-const durationLabel = computed(() => {
-  const totalMin = Math.max(1, Math.round(props.segment.duration / 60))
-  if (totalMin < 60) return `${totalMin} min`
-  const hours = Math.floor(totalMin / 60)
-  const min = totalMin % 60
-  return min === 0 ? `${hours}h` : `${hours}h ${min}m`
-})
-
-const title = computed(() => {
-  if (props.segment.toStopId) {
-    return `${modeVerb.value}`
-  }
-  return modeVerb.value
+const startLabel = computed(() => {
+  const start = dayjs(props.segment.startTime)
+  return start.format(start.format('YYYY-MM-DD') === props.day ? 'h:mm A' : 'ddd h:mm A')
 })
 </script>
 
 <template>
-  <div class="tl-event" data-kind="travel">
-    <div class="time">{{ timeLabel }}</div>
-    <div class="title">{{ title }}</div>
-    <div class="meta">
-      <span class="meta-mode">
-        <component
-          :is="modeIcon"
-          class="size-[11px]"
-          :style="{ color: modeColor }"
-        />
-      </span>
-      <span>{{ durationLabel }}</span>
-      <span class="dot" />
-      <span>{{ distanceLabel }}</span>
+  <li class="relative pl-6">
+    <span
+      class="absolute left-0 top-2 flex size-5 items-center justify-center rounded-full bg-background"
+      aria-hidden="true"
+    >
+      <component
+        :is="getModeIcon(segment.mode)"
+        class="size-3.5"
+        :style="{ color: getTravelModeColor(segment.mode) }"
+      />
+    </span>
+    <div class="px-2 py-2">
+      <div class="text-sm text-muted-foreground leading-snug">{{ title }}</div>
+      <div class="text-xs text-muted-foreground/80 tabular-nums mt-0.5">
+        {{ startLabel }} · {{ formatDurationCompact(segment.duration) }}
+      </div>
     </div>
-  </div>
+  </li>
 </template>

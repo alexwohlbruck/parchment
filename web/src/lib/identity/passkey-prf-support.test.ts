@@ -13,7 +13,7 @@ import {
   base64urlToBytes,
   extractPrfOutputFromRegistration,
   extractPrfOutputFromAssertion,
-  registrationHasPrfEnabled,
+  withoutPrfOutput,
   isProbablyPrfSupported,
   hydratePrfExtensionInPlace,
 } from './passkey-prf-support'
@@ -119,23 +119,6 @@ describe('extractPrfOutputFromRegistration / Assertion', () => {
     }
     expect(extractPrfOutputFromRegistration(r)).toBeNull()
   })
-
-  test('registrationHasPrfEnabled returns true only when prf.enabled === true', () => {
-    expect(registrationHasPrfEnabled({})).toBe(false)
-    expect(
-      registrationHasPrfEnabled({ clientExtensionResults: {} }),
-    ).toBe(false)
-    expect(
-      registrationHasPrfEnabled({
-        clientExtensionResults: { prf: { enabled: false } },
-      }),
-    ).toBe(false)
-    expect(
-      registrationHasPrfEnabled({
-        clientExtensionResults: { prf: { enabled: true } },
-      }),
-    ).toBe(true)
-  })
 })
 
 describe('hydratePrfExtensionInPlace', () => {
@@ -217,5 +200,31 @@ describe('isProbablyPrfSupported', () => {
     // must return a boolean either way (no throws).
     const result = isProbablyPrfSupported()
     expect(typeof result).toBe('boolean')
+  })
+})
+
+describe('withoutPrfOutput', () => {
+  test('drops the PRF output but keeps the rest of the response', () => {
+    const response = {
+      id: 'cred',
+      response: { clientDataJSON: 'x' },
+      clientExtensionResults: {
+        credProps: { rk: true },
+        prf: { enabled: true, results: { first: 'c2VjcmV0' } },
+      },
+    }
+
+    expect(withoutPrfOutput(response)).toEqual({
+      id: 'cred',
+      response: { clientDataJSON: 'x' },
+      clientExtensionResults: { credProps: { rk: true }, prf: { enabled: true } },
+    })
+    expect(response.clientExtensionResults.prf.results.first).toBe('c2VjcmV0')
+  })
+
+  test('returns a response without PRF output unchanged', () => {
+    const response = { id: 'cred', clientExtensionResults: {} }
+
+    expect(withoutPrfOutput(response)).toBe(response)
   })
 })

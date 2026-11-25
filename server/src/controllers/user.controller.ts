@@ -22,7 +22,10 @@ import { permissions, requireAuth } from '../middleware/auth.middleware'
 import { PermissionId } from '../types/auth.types'
 import {
   updateUserAlias,
+  isAliasAvailable,
+  getUserHandle,
   updateUserKeys,
+  KeysAlreadyRegistered,
   getUserIdentity,
   updateUserDisplayProfile,
 } from '../services/user.service'
@@ -30,9 +33,19 @@ import { emit } from '../services/realtime/emit'
 import { publish } from '../services/realtime/event-bus.service'
 import { resetUserIdentity } from '../services/identity-reset.service'
 import {
+  beginStepUp,
+  verifyStepUp,
+  type StepUpProof,
+} from '../services/step-up.service'
+import { byUser, rateLimitHandler } from '../middleware/rate-limit.middleware'
+import { purgeHandle } from '../services/handle-references.service'
+import { closeUserConnections } from '../services/realtime/registry.service'
+import {
   getUserKmVersion,
   commitRotation,
   RotationConflict,
+  RotationIncomplete,
+  RotationBlocked,
 } from '../services/km-rotation.service'
 import {
   getOrCreateUserPreferences,
@@ -779,7 +792,12 @@ app.group('', (admin) =>
         }
 
         await lucia.invalidateUserSessions(params.id)
-        await db.delete(users).where(eq(users.id, params.id))
+        const handle = await getUserHandle(params.id)
+        await db.transaction(async (tx) => {
+          if (handle) await purgeHandle(tx, handle)
+          await tx.delete(users).where(eq(users.id, params.id))
+        })
+        closeUserConnections(params.id)
 
         return status(204)
       },
@@ -856,26 +874,88 @@ app.group('', (admin) =>
  * Requires `confirm: 'erase-all-my-data'` in the body — a deliberate
  * speed-bump against accidental calls.
  */
+const stepUpCookie = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax',
+  path: '/',
+  maxAge: 5 * 60,
+} as const
+
+const stepUpRateLimit = rateLimitHandler(
+  { name: 'identity-reset-step-up', limit: 10, windowMs: 15 * 60_000 },
+  byUser,
+)
+
+app.use(requireAuth).post(
+  '/me/identity/reset/step-up',
+  async ({ user, body, cookie: { step_up_challenge }, language }) => {
+    const challenge = await beginStepUp(user.id, {
+      preferEmail: body?.method === 'email',
+      language,
+    })
+    if (challenge.method === 'passkey') {
+      step_up_challenge.set({
+        value: challenge.options.challenge,
+        ...stepUpCookie,
+      })
+    }
+    return challenge
+  },
+  {
+    beforeHandle: stepUpRateLimit,
+    body: t.Optional(
+      t.Object({ method: t.Optional(t.Literal('email')) }),
+    ),
+    detail: {
+      tags: ['Users', 'Federation'],
+      description:
+        'Start the re-authentication an identity reset requires. Returns ' +
+        'passkey assertion options when the user has a passkey, otherwise ' +
+        'emails a one-time code. Pass `method: "email"` to force the code. ' +
+        'Shares a limit of 10 a user every 15 minutes with the reset itself.',
+    },
+  },
+)
+
 app.use(requireAuth).post(
   '/me/identity/reset',
-  async ({ user, body, status, t }) => {
+  async ({ user, body, status, t, cookie: { step_up_challenge } }) => {
     if (body.confirm !== 'erase-all-my-data') {
       return status(400, {
         message: t('errors.user.eraseConfirmationRequired'),
       })
     }
+    const expected =
+      typeof step_up_challenge.value === 'string'
+        ? step_up_challenge.value
+        : undefined
+    step_up_challenge.remove()
+    const verified = await verifyStepUp(
+      user.id,
+      { passkey: body.passkey as StepUpProof['passkey'], code: body.code },
+      expected,
+    )
+    if (!verified) {
+      return status(401, { message: t('errors.user.stepUpFailed') })
+    }
     await resetUserIdentity(user.id)
     return { success: true }
   },
   {
+    beforeHandle: stepUpRateLimit,
     body: t.Object({
       confirm: t.Literal('erase-all-my-data'),
+      code: t.Optional(t.String({ maxLength: 16 })),
+      passkey: t.Optional(t.Any()),
     }),
     detail: {
       tags: ['Users', 'Federation'],
       description:
         "Last-resort: wipe all of this user's encrypted data and clear " +
         'the federation identity so they can re-run identity setup. ' +
+        'Requires a fresh step-up from `/me/identity/reset/step-up`: the ' +
+        'passkey assertion as `passkey`, or the emailed code as `code`. ' +
         'Session + passkeys survive; everything encrypted under the old ' +
         'seed is gone. Irreversible.',
     },
@@ -978,7 +1058,9 @@ app.use(requireAuth).get(
   {
     detail: {
       tags: ['Users', 'Federation'],
-      description: 'Get current user federation identity (handle, keys)',
+      description:
+        'Get current user federation identity (handle, keys, and the ' +
+        'master-key version those keys belong to)',
     },
   },
 )
@@ -1031,14 +1113,7 @@ app.use(requireAuth).get(
       return { available: false }
     }
 
-    const existing = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.alias, alias))
-      .limit(1)
-
-    const taken = existing[0] && existing[0].id !== user.id
-    return { available: !taken }
+    return { available: await isAliasAvailable(alias, user.id) }
   },
   {
     query: t.Object({
@@ -1056,12 +1131,16 @@ app.use(requireAuth).get(
  */
 app.use(requireAuth).put(
   '/me/keys',
-  async ({ user, body, set }) => {
+  async ({ user, body, status }) => {
     const { signingKey, encryptionKey } = body
-
-    await updateUserKeys(user.id, signingKey, encryptionKey)
-
-    set.status = 200
+    try {
+      await updateUserKeys(user.id, signingKey, encryptionKey)
+    } catch (err) {
+      if (err instanceof KeysAlreadyRegistered) {
+        return status(409, { message: err.message })
+      }
+      throw err
+    }
     return { success: true }
   },
   {
@@ -1071,7 +1150,10 @@ app.use(requireAuth).put(
     }),
     detail: {
       tags: ['Users', 'Federation'],
-      description: 'Register or update federation public keys',
+      description:
+        'Register federation public keys. Succeeds when the account has none ' +
+        'yet or already holds exactly these; 409 when different keys are ' +
+        'registered (those change only via rotation commit or identity reset).',
     },
   },
 )
@@ -1136,6 +1218,17 @@ app.use(requireAuth).get(
  * slot → CAS advance). If the CAS failed after those PUTs, the server
  * already had the loser's public keys and mixed data.
  */
+const rotationRecord = t.Object({
+  id: t.String(),
+  metadataEncrypted: t.Optional(t.String()),
+  bodyEncrypted: t.Optional(t.String()),
+})
+const rotationEnvelope = t.Object({
+  id: t.String(),
+  encryptedData: t.String(),
+  nonce: t.String(),
+})
+
 app.use(requireAuth).post(
   '/me/km-version/commit',
   async ({ user, body, status }) => {
@@ -1147,12 +1240,24 @@ app.use(requireAuth).post(
         encryptionKey: body.encryptionKey,
         blobs: body.blobs,
         collections: body.collections,
+        routes: body.routes,
+        canvases: body.canvases,
+        shares: body.shares,
+        incomingShares: body.incomingShares,
+        friendPins: body.friendPins,
         slots: body.slots,
+        recoveryKeyConfirmed: body.recoveryKeyConfirmed,
       })
       return { kmVersion: nextKmVersion }
     } catch (err) {
       if (err instanceof RotationConflict) {
         return status(409, { message: err.message })
+      }
+      if (err instanceof RotationIncomplete) {
+        return status(422, { message: err.message, missing: err.missing })
+      }
+      if (err instanceof RotationBlocked) {
+        return status(422, { message: err.message })
       }
       throw err
     }
@@ -1181,6 +1286,19 @@ app.use(requireAuth).post(
           }),
         ),
       ),
+      routes: t.Optional(t.Array(rotationRecord)),
+      canvases: t.Optional(t.Array(rotationRecord)),
+      shares: t.Optional(t.Array(rotationEnvelope)),
+      incomingShares: t.Optional(t.Array(rotationEnvelope)),
+      friendPins: t.Optional(
+        t.Array(
+          t.Object({
+            friendHandle: t.String(),
+            encryptedPin: t.String(),
+            nonce: t.String(),
+          }),
+        ),
+      ),
       slots: t.Optional(
         t.Array(
           t.Object({
@@ -1191,14 +1309,19 @@ app.use(requireAuth).post(
           }),
         ),
       ),
+      recoveryKeyConfirmed: t.Optional(t.Boolean()),
     }),
     detail: {
       tags: ['Users', 'KmRotation'],
       description:
-        'Atomic rotation commit. Applies new public keys, re-encrypted ' +
-        'blobs, re-encrypted collection envelopes, and re-sealed slots ' +
-        'in a single transaction gated by a CAS on kmVersion. 409 on ' +
-        'conflict — nothing is written.',
+        'Atomic rotation commit. Applies new public keys and every record ' +
+        're-encrypted under the new seed (blobs, collections and points, ' +
+        'routes, canvases, share envelopes both ways, friend pins, passkey ' +
+        'slots) in one transaction gated by a CAS on kmVersion. Slots not ' +
+        're-sealed are deleted. 409 when another device rotated first; 422 ' +
+        'when a seed-derived record is missing, a private collection is ' +
+        'shared with another server, or neither a slot nor a confirmed ' +
+        'recovery key would unlock the new keys. Nothing is written on error.',
     },
   },
 )
@@ -1249,6 +1372,7 @@ const AppPreferencesSchema = t.Partial(
       map: clientSettings('Map look and behavior that suits any device: basemap, labels, projection, snapping.'),
       general: clientSettings('Floor numbering and where the home sheet opens.'),
       layerAppearances: clientSettings('The look chosen for each built-in layer, by layer id.'),
+      security: clientSettings('The signing key whose recovery words the user has confirmed they saved.'),
     },
     { additionalProperties: false },
   ),
@@ -1275,7 +1399,7 @@ app.use(requireAuth).get(
       description:
         'Get current user preferences: language, unit system, navigation, Ask and app. ' +
         'Each navigation section (excludedModes, sortPreference, routing, speech, ' +
-        'guidance) and app section (theme, map, general, layerAppearances) is ' +
+        'guidance) and app section (theme, map, general, layerAppearances, security) is ' +
         'absent until first saved.',
     },
   },

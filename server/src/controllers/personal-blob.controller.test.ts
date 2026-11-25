@@ -37,9 +37,15 @@ const listPersonalBlobTypes = mock(async (_userId: string) => [
 // constant) needs it to resolve against the mocked module.
 const getPersonalBlobsByTypePrefix = mock(async (_userId: string, _prefix: string) => [])
 
+class StaleKmVersion extends Error {
+  constructor(readonly current: number) {
+    super('stale')
+  }
+}
 mock.module('../services/personal-blob.service', () => ({
   getPersonalBlob,
   putPersonalBlob,
+  StaleKmVersion,
   deletePersonalBlob,
   listPersonalBlobTypes,
   getPersonalBlobsByTypePrefix,
@@ -160,6 +166,19 @@ describe('PUT /me/blobs/:type', () => {
       nonce: '',
       kmVersion: 1,
     })
+  })
+
+  test('409s with the current version when the blob is sealed under an old key', async () => {
+    putPersonalBlob.mockImplementationOnce(async () => {
+      throw new StaleKmVersion(6)
+    })
+
+    const res = await req(app).put('/me/blobs/settings', {
+      body: { encryptedBlob: 'ciphertext', kmVersion: 5 },
+    })
+
+    expect(res.status).toBe(409)
+    expect(res.body.kmVersion).toBe(6)
   })
 
   test('rejects a body with no encryptedBlob', async () => {

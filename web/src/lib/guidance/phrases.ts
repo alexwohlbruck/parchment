@@ -3,7 +3,8 @@
 
 import { maneuverKind } from '@/lib/directions/maneuver'
 import type { RouteInstruction } from '@/types/directions.types'
-import type { Announcement } from './announcements'
+import type { Announcement, BoardingCue } from './announcements'
+import { waitMinutes } from '@/lib/transit/station/boarding'
 import { bannerDistance } from './guidance-display'
 import type { Handoff } from './handoff'
 import { formatDurationLong } from '@/lib/time-format'
@@ -57,6 +58,19 @@ export function handoffText(handoff: Handoff, t: TFn): string {
   return `${base}, ${then}`
 }
 
+/** "Board near the front for the Canal St exit", or the walk there while the train is a few minutes off. */
+export function boardingCueText(cue: BoardingCue, t: TFn): string {
+  const section = t(`directions.station.section.${cue.section}`)
+  const target = cue.target && t(`guidance.transit.voice.target.${cue.target.kind}`, { name: cue.target.name })
+  if (cue.waitSeconds != null) {
+    const duration = formatDurationLong(waitMinutes(cue.waitSeconds) * 60)
+    return target
+      ? t('guidance.transit.voice.waitWalkFor', { duration, section, target })
+      : t('guidance.transit.voice.waitWalk', { duration, section })
+  }
+  return target ? t('guidance.transit.voice.boardNearFor', { section, target }) : t('guidance.transit.voice.boardNear', { section })
+}
+
 export function announcementText(announcement: Announcement, metric: boolean, t: TFn): string {
   switch (announcement.kind) {
     case 'start': {
@@ -90,13 +104,17 @@ export function announcementText(announcement: Announcement, metric: boolean, t:
     case 'transit': {
       const { event, line, headsign, direction, stop } = announcement
       if (event === 'wait') {
-        if (direction) return t('guidance.transit.voice.boardSigned', { line, direction })
-        return headsign ? t('guidance.transit.voice.boardToward', { line, headsign }) : t('guidance.transit.voice.board', { line })
+        const board = direction
+          ? t('guidance.transit.voice.boardSigned', { line, direction })
+          : headsign ? t('guidance.transit.voice.boardToward', { line, headsign }) : t('guidance.transit.voice.board', { line })
+        return announcement.boarding ? `${board}. ${boardingCueText(announcement.boarding, t)}` : board
       }
       return t(`guidance.transit.voice.${event}`, { line, stop })
     }
     case 'border':
       return t('guidance.voice.welcome', { region: announcement.region })
+    case 'station-step':
+      return announcement.text
     case 'vehicle-question':
       return t(`guidance.transit.whichVehicle.${announcement.vehicle}`)
     case 'arrived':

@@ -50,6 +50,11 @@ export function parseVenueLevels(levels: unknown, names: unknown): IndoorLevel[]
     .map(level => ({ level, name: named.get(level) ?? levelNumber(level) }))
 }
 
+/** The names the venue's signs give its levels, leaving out the ones only numbered. */
+export function signedLevelNames(venue: IndoorVenue): Map<number, string> {
+  return new Map(venue.levels.filter(({ level, name }) => name !== levelNumber(level)).map(({ level, name }) => [level, name]))
+}
+
 /** 0 is G and basements are B1, B2…, as most building signage numbers them. */
 function levelNumber(level: number): string {
   if (level === 0) return 'G'
@@ -59,6 +64,21 @@ function levelNumber(level: number): string {
 
 /** A venue opens on its default floor, unless that is underground: then on its outside, until asked. */
 export const openingLevel = (venue: IndoorVenue) => (venue.defaultLevel >= 0 ? venue.defaultLevel : null)
+
+/** A floor a guided step asks the picker for; `key` names the step, so asking again for the same one changes nothing. */
+export type FloorRequest = { key: string; level: number | null }
+
+/** The floor to show: a step's, unless the rider picked one since; else the last picked; else the opening floor. */
+export function venueLevel(
+  venue: IndoorVenue,
+  picked: ReadonlyMap<number, number | null>,
+  request: FloorRequest | null,
+  pickedSinceRequest: boolean,
+): number | null {
+  const asked = request?.level
+  if (asked != null && !pickedSinceRequest && venue.levels.some(l => l.level === asked)) return asked
+  return picked.has(venue.id) ? picked.get(venue.id)! : openingLevel(venue)
+}
 
 /**
  * The venue under the centre of the view, else the nearest one

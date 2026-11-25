@@ -24,6 +24,10 @@ import { rotateAllForUser } from './device-wrap-secrets.service'
 import { derivePrfSalt, bytesToBase64url } from '../lib/passkey-prf'
 import { wrappedMasterKeys } from '../schema/wrapped-master-keys.schema'
 import { logger } from '../lib/logger'
+import {
+  closeSessions,
+  closeUserConnections,
+} from './realtime/registry.service'
 
 // Webauthn relaying party information
 export const rpName = appName
@@ -76,6 +80,7 @@ export async function destroySession(cookie: Context['cookie']) {
   const sessionCookie = cookie['auth_session']
   if (typeof sessionCookie.value === 'string') {
     await db.delete(sessions).where(eq(sessions.id, sessionCookie.value))
+    closeSessions([sessionCookie.value])
   }
   sessionCookie.path = '/'
   sessionCookie.remove()
@@ -92,6 +97,7 @@ export async function destroySession(cookie: Context['cookie']) {
  */
 export async function destroyAllSessions(userId: User['id']) {
   await db.delete(sessions).where(eq(sessions.userId, userId))
+  closeUserConnections(userId)
   await rotateAllForUser(userId)
 }
 
@@ -113,6 +119,7 @@ export async function destroyOtherSessions(
   await db
     .delete(sessions)
     .where(and(eq(sessions.userId, userId), ne(sessions.id, currentSessionId)))
+  closeUserConnections(userId, { exceptSessionId: currentSessionId })
   await rotateAllForUser(userId, { excludeDeviceId: currentDeviceId })
 }
 

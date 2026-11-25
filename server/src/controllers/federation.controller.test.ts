@@ -27,7 +27,7 @@ mock.module('../services/federation.service', () => ({
 let authThrows: Error | null = null
 const verifyInboundRequest = mock(async (_args: unknown) => {
   if (authThrows) throw authThrows
-  return { senderServerId: 'peer.example', protocolVersion: 2 }
+  return { senderServerId: 'peer.example', protocolVersion: 2, nonce: 'nonce-1' }
 })
 
 mock.module('../services/federation-auth.service', () => ({
@@ -189,7 +189,7 @@ describe('POST /federation/inbox — message handling', () => {
     expect(res.body.message).toBe('Failed to process message')
   })
 
-  test('accepts a legacy v1 message shape', async () => {
+  test('rejects a legacy v1 message shape', async () => {
     const legacy = {
       type: 'FRIEND_INVITE',
       from: 'bob@peer.example',
@@ -201,10 +201,29 @@ describe('POST /federation/inbox — message handling', () => {
 
     const res = await req(app).post('/federation/inbox', { body: legacy })
 
-    expect(res.status).toBe(202)
+    expect(res.status).toBe(422)
+    expect(processFederationMessage).not.toHaveBeenCalled()
   })
 
-  for (const field of ['from', 'to', 'timestamp', 'signature'] as const) {
+  test('401s when the sender is hosted on a different server', async () => {
+    const res = await req(app).post('/federation/inbox', {
+      body: { ...validMessage, from: 'carol@victim.example' },
+    })
+
+    expect(res.status).toBe(401)
+    expect(processFederationMessage).not.toHaveBeenCalled()
+  })
+
+  test('401s when the transport nonce differs from the message nonce', async () => {
+    const res = await req(app).post('/federation/inbox', {
+      body: { ...validMessage, nonce: 'other-nonce' },
+    })
+
+    expect(res.status).toBe(401)
+    expect(processFederationMessage).not.toHaveBeenCalled()
+  })
+
+  for (const field of ['from', 'to', 'timestamp', 'signature', 'nonce', 'payload'] as const) {
     test(`422s when ${field} is missing`, async () => {
       const body: Record<string, unknown> = { ...validMessage }
       delete body[field]

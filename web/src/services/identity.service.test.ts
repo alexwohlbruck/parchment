@@ -227,19 +227,22 @@ describe('enrollPasskeySlot', () => {
     expect(onSecondTapNeeded).toHaveBeenCalledOnce()
   })
 
-  test("no slow-path attempt when prf.enabled is not true (authenticator can't do PRF at all)", async () => {
+  test('slow path — runs the follow-up even when the provider never reports prf.enabled', async () => {
     const seed = generateSeed()
     const keys = deriveAllKeys(seed)
+    const prfOutput = new Uint8Array(32).fill(0x77)
+
+    postHandlers.set('/users/me/wrapped-keys', () => ({
+      data: { success: true },
+    }))
 
     const registerPasskey = vi.fn(async (_name: string) => ({
       passkey: { id: credentialId },
-      attestationResponse: {
-        // Authenticator didn't process the PRF extension at all.
-        clientExtensionResults: {},
-      },
+      attestationResponse: { clientExtensionResults: { prf: { enabled: false } } },
     }))
-    const assertExistingPasskeyForPrf = vi.fn()
-    const onSecondTapNeeded = vi.fn()
+    const assertExistingPasskeyForPrf = vi.fn(async () =>
+      fakeAssertionWithPrf(credentialId, prfOutput),
+    )
 
     const result = await enrollPasskeySlot({
       passkeyName: 'Test',
@@ -248,19 +251,39 @@ describe('enrollPasskeySlot', () => {
       userId,
       registerPasskey,
       assertExistingPasskeyForPrf,
-      onSecondTapNeeded,
+    })
+
+    expect(result).toMatchObject({ slotCreated: true, secondTapUsed: true })
+  })
+
+  test("reports 'prf-unavailable' when neither ceremony returns PRF output", async () => {
+    const seed = generateSeed()
+    const keys = deriveAllKeys(seed)
+
+    const registerPasskey = vi.fn(async (_name: string) => ({
+      passkey: { id: credentialId },
+      attestationResponse: { clientExtensionResults: {} },
+    }))
+    const assertExistingPasskeyForPrf = vi.fn(async () => ({
+      clientExtensionResults: {},
+    }))
+
+    const result = await enrollPasskeySlot({
+      passkeyName: 'Test',
+      seed,
+      keys,
+      userId,
+      registerPasskey,
+      assertExistingPasskeyForPrf,
     })
 
     expect(result).toMatchObject({
       slotCreated: false,
       passkeyId: credentialId,
       reason: 'prf-unavailable',
-      secondTapUsed: false,
+      secondTapUsed: true,
     })
-    // Critical: we must NOT waste a second tap on an authenticator
-    // that can't service PRF. prf.enabled is the signal.
-    expect(assertExistingPasskeyForPrf).not.toHaveBeenCalled()
-    expect(onSecondTapNeeded).not.toHaveBeenCalled()
+    expect(assertExistingPasskeyForPrf).toHaveBeenCalledOnce()
   })
 
   test("slow path cancellation — user aborts second tap, still reports 'prf-unavailable'", async () => {
@@ -269,10 +292,8 @@ describe('enrollPasskeySlot', () => {
 
     const registerPasskey = vi.fn(async () => ({
       passkey: { id: credentialId },
-      // prf.enabled is true, so we DO attempt the second ceremony…
       attestationResponse: { clientExtensionResults: { prf: { enabled: true } } },
     }))
-    // …but the user cancels the second tap.
     const assertExistingPasskeyForPrf = vi.fn(async () => {
       const err = new Error('The operation either timed out or was not allowed')
       err.name = 'NotAllowedError'

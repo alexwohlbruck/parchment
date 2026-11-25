@@ -15,6 +15,8 @@ import { fetchWidgetData } from '../services/widget.service'
 import { fetchNearestStreetImage } from '../services/street-imagery.service'
 import { getStayRates } from '../services/stay.service'
 import { isValidStay, MAX_STAY_ADULTS } from '../lib/place/stay-dates'
+import { isVenueId, isVenueProvider } from '../lib/place/booking-venues'
+import { getBookingVenues } from '../services/place/booking-venues.service'
 import { logError, logger } from '../lib/logger'
 import { i18nPlugin } from '../lib/i18n/plugin'
 import type { Source } from '../lib/constants'
@@ -289,7 +291,7 @@ app.get(
       return status(400, { message: t('errors.place.invalidStay') })
     }
     try {
-      const rates = await getStayRates({ source: query.source, id: query.id }, {
+      const rates = await getStayRates(query.source as Source, query.id, {
         checkin: query.checkin,
         checkout: query.checkout,
         adults: query.adults ?? 2,
@@ -316,7 +318,7 @@ app.get(
       tags: ['Places'],
       summary: 'Get live room rates for a hotel',
       description:
-        'Looks up the place\'s stored listing on the hotel rates provider (LiteAPI) and returns the cheapest offer per room for the dates and guests, each with a checkout link for that exact offer. `rates` is null when no provider is configured or the place has no matched listing. Stays run 1 to 30 nights. Cached for 10 minutes.',
+        'Uses the place\'s stored LiteAPI listing, matching one the first time (a nearby hotel with the same name within 250 m) and storing the result, a miss included, and returns the cheapest offer per room for the dates and guests, each with a checkout link for that exact offer. `rates` is null when no provider is configured or the place has no matched listing. Stays run 1 to 30 nights. Cached for 10 minutes.',
     },
   },
 )
@@ -369,6 +371,9 @@ app.group('/listings', (listings) =>
     .put(
       '/',
       async ({ body, status, t }) => {
+        if (body.providerPlaceId && isVenueProvider(body.provider) && !isVenueId(body.provider, body.providerPlaceId)) {
+          return status(400, { message: t('errors.place.listingInvalid') })
+        }
         const stored = await correctListing(body.source as Source, body.id, body.provider, body.providerPlaceId)
         if (!stored) return status(400, { message: t('errors.place.listingUnsupported') })
         return { ok: true }
@@ -383,10 +388,33 @@ app.group('/listings', (listings) =>
           tags: ['Places'],
           summary: 'Correct the listing a place is matched to',
           description:
-            'Sets the listing for one provider, or `providerPlaceId: null` for none. Stored as a confirmed match that automatic matching never replaces. OSM places only.',
+            'Sets the listing for one provider, or `providerPlaceId: null` for none. Stored as a confirmed match that automatic matching never replaces. OSM places only. Booking sites (`opentable`, `resy`, `booking`, `expedia`) take the venue id parsed from its page URL, e.g. `r/<slug>` or `us/<hotel>`; anything else is a 400.',
         },
       },
     ),
 )
+
+// The place's own page on each booking site, so links open the venue rather than a search.
+app.get(
+  '/booking-venues',
+  async ({ query, status }) => {
+    try {
+      return await getBookingVenues(query.source as Source, query.id)
+    } catch (err) {
+      logError('Error fetching booking venues', err)
+      return status(502, { message: err instanceof Error ? err.message : 'Error fetching booking venues' })
+    }
+  },
+  {
+    query: t.Object(placeKey),
+    detail: {
+      tags: ['Places'],
+      summary: "Get a place's venues on booking sites",
+      description:
+        'Venue ids on OpenTable, Resy, Booking.com and Expedia from the match store, keyed by provider, plus `unlisted`: sites a person marked as not listing the place. A booking page tagged on the place (`reservation:website`, `website:booking`, …) fills its site in on first request, unconfirmed.',
+    },
+  },
+)
+
 
 export default app

@@ -1,0 +1,81 @@
+import { describe, expect, test } from 'bun:test'
+import { isVenueId, parseVenueUrl, venuePageUrl, venueProviderOf } from './booking-venues'
+
+describe('parseVenueUrl', () => {
+  test.each([
+    ['https://www.opentable.com/r/aita-trattoria-brooklyn?corrid=abc', 'r/aita-trattoria-brooklyn'],
+    ['opentable.com/r/aita-trattoria-brooklyn/', 'r/aita-trattoria-brooklyn'],
+    ['https://www.opentable.co.uk/en-gb/r/dishoom-shoreditch-london', 'r/dishoom-shoreditch-london'],
+    ['https://www.opentable.com/restref/client/?rid=1234&restref=1234', 'rid/1234'],
+    ['https://www.opentable.com/restaurant/profile/98765', 'rid/98765'],
+  ])('OpenTable %s', (url, id) => {
+    expect(parseVenueUrl('opentable', url)).toBe(id)
+  })
+
+  test.each([
+    ['https://resy.com/cities/new-york-ny/venues/aita-trattoria?date=2026-11-25&seats=2', 'new-york-ny/aita-trattoria'],
+    ['https://resy.com/cities/ny/lilia', 'ny/lilia'],
+  ])('Resy %s', (url, id) => {
+    expect(parseVenueUrl('resy', url)).toBe(id)
+  })
+
+  test.each([
+    ['https://www.booking.com/hotel/us/the-ludlow.html?aid=1', 'us/the-ludlow'],
+    ['https://www.booking.com/hotel/gb/the-hoxton-shoreditch.en-gb.html', 'gb/the-hoxton-shoreditch'],
+  ])('Booking.com %s', (url, id) => {
+    expect(parseVenueUrl('booking', url)).toBe(id)
+  })
+
+  test('Expedia hotel pages', () => {
+    expect(parseVenueUrl('expedia', 'https://www.expedia.com/New-York-Hotels-The-Ludlow.h1234567.Hotel-Information?chkin=2026-11-25')).toBe('1234567')
+  })
+
+  test('rejects search pages and other sites', () => {
+    expect(parseVenueUrl('opentable', 'https://www.opentable.com/s?term=aita')).toBeNull()
+    expect(parseVenueUrl('resy', 'https://resy.com/cities/new-york-ny/search?query=aita')).toBeNull()
+    expect(parseVenueUrl('booking', 'https://www.booking.com/searchresults.html?ss=ludlow')).toBeNull()
+    expect(parseVenueUrl('opentable', 'https://resy.com/cities/ny/lilia')).toBeNull()
+    expect(parseVenueUrl('booking', 'https://booking.com.evil.example/hotel/us/x.html')).toBeNull()
+    expect(parseVenueUrl('expedia', 'not a url')).toBeNull()
+  })
+})
+
+describe('venueProviderOf', () => {
+  test('recognises each booking site and nothing else', () => {
+    expect(venueProviderOf('https://www.opentable.com/r/x')).toBe('opentable')
+    expect(venueProviderOf('https://resy.com/cities/ny/x')).toBe('resy')
+    expect(venueProviderOf('https://secure.booking.com/hotel/us/x.html')).toBe('booking')
+    expect(venueProviderOf('https://www.expedia.co.uk/x.h1.Hotel-Information')).toBe('expedia')
+    expect(venueProviderOf('https://aita-restaurant.com/reservations')).toBeNull()
+  })
+})
+
+describe('venuePageUrl', () => {
+  const plan = { party: 3, day: '2026-11-27', checkout: '2026-11-29', tableTime: '2026-11-27T19:00' }
+
+  test('builds each venue page with the party and dates', () => {
+    expect(venuePageUrl('opentable', 'r/aita-trattoria-brooklyn', plan)).toBe(
+      'https://www.opentable.com/r/aita-trattoria-brooklyn?covers=3&dateTime=2026-11-27T19%3A00',
+    )
+    expect(venuePageUrl('opentable', 'rid/1234')).toBe('https://www.opentable.com/restref/client/?rid=1234')
+    expect(venuePageUrl('resy', 'new-york-ny/aita-trattoria', plan)).toBe(
+      'https://resy.com/cities/new-york-ny/venues/aita-trattoria?date=2026-11-27&seats=3',
+    )
+    expect(venuePageUrl('booking', 'us/the-ludlow', plan)).toBe(
+      'https://www.booking.com/hotel/us/the-ludlow.html?checkin=2026-11-27&checkout=2026-11-29&group_adults=3&no_rooms=1',
+    )
+    expect(venuePageUrl('expedia', '1234567', plan)).toBe(
+      'https://www.expedia.com/h1234567.Hotel-Information?chkin=2026-11-27&chkout=2026-11-29&rm1=a3',
+    )
+  })
+
+  test('refuses an id that could point anywhere else', () => {
+    expect(venuePageUrl('booking', '../../evil', plan)).toBeNull()
+    expect(isVenueId('resy', 'ny/lilia?x=1')).toBe(false)
+  })
+
+  test('round-trips a parsed URL', () => {
+    const id = parseVenueUrl('booking', 'https://www.booking.com/hotel/us/the-ludlow.html')!
+    expect(parseVenueUrl('booking', venuePageUrl('booking', id)!)).toBe(id)
+  })
+})

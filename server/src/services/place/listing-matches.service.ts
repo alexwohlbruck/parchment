@@ -8,8 +8,54 @@ import { IntegrationCapabilityId } from '../../types/integration.enums'
 import { integrationManager } from '../integrations'
 import { lookupPlaceById, lookupPlacesByNameAndLocation } from '../place.service'
 import { getProviderMatches, setProviderMatch } from './provider-matches.service'
+import { venueProvidersFor } from './booking-venues.service'
+import { isVenueProvider, venuePageUrl } from '../../lib/place/booking-venues'
+import { bookingKind } from '../../lib/place/booking-kind'
+import { HOTEL_SEARCH_RADIUS_M, hotelNameSimilarity, metresBetween, type HotelCandidate } from '../../lib/place/hotel-match'
+import { LITEAPI_PROVIDER, hotelRatesCapability } from '../stay.service'
 
 const CANDIDATE_RADIUS_M = 500
+const MAX_HOTEL_CANDIDATES = 20
+
+function summarizeHotel(hotel: HotelCandidate, origin?: { lat: number; lng: number }): ListingSummary {
+  const located = Number.isFinite(hotel.lat) && Number.isFinite(hotel.lng)
+  return {
+    id: hotel.id,
+    name: hotel.name,
+    address: hotel.address ?? null,
+    distance: origin && located ? Math.round(metresBetween(origin, hotel)) : null,
+  }
+}
+
+/** Providers this place can be matched at beyond the auto-matched ones: its hotel rates and booking sites. */
+function bookingProviders(place: Place | null): string[] {
+  const rates = bookingKind(place?.tags) === 'stay' && hotelRatesCapability() ? [LITEAPI_PROVIDER] : []
+  return [...rates, ...venueProvidersFor(place)]
+}
+
+async function storedSummary(
+  provider: string,
+  id: string,
+  center: { lat: number; lng: number } | undefined,
+  options: { language?: Language },
+): Promise<ListingSummary | null> {
+  if (isVenueProvider(provider)) {
+    return { id, name: null, address: null, distance: null, url: venuePageUrl(provider, id) }
+  }
+  if (provider === LITEAPI_PROVIDER) {
+    const hotel = await hotelRatesCapability()?.getHotel(id).catch(() => null)
+    return hotel ? summarizeHotel(hotel, center) : null
+  }
+  const found = hasCapability(provider, IntegrationCapabilityId.PLACE_INFO)
+    ? await lookupPlaceById(provider as Source, id, options).catch(() => null)
+    : null
+  return found ? summarize(found, center) : null
+}
+
+function isSearchable(provider: string): boolean {
+  if (provider === LITEAPI_PROVIDER) return !!hotelRatesCapability()
+  return hasCapability(provider, IntegrationCapabilityId.SEARCH)
+}
 
 function summarize(candidate: Place, origin?: { lat: number; lng: number }): ListingSummary | null {
   const provider = candidate.sources?.[0]?.id
@@ -48,6 +94,7 @@ export async function getPlaceListings(
   const center = place?.geometry?.value?.center
   const providers = new Set<string>([
     ...AUTO_MATCHED_PROVIDERS.filter((p) => hasCapability(p, IntegrationCapabilityId.PLACE_INFO)),
+    ...bookingProviders(place),
     ...Object.keys(stored),
   ])
   return Promise.all(
@@ -56,16 +103,14 @@ export async function getPlaceListings(
       const id = match?.providerPlaceId
       let listing: ListingSummary | null = null
       if (id) {
-        const found = hasCapability(provider, IntegrationCapabilityId.PLACE_INFO)
-          ? await lookupPlaceById(provider as Source, id, options).catch(() => null)
-          : null
-        listing = (found && summarize(found, center)) ?? { id, name: null, address: null, distance: null }
+        listing = (await storedSummary(provider, id, center, options)) ?? { id, name: null, address: null, distance: null }
       }
       return {
         provider,
         listing,
         confirmed: match?.confirmed ?? false,
-        searchable: hasCapability(provider, IntegrationCapabilityId.SEARCH),
+        searchable: isSearchable(provider),
+        acceptsUrl: isVenueProvider(provider),
       }
     }),
   )
@@ -82,6 +127,7 @@ export async function searchListingCandidates(
   const center = place?.geometry?.value?.center
   const query = options.query?.trim() || place?.name?.value
   if (!center || !query) return []
+  if (provider === LITEAPI_PROVIDER) return searchHotelCandidates(center, query)
   const otherSources = Object.values(SOURCE).filter((s) => s !== provider) as Source[]
   const found = await lookupPlacesByNameAndLocation(query, center, {
     radius: CANDIDATE_RADIUS_M,
@@ -98,6 +144,16 @@ export async function searchListingCandidates(
       return true
     })
     .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
+}
+
+/** LiteAPI hotels near the place, closest name first, then nearest. */
+async function searchHotelCandidates(center: { lat: number; lng: number }, query: string): Promise<ListingSummary[]> {
+  const hotels = (await hotelRatesCapability()?.findHotels(center, HOTEL_SEARCH_RADIUS_M)) ?? []
+  return hotels
+    .map((hotel) => ({ hotel, similarity: hotelNameSimilarity(hotel.name, query) }))
+    .sort((a, b) => b.similarity - a.similarity || metresBetween(center, a.hotel) - metresBetween(center, b.hotel))
+    .slice(0, MAX_HOTEL_CANDIDATES)
+    .map(({ hotel }) => summarizeHotel(hotel, center))
 }
 
 /** A person's correction: this listing, or `null` for none. Automatic matching won't override it. */

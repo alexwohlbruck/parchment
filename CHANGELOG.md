@@ -15,6 +15,7 @@
 
 ### Fixed
 
+* Building roofs keep the same shading when you turn map layers on or off.
 * Sharing a place copies its link when the browser can't open a share sheet.
 * Uploaded profile photos show up instead of a blank square.
 

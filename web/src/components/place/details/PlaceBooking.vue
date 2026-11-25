@@ -108,7 +108,7 @@ const nightOptions = computed(() => STAY_NIGHTS.map((n) => ({ value: n, label: t
         <span v-if="comparing" class="text-xs text-muted-foreground">{{ t('place.booking.offers.compare') }}</span>
         <Button
           v-for="link in links"
-          :key="link.provider"
+          :key="link.provider + (link.name ?? '')"
           as="a"
           :href="link.url"
           target="_blank"
@@ -118,7 +118,7 @@ const nightOptions = computed(() => STAY_NIGHTS.map((n) => ({ value: n, label: t
           class="gap-1.5"
           :class="comparing && 'h-7 px-2 text-xs'"
         >
-          {{ t(`place.booking.providers.${link.provider}`) }}
+          {{ link.name ?? t(`place.booking.providers.${link.provider}`) }}
           <ExternalLinkIcon class="size-3.5 text-muted-foreground" />
         </Button>
       </div>

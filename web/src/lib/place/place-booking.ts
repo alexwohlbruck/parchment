@@ -24,11 +24,13 @@ export {
   type ReservationPolicy,
 } from '@server/lib/place/booking-kind'
 
-export type BookingProvider = VenueProvider | 'venue' | 'googleHotels' | 'search'
+export type BookingProvider = VenueProvider | 'venue' | 'other' | 'googleHotels' | 'search'
 
 export interface BookingLink {
   provider: BookingProvider
   url: string
+  /** The site's name, for a provider we have no name for. */
+  name?: string
 }
 
 export interface BookingTarget {
@@ -152,12 +154,21 @@ const SEARCHES: Record<BookingKind, [BookingProvider, (target: BookingTarget) =>
   ahead: [['search', webSearchUrl]],
 }
 
-/** A booking page: on a known site it's that site's venue page, prefilled; anywhere else it's the venue's own. */
-function directLink(raw: string, target: BookingTarget): BookingLink {
+function siteName(raw: string): string {
+  return new URL(raw).hostname.replace(/^www\./, '')
+}
+
+/**
+ * A booking page: on a known site it's that site's venue page, prefilled. On
+ * any other site, the place's own tagged page is "their website", and a link
+ * from elsewhere is named after its site.
+ */
+function directLink(raw: string, target: BookingTarget, own: boolean): BookingLink {
   const provider = venueProviderOf(raw)
   const id = provider && parseVenueUrl(provider, raw)
   const url = provider && id ? venuePageUrl(provider, id, target.plan) : null
-  return { provider: provider ?? 'venue', url: url ?? raw }
+  if (provider) return { provider, url: url ?? raw }
+  return own ? { provider: 'venue', url: raw } : { provider: 'other', url: raw, name: siteName(raw) }
 }
 
 /**
@@ -171,7 +182,7 @@ export function bookingLinks(target: BookingTarget): BookingLink[] {
 
   const links: BookingLink[] = []
   const add = (link: BookingLink | null) => {
-    if (link && !links.some(l => l.provider === link.provider)) links.push(link)
+    if (link && !links.some(l => l.provider === link.provider && l.name === link.name)) links.push(link)
   }
 
   for (const provider of VENUE_PROVIDERS[kind]) {
@@ -179,9 +190,11 @@ export function bookingLinks(target: BookingTarget): BookingLink[] {
     const url = id ? venuePageUrl(provider, id, target.plan) : null
     if (url) add({ provider, url })
   }
-  const reservations = (target.actions ?? []).filter(a => a.kind === 'reservation').map(a => a.url)
   const tagged = venueBookingUrl(target.tags)?.toString()
-  for (const raw of tagged ? [...reservations, tagged] : reservations) add(directLink(raw, target))
+  if (tagged) add(directLink(tagged, target, true))
+  for (const action of target.actions ?? []) {
+    if (action.kind === 'reservation') add(directLink(action.url, target, false))
+  }
 
   const direct = links.length > 0
   for (const [provider, search] of SEARCHES[kind]) {

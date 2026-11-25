@@ -125,7 +125,8 @@ describe('bookingLinks with known venues', () => {
         { kind: 'delivery', url: 'https://www.ubereats.com/store/x' },
       ],
     })
-    expect(links.map(l => l.provider)).toEqual(['opentable', 'tock', 'venue', 'resy'])
+    expect(links.map(l => l.provider)).toEqual(['opentable', 'tock', 'other', 'resy'])
+    expect(links[2]).toEqual({ provider: 'other', url: 'https://supperland.example/reserve', name: 'supperland.example' })
   })
 
   it('skips the search on a site a person said does not list the place', () => {

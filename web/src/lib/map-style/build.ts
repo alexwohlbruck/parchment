@@ -61,6 +61,7 @@ import { BELOW_LANES, aboveBridgesIndex, bridgeBandIndex } from './brunnel'
 import { buildingColor, BUILDING_TINT, unpaintedBuildingColor } from './building-color.mjs'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
 import { CYCLING_SUFFIX } from './cycling.mjs'
+import { fuseRoadRungs, fusedRoadId } from './fused-roads'
 import {
   CYCLING_WAYS_LAYER_IDS,
   cyclingStrokeLayers,
@@ -392,10 +393,10 @@ export const layerGroups = {
    * on-street network they cannot see. One toggle, because to a rider they are
    * one network.
    */
-  cycling: [
+  cycling: [...new Set([
     ...idsWhere(l => l.id.endsWith(CYCLING_SUFFIX)),
     ...CYCLING_WAYS_LAYER_IDS,
-  ],
+  ].map(fusedRoadId))],
   building3d: specLayers.find(l => l.type === 'fill-extrusion')?.id ?? 'Building 3D',
 }
 
@@ -834,7 +835,7 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
     },
     state: indoorState(),
     sky: themeSky(mapStyle, flavor),
-    layers: buildLayers({ flavor, categoryColors, lang, poiStyle, hdRoads, mapStyle }).map(hidingReplaced),
+    layers: fuseRoadRungs(buildLayers({ flavor, categoryColors, lang, poiStyle, hdRoads, mapStyle })).map(hidingReplaced),
   } as StyleSpecification
 }
 

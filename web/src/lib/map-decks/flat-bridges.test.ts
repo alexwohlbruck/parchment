@@ -11,11 +11,11 @@ const layer = (id: string) => {
 
 describe('isFlatBridge', () => {
   test('holds every flat copy of a bridge, its area included', () => {
-    for (const id of ['Bridge', 'Bridge area outline', 'Major road bridge', 'Road surface bridge', 'Road glyph bridge']) expect(isFlatBridge(layer(id)), id).toBe(true)
+    for (const id of ['Bridge', 'Bridge area outline', 'Road bridge', 'Road surface bridge', 'Road glyph bridge']) expect(isFlatBridge(layer(id)), id).toBe(true)
   })
 
   test('leaves what runs under a bridge alone', () => {
-    for (const id of ['Major road', 'Highway', 'Road surface', 'Road glyph']) expect(isFlatBridge(layer(id)), id).toBe(false)
+    for (const id of ['Road', 'Road outline', 'Road surface', 'Road glyph']) expect(isFlatBridge(layer(id)), id).toBe(false)
   })
 })
 

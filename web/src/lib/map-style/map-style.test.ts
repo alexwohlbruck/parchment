@@ -26,6 +26,7 @@ import {
   poiBadgeColors,
   poiBadgeTint,
 } from './build'
+import { fusedRoadId } from './fused-roads'
 import { INDOOR_SOURCE } from './indoor-layers'
 import { hidingReplaced } from '@/lib/map-objects/landmarks'
 import {
@@ -467,7 +468,7 @@ describe('badge POI treatment', () => {
    * straight through them in a tilted view.
    */
   test('pedestrian surfaces at grade draw beneath roads and buildings', () => {
-    const layers = buildMapStyle({ ...opts, theme: 'light' }).layers
+    const layers = buildLayers({ flavor: 'light' })
     const at = (id: string) => layers.findIndex(l => l.id === id)
     const ped = ['Pedestrian area outline', 'Path outline', 'Pedestrian', 'Path'].map(at)
     for (const i of ped) expect(i).toBeGreaterThan(-1)
@@ -563,7 +564,7 @@ describe('badge POI treatment', () => {
    * surface and the same edge.
    */
   test('a bridge area is drawn as the deck it is', () => {
-    const layers = buildMapStyle({ ...opts, theme: 'light' }).layers as any[]
+    const layers = buildLayers({ flavor: 'light' }) as any[]
     const at = (id: string) => layers.findIndex(l => l.id === id)
     const fill = layers[at('Bridge')]
     const edge = layers[at('Bridge area outline')]
@@ -590,7 +591,7 @@ describe('badge POI treatment', () => {
    * a ground-level street painted across it is not a bridge.
    */
   describe('the elevated road network', () => {
-    const layers = buildMapStyle({ ...opts, theme: 'light' }).layers as any[]
+    const layers = buildLayers({ flavor: 'light' }) as any[]
     const at = (id: string) => layers.findIndex(l => l.id === id)
     const RUNGS = ['Minor road', 'Major road', 'Highway']
     const carried = (id: string, properties: Record<string, unknown>) =>
@@ -2068,7 +2069,7 @@ describe('cycling surface', () => {
   })
 
   test('the toggle finds every one of them', () => {
-    for (const l of twins) expect(layerGroups.cycling).toContain(l.id)
+    for (const l of twins) expect(layerGroups.cycling).toContain(fusedRoadId(l.id))
   })
 
   test('the tint is green in both flavors', () => {
@@ -2298,7 +2299,7 @@ describe('cycling ways from Barrelman', () => {
   })
 
   test('the toggle reaches the Barrelman tint as well as the basemap twins', () => {
-    for (const id of CYCLING_WAYS_LAYER_IDS) expect(layerGroups.cycling).toContain(id)
+    for (const id of CYCLING_WAYS_LAYER_IDS) expect(layerGroups.cycling).toContain(fusedRoadId(id))
   })
 
   test('the style declares the source they read', () => {
@@ -2598,13 +2599,13 @@ describe('road markings', () => {
   const at = (id: string) => ids.indexOf(id)
 
   test('paint at grade goes over the ground roads and under every bridge', () => {
-    expect(at('Road line')).toBeGreaterThan(at('Highway'))
-    expect(at('Road line')).toBeLessThan(at('Minor road bridge'))
-    expect(at('Road line bridge')).toBeGreaterThan(at('Highway bridge'))
+    expect(at('Road line')).toBeGreaterThan(at('Road'))
+    expect(at('Road line')).toBeLessThan(at('Road bridge'))
+    expect(at('Road line bridge')).toBeGreaterThan(at('Road bridge'))
   })
 
   test('the basemap roads fade to the carriageway asphalt rather than vanish', () => {
-    const minor = style.layers.find(l => l.id === 'Minor road') as any
+    const minor = style.layers.find(l => l.id === 'Road') as any
     expect(minor.paint['line-color'][0]).toBe('interpolate')
     const surface = style.layers.find(l => l.id === 'Road surface') as any
     expect(minor.paint['line-color'].at(-1)).toBe(surface.paint['fill-color'])
@@ -2719,7 +2720,7 @@ describe('HD roads and railways', () => {
   })
 
   test('keeps a bridge deck over the track it crosses', () => {
-    expect(ids.indexOf('Major road bridge')).toBeGreaterThan(ids.indexOf('Major rail'))
+    expect(ids.indexOf('Road bridge')).toBeGreaterThan(ids.indexOf('Major rail'))
   })
 
   test('paints only road glyphs on the road, and gives a signal its own symbol', () => {
@@ -2744,8 +2745,8 @@ describe('HD roads off', () => {
   })
 
   test('leaves the basemap roads their own colour and casing', () => {
-    const minor = style.layers.find(l => l.id === 'Minor road') as any
-    const casing = style.layers.find(l => l.id === 'Minor road outline') as any
+    const minor = style.layers.find(l => l.id === 'Road') as any
+    const casing = style.layers.find(l => l.id === 'Road outline') as any
     expect(minor.paint['line-color'][0]).not.toBe('interpolate')
     expect(JSON.stringify(casing.paint['line-opacity'] ?? 1)).not.toContain('interpolate')
   })

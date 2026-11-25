@@ -15027,6 +15027,7 @@
           "Location"
         ],
         "summary": "Get location sharing configuration for all friends",
+        "description": "Shares whose `expiresAt` has passed are left out, as though sharing had been turned off.",
         "responses": {
           "200": {}
         }
@@ -15038,7 +15039,7 @@
           "Location"
         ],
         "summary": "Set location sharing configuration for a friend",
-        "description": "The handle must be an accepted friend on this server; sharing with friends on other servers is refused with 400. Turning sharing off also deletes the location held for that friend and clears their marker.",
+        "description": "The handle must be an accepted friend on this server; sharing with friends on other servers is refused with 400. Turning sharing off also deletes the location held for that friend and clears their marker. An `expiresAt` in the past is refused with 400. Once a share expires the server stops accepting and serving locations for it, then removes it and clears the friend’s marker.",
         "requestBody": {
           "required": true,
           "content": {
@@ -15052,6 +15053,19 @@
                   },
                   "enabled": {
                     "type": "boolean"
+                  },
+                  "expiresAt": {
+                    "nullable": true,
+                    "anyOf": [
+                      {
+                        "format": "date-time",
+                        "description": "When sharing ends. Null or omitted shares until turned off.",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -15069,6 +15083,19 @@
                   },
                   "enabled": {
                     "type": "boolean"
+                  },
+                  "expiresAt": {
+                    "nullable": true,
+                    "anyOf": [
+                      {
+                        "format": "date-time",
+                        "description": "When sharing ends. Null or omitted shares until turned off.",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -15086,6 +15113,19 @@
                   },
                   "enabled": {
                     "type": "boolean"
+                  },
+                  "expiresAt": {
+                    "nullable": true,
+                    "anyOf": [
+                      {
+                        "format": "date-time",
+                        "description": "When sharing ends. Null or omitted shares until turned off.",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -15130,6 +15170,7 @@
           "Location"
         ],
         "summary": "Broadcast encrypted location to friends",
+        "description": "Items for a friend whose share has expired are refused with reason `expired`.",
         "requestBody": {
           "required": true,
           "content": {

@@ -8,10 +8,12 @@
 * Share your location with a friend for 1 hour, 4 hours, until tomorrow morning or until you turn it off. Your friends list shows how long is left.
 * Switch the app style or the map style from the command palette.
 * Named buildings show their names when you zoom in, like the halls on a school or college campus.
+* Day & Night can show daylight and darkness at any time in the coming week, using the same time control as transit.
 
 ### Changed
 
 * Photos, hours and ratings from business listings load faster when you reopen a place, and the place keeps the same listing each time.
+* The layers time control now sits in its own section and appears whenever transit or Day & Night is on.
 
 ### Fixed
 

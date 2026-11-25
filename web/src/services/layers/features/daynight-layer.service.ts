@@ -3,10 +3,13 @@ import type { MapStrategy } from '@/services/map/providers/map.strategy'
 import { renderDayNightCanvas } from '@/lib/daynight/daynight-canvas'
 import { DAYNIGHT_LAYER_ID, DAYNIGHT_SOURCE_ID, MERCATOR_LATITUDE_LIMIT, NIGHT_LIGHTS_ATTRIBUTION, dayNightOpacity } from '@/lib/daynight/daynight'
 import { MapEngine, MapProjection } from '@/types/map.types'
+import { isMapTimeLive, mapTime, onMapTimeChange } from '@/services/map/map-time.service'
 
 const UPDATE_INTERVAL_MS = 60_000
 const CANVAS_WIDTH = 720
 const CANVAS_HEIGHT = 360
+/** Coalesces a dragged time slider into one redraw per pause. */
+const TIME_CHANGE_DEBOUNCE_MS = 80
 
 const IMAGE_COORDINATES: [[number, number], [number, number], [number, number], [number, number]] = [
   [-180, MERCATOR_LATITUDE_LIMIT],
@@ -22,6 +25,7 @@ export function useDayNightLayerService() {
   let detach: (() => void) | null = null
   /** Whether the canvas missed an update while the layer was hidden. */
   let stale = false
+  let pendingTimeChange: ReturnType<typeof setTimeout> | null = null
 
   function isDayNightLayer(layer: Layer): boolean {
     return layer.configuration?.id === DAYNIGHT_LAYER_ID
@@ -33,7 +37,7 @@ export function useDayNightLayerService() {
     currentStrategy = mapStrategy
     const map = mapStrategy.mapInstance
 
-    const canvas = renderDayNightCanvas(CANVAS_WIDTH, CANVAS_HEIGHT)
+    const canvas = renderDayNightCanvas(CANVAS_WIDTH, CANVAS_HEIGHT, mapTime())
     const dataUrl = canvas.toDataURL('image/png')
 
     if (!map.getSource(DAYNIGHT_SOURCE_ID)) {
@@ -76,12 +80,23 @@ export function useDayNightLayerService() {
     if (maplibre) map.on('projectiontransition', onProjection)
     map.on('styledata', onStyleData)
     map.on('remove', cleanup)
+    const offTimeChange = onMapTimeChange(() => {
+      if (pendingTimeChange) clearTimeout(pendingTimeChange)
+      pendingTimeChange = setTimeout(() => {
+        pendingTimeChange = null
+        updateCanvas(map)
+        map.triggerRepaint?.()
+      }, TIME_CHANGE_DEBOUNCE_MS)
+    })
     detach = () => {
       if (maplibre) map.off('projectiontransition', onProjection)
       map.off('styledata', onStyleData)
       map.off('remove', cleanup)
+      offTimeChange()
     }
-    intervalId = setInterval(() => updateCanvas(map), UPDATE_INTERVAL_MS)
+    intervalId = setInterval(() => {
+      if (isMapTimeLive()) updateCanvas(map)
+    }, UPDATE_INTERVAL_MS)
     initialized = true
   }
 
@@ -97,7 +112,7 @@ export function useDayNightLayerService() {
     if (map.getLayoutProperty(DAYNIGHT_LAYER_ID, 'visibility') === 'none') return void (stale = true)
     if (map.isMoving?.()) return void map.once('moveend', () => updateCanvas(map))
     stale = false
-    const canvas = renderDayNightCanvas(CANVAS_WIDTH, CANVAS_HEIGHT)
+    const canvas = renderDayNightCanvas(CANVAS_WIDTH, CANVAS_HEIGHT, mapTime())
     source.updateImage({
       url: canvas.toDataURL('image/png'),
       coordinates: IMAGE_COORDINATES,
@@ -107,6 +122,10 @@ export function useDayNightLayerService() {
   function cleanup() {
     detach?.()
     detach = null
+    if (pendingTimeChange) {
+      clearTimeout(pendingTimeChange)
+      pendingTimeChange = null
+    }
     if (intervalId) {
       clearInterval(intervalId)
       intervalId = null

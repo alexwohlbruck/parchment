@@ -3,8 +3,8 @@
  *
  * The renderer (portolan-transit.service) filters by portolan's nine mode
  * classes; the selector offers four toggles (Rail / Bus / Ferry / Other),
- * so this module owns the mapping between the two, plus the service-time
- * slider's date construction and the station features' gtfs_ids parsing.
+ * so this module owns the mapping between the two, plus the station
+ * features' gtfs_ids parsing.
  * Everything here is side-effect free and unit tested.
  */
 
@@ -49,34 +49,6 @@ export function classVisibilityFor(
     for (const cls of CLASS_GROUP_MEMBERS[g]) out[cls] = groups[g]
   }
   return out
-}
-
-// ── service-time construction ──────────────────────────────────────────
-
-/** Minutes since local midnight — the slider's unit. */
-export function minutesOfDay(date: Date): number {
-  return date.getHours() * 60 + date.getMinutes()
-}
-
-/** Portolan day index: Monday-first, matching the acts masks' 7×24 layout
- *  (JS Sunday=0 → portolan Monday=0). */
-export function portolanDay(date: Date): number {
-  return (date.getDay() + 6) % 7
-}
-
-/**
- * The Date a detached slider position stands for: the next occurrence of
- * `day` (Monday-first) at `minutes` past midnight, counted from `from`.
- * The acts filter only reads weekday and hour, so which calendar week the
- * date lands in is irrelevant — but returning a real future instant keeps
- * the value honest for display and debugging.
- */
-export function dateAtDaySlot(day: number, minutes: number, from = new Date()): Date {
-  const d = new Date(from)
-  const delta = (day - portolanDay(from) + 7) % 7
-  d.setDate(d.getDate() + delta)
-  d.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0)
-  return d
 }
 
 // ── station identity ───────────────────────────────────────────────────

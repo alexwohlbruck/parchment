@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
+  bookingComSearchUrl,
+  bookingKind,
   bookingLinks,
   reservationPolicy,
   resySearchUrl,
@@ -12,6 +14,15 @@ const restaurant: BookingTarget = {
   name: 'Supperland',
   tags: { amenity: 'restaurant', reservation: 'recommended' },
   center: { lat: 35.2201234, lng: -80.8123456 },
+  locality: 'Charlotte',
+  region: 'NC',
+  countryCode: 'US',
+}
+
+const hotel: BookingTarget = {
+  name: 'The Ivey’s Hotel',
+  tags: { tourism: 'hotel' },
+  center: { lat: 35.2271, lng: -80.8431 },
   locality: 'Charlotte',
   region: 'NC',
   countryCode: 'US',
@@ -87,6 +98,61 @@ describe('bookingLinks', () => {
   it('leaves Resy out outside the US', () => {
     expect(providers({ ...restaurant, locality: 'Paris', region: 'IDF', countryCode: 'FR' }))
       .toEqual(['opentable', 'search'])
+  })
+})
+
+describe('bookingKind', () => {
+  it('books a table at dining places that take reservations', () => {
+    expect(bookingKind({ amenity: 'restaurant', reservation: 'yes' })).toBe('table')
+  })
+
+  it('books a room at lodging even without a reservation tag', () => {
+    expect(bookingKind({ tourism: 'hotel' })).toBe('stay')
+    expect(bookingKind({ tourism: 'hostel', reservation: 'recommended' })).toBe('stay')
+  })
+
+  it('respects lodging tagged as not taking reservations', () => {
+    expect(bookingKind({ tourism: 'motel', reservation: 'no' })).toBeNull()
+  })
+
+  it('books ahead at other places that take reservations', () => {
+    expect(bookingKind({ tourism: 'camp_site', reservation: 'required' })).toBe('ahead')
+  })
+
+  it('offers nothing for untagged places that are not lodging', () => {
+    expect(bookingKind({ amenity: 'restaurant' })).toBeNull()
+    expect(bookingKind(undefined)).toBeNull()
+  })
+})
+
+describe('bookingLinks for lodging', () => {
+  it('offers Booking.com, Expedia and Google Hotels', () => {
+    expect(providers(hotel)).toEqual(['bookingCom', 'expedia', 'googleHotels'])
+  })
+
+  it("puts the hotel's own booking page first", () => {
+    const links = bookingLinks({ ...hotel, tags: { ...hotel.tags, 'website:booking': 'https://ivey.example/stay' } })
+    expect(links.map(l => l.provider)).toEqual(['venue', 'bookingCom', 'expedia', 'googleHotels'])
+  })
+
+  it('uses a tagged Booking.com page in place of searching it', () => {
+    const url = 'https://www.booking.com/hotel/us/the-iveys.html'
+    const links = bookingLinks({ ...hotel, tags: { ...hotel.tags, 'reservation:website': url } })
+    expect(links[0]).toEqual({ provider: 'bookingCom', url })
+    expect(links.map(l => l.provider)).toEqual(['bookingCom', 'expedia', 'googleHotels'])
+  })
+})
+
+describe('bookingComSearchUrl', () => {
+  it('searches for the hotel in its city', () => {
+    const url = new URL(bookingComSearchUrl(hotel))
+    expect(url.origin + url.pathname).toBe('https://www.booking.com/searchresults.html')
+    expect(url.searchParams.get('ss')).toBe('The Ivey’s Hotel, Charlotte')
+  })
+
+  it('searches by name alone without a city', () => {
+    const url = new URL(bookingComSearchUrl({ ...hotel, locality: undefined }))
+    expect(url.searchParams.get('ss')).toBe('The Ivey’s Hotel')
   })
 })
 

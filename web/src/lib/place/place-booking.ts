@@ -1,6 +1,15 @@
 export type ReservationPolicy = 'yes' | 'recommended' | 'required'
 
-export type BookingProvider = 'venue' | 'opentable' | 'resy' | 'search'
+export type BookingKind = 'table' | 'stay' | 'ahead'
+
+export type BookingProvider =
+  | 'venue'
+  | 'opentable'
+  | 'resy'
+  | 'bookingCom'
+  | 'expedia'
+  | 'googleHotels'
+  | 'search'
 
 export interface BookingLink {
   provider: BookingProvider
@@ -27,15 +36,19 @@ const VENUE_URL_KEYS = [
 
 const DINING_AMENITIES = new Set(['restaurant', 'cafe', 'bar', 'pub', 'biergarten', 'food_court'])
 
+const LODGING_TOURISM = new Set(['hotel', 'motel', 'hostel', 'guest_house', 'apartment', 'chalet'])
+
 const US_STATES = new Set(
   ('AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM ' +
     'NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY').split(' '),
 )
 
-const PROVIDER_HOSTS: Record<'opentable' | 'resy', RegExp> = {
-  opentable: /(^|\.)opentable\.[a-z.]+$/,
-  resy: /(^|\.)resy\.com$/,
-}
+const PROVIDER_HOSTS: [BookingProvider, RegExp][] = [
+  ['opentable', /(^|\.)opentable\.[a-z.]+$/],
+  ['resy', /(^|\.)resy\.com$/],
+  ['bookingCom', /(^|\.)booking\.com$/],
+  ['expedia', /(^|\.)expedia\.[a-z.]+$/],
+]
 
 export function reservationPolicy(
   tags: Record<string, string | undefined> | null | undefined,
@@ -46,6 +59,24 @@ export function reservationPolicy(
 
 export function isDiningPlace(tags: Record<string, string | undefined>): boolean {
   return DINING_AMENITIES.has(tags.amenity ?? '') || tags.cuisine !== undefined
+}
+
+export function isLodgingPlace(tags: Record<string, string | undefined>): boolean {
+  return LODGING_TOURISM.has(tags.tourism ?? '')
+}
+
+function refusesReservations(tags: Record<string, string | undefined>): boolean {
+  return (tags.reservation ?? tags.reservations)?.trim().toLowerCase() === 'no'
+}
+
+/** What booking a place means, or null when it can't be booked. Lodging is bookable unless tagged otherwise. */
+export function bookingKind(
+  tags: Record<string, string | undefined> | null | undefined,
+): BookingKind | null {
+  if (!tags) return null
+  if (isLodgingPlace(tags)) return refusesReservations(tags) ? null : 'stay'
+  if (!reservationPolicy(tags)) return null
+  return isDiningPlace(tags) ? 'table' : 'ahead'
 }
 
 function venueBookingUrl(tags: BookingTarget['tags']): URL | null {
@@ -64,9 +95,7 @@ function venueBookingUrl(tags: BookingTarget['tags']): URL | null {
 
 function providerOf(url: URL): BookingProvider {
   const host = url.hostname.toLowerCase()
-  if (PROVIDER_HOSTS.opentable.test(host)) return 'opentable'
-  if (PROVIDER_HOSTS.resy.test(host)) return 'resy'
-  return 'venue'
+  return PROVIDER_HOSTS.find(([, pattern]) => pattern.test(host))?.[0] ?? 'venue'
 }
 
 function slugify(text: string): string {
@@ -104,6 +133,28 @@ export function resySearchUrl(target: BookingTarget): string | null {
   return url.toString()
 }
 
+function stayQuery(target: BookingTarget): string {
+  return [target.name, target.locality].filter(Boolean).join(', ')
+}
+
+export function bookingComSearchUrl(target: BookingTarget): string {
+  const url = new URL('https://www.booking.com/searchresults.html')
+  url.searchParams.set('ss', stayQuery(target))
+  return url.toString()
+}
+
+export function expediaSearchUrl(target: BookingTarget): string {
+  const url = new URL('https://www.expedia.com/Hotel-Search')
+  url.searchParams.set('destination', stayQuery(target))
+  return url.toString()
+}
+
+export function googleHotelsSearchUrl(target: BookingTarget): string {
+  const url = new URL('https://www.google.com/travel/search')
+  url.searchParams.set('q', stayQuery(target))
+  return url.toString()
+}
+
 export function webSearchUrl(target: BookingTarget): string {
   const terms = [target.name, target.locality, 'reservations'].filter(Boolean).join(' ')
   const url = new URL('https://www.google.com/search')
@@ -111,22 +162,33 @@ export function webSearchUrl(target: BookingTarget): string {
   return url.toString()
 }
 
-/** Ways to book a place that takes reservations, best first. Empty when it doesn't. */
+const SEARCHES: Record<BookingKind, [BookingProvider, (target: BookingTarget) => string | null][]> = {
+  table: [
+    ['opentable', openTableSearchUrl],
+    ['resy', resySearchUrl],
+    ['search', webSearchUrl],
+  ],
+  stay: [
+    ['bookingCom', bookingComSearchUrl],
+    ['expedia', expediaSearchUrl],
+    ['googleHotels', googleHotelsSearchUrl],
+  ],
+  ahead: [['search', webSearchUrl]],
+}
+
+/** Ways to book a place, best first. Empty when it can't be booked. */
 export function bookingLinks(target: BookingTarget): BookingLink[] {
-  if (!reservationPolicy(target.tags) || !target.name.trim()) return []
+  const kind = bookingKind(target.tags)
+  if (!kind || !target.name.trim()) return []
 
   const links: BookingLink[] = []
   const venue = venueBookingUrl(target.tags)
   if (venue) links.push({ provider: providerOf(venue), url: venue.toString() })
 
-  const has = (provider: BookingProvider) => links.some(l => l.provider === provider)
-
-  if (isDiningPlace(target.tags)) {
-    if (!has('opentable')) links.push({ provider: 'opentable', url: openTableSearchUrl(target) })
-    const resy = has('resy') ? null : resySearchUrl(target)
-    if (resy) links.push({ provider: 'resy', url: resy })
+  for (const [provider, search] of SEARCHES[kind]) {
+    if (links.some(l => l.provider === provider)) continue
+    const url = search(target)
+    if (url) links.push({ provider, url })
   }
-
-  links.push({ provider: 'search', url: webSearchUrl(target) })
   return links
 }

@@ -3,8 +3,8 @@
  * 
  * Manages the federation identity lifecycle:
  * - First-time setup (generate seed, derive keys, register with server)
- * - Recovery key display and copy
- * - Import recovery key on new device
+ * - Recovery words display and copy
+ * - Import recovery words on new device
  * - Get current identity for signing requests
  */
 
@@ -13,8 +13,6 @@ import { api } from '@/lib/api'
 import {
   generateSeed,
   deriveAllKeys,
-  exportRecoveryKey,
-  importRecoveryKey,
   exportPublicKey,
   importPublicKey,
   sign,
@@ -22,6 +20,12 @@ import {
   generateNonce,
   type DerivedKeys,
 } from '@/lib/identity/federation-crypto'
+import {
+  parseRecoveryWords,
+  RecoveryWordsError,
+  seedToRecoveryWords,
+  type RecoveryWordsProblem,
+} from '@/lib/identity/recovery-words'
 import {
   storeSeed,
   getSeed,
@@ -37,7 +41,6 @@ import {
 import {
   extractPrfOutputFromAssertion,
   extractPrfOutputFromRegistration,
-  registrationHasPrfEnabled,
 } from '@/lib/identity/passkey-prf-support'
 
 export interface Identity {
@@ -45,11 +48,6 @@ export interface Identity {
   signingKey: string | null
   encryptionKey: string | null
   domain: string
-}
-
-export interface IdentityWithKeys extends Identity {
-  keys: DerivedKeys
-  recoveryKey: string
 }
 
 /**
@@ -67,22 +65,21 @@ export async function fetchIdentityFromServer(): Promise<Identity> {
 
 /**
  * Generate a new identity (seed and derived keys)
- * Does NOT register with server yet - user must confirm recovery key first
+ * Does NOT register with server yet - user must confirm recovery words first
  */
 export async function generateNewIdentity(): Promise<{
   seed: Uint8Array
   keys: DerivedKeys
-  recoveryKey: string
+  recoveryWords: string[]
 }> {
   const seed = generateSeed()
   const keys = deriveAllKeys(seed)
-  const recoveryKey = exportRecoveryKey(seed)
-  
-  return { seed, keys, recoveryKey }
+
+  return { seed, keys, recoveryWords: seedToRecoveryWords(seed) }
 }
 
 /**
- * Complete identity setup after user confirms recovery key
+ * Complete identity setup after user confirms the recovery words
  * Stores seed locally and registers public keys with server
  */
 export async function completeIdentitySetup(
@@ -97,7 +94,7 @@ export async function completeIdentitySetup(
   } catch (err) {
     if ((err as { response?: { status?: number } })?.response?.status === 409) {
       throw new Error(
-        'Your account already has keys. Restore them with your recovery key or a passkey instead.',
+        'Your account already has keys. Restore them with your recovery words or a passkey instead.',
       )
     }
     throw err
@@ -105,15 +102,25 @@ export async function completeIdentitySetup(
   await storeSeed(seed)
 }
 
+export type RecoveryImportProblem = RecoveryWordsProblem | 'mismatch'
+
+export interface RecoveryImportResult {
+  success: boolean
+  error?: string
+  problem?: RecoveryImportProblem
+  /** The word that isn't a recovery word, when `problem` is `unknown-word`. */
+  word?: string
+}
+
 /**
- * Import identity from recovery key
+ * Import identity from the 24 recovery words.
  * Used when logging in on a new device
  */
-export async function importIdentityFromRecoveryKey(
-  recoveryKey: string,
-): Promise<{ success: boolean; error?: string }> {
+export async function importIdentityFromRecoveryWords(
+  recoveryWords: string,
+): Promise<RecoveryImportResult> {
   try {
-    const seed = importRecoveryKey(recoveryKey)
+    const seed = parseRecoveryWords(recoveryWords)
     const keys = deriveAllKeys(seed)
     
     // Get server identity to verify
@@ -125,7 +132,8 @@ export async function importIdentityFromRecoveryKey(
       if (derivedSigningKey !== serverIdentity.signingKey) {
         return {
           success: false,
-          error: 'Recovery key does not match your account',
+          problem: 'mismatch',
+          error: 'Recovery words do not match your account',
         }
       }
     }
@@ -145,7 +153,8 @@ export async function importIdentityFromRecoveryKey(
   } catch (error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Invalid recovery key',
+      ...(error instanceof RecoveryWordsError && { problem: error.problem, word: error.word }),
+      error: error instanceof Error ? error.message : 'Invalid recovery words',
     }
   }
 }
@@ -161,15 +170,10 @@ export async function getLocalIdentity(): Promise<DerivedKeys | null> {
   return deriveAllKeys(seed)
 }
 
-/**
- * Get the recovery key for the current identity
- * Used to display in settings
- */
-export async function getRecoveryKey(): Promise<string | null> {
+/** The recovery words for the identity on this device. */
+export async function getRecoveryWords(): Promise<string[] | null> {
   const seed = await getSeed()
-  if (!seed) return null
-  
-  return exportRecoveryKey(seed)
+  return seed ? seedToRecoveryWords(seed) : null
 }
 
 export interface SignedFederationEnvelope {
@@ -323,17 +327,17 @@ export async function hasAnyWrappedKeySlot(): Promise<boolean> {
  *      authenticator evaluates PRF in-band and returns the output on
  *      the creation response. Done.
  *
- * Slow path (TWO taps) — older FIDO2 security keys or platforms that
- * can enable PRF on the credential but can't evaluate in-band:
- *   1. Registration as above. Response says `prf.enabled: true` but
- *      no `results.first`.
+ * Slow path (TWO taps) — older FIDO2 security keys, and providers that
+ * only evaluate PRF on sign-in (Samsung Pass):
+ *   1. Registration as above, with no `results.first`.
  *   2. Follow-up assertion scoped to the just-registered credential,
  *      which triggers a second biometric. Caller gets notified via
  *      `onSecondTapNeeded` so it can show an explanatory toast.
  *
- * If the authenticator doesn't set `prf.enabled: true`, the credential
- * is not PRF-capable (rare on modern authenticators). Return
- * `{ reason: 'prf-unavailable' }`; passkey is registered sign-in-only.
+ * The follow-up runs whatever `prf.enabled` says: providers report it
+ * wrongly in both directions, so only an assertion settles it. With no
+ * output from either, return `{ reason: 'prf-unavailable' }`; the
+ * passkey is registered sign-in-only.
  */
 export async function enrollPasskeySlot(params: {
   passkeyName: string
@@ -364,7 +368,6 @@ export async function enrollPasskeySlot(params: {
   const regResponse = attestationResponse as {
     clientExtensionResults?: {
       prf?: {
-        enabled?: boolean
         results?: {
           first?: ArrayBuffer | ArrayBufferView | string
         }
@@ -378,9 +381,7 @@ export async function enrollPasskeySlot(params: {
   )
   let secondTapUsed = false
 
-  // Slow path: credential is PRF-capable but the authenticator didn't
-  // evaluate in-band. Do a separate assertion.
-  if (!prfOutput && registrationHasPrfEnabled(regResponse)) {
+  if (!prfOutput) {
     params.onSecondTapNeeded?.()
     secondTapUsed = true
     try {
@@ -397,8 +398,8 @@ export async function enrollPasskeySlot(params: {
         },
       )
     } catch {
-      // User cancelled the second tap or the ceremony errored. The
-      // passkey is still registered — treat as sign-in-only.
+      // Cancelled, or a provider that rejects PRF outright. The passkey
+      // is still registered — treat as sign-in-only.
     }
   }
 
@@ -502,7 +503,7 @@ export async function enrollExistingPasskeyAsSlot(params: {
  * which user's salt + slot list to return.
  *
  * Returns the seed on success. Throws with a specific reason on failure
- * so the caller can route to the typed-recovery-key fallback with an
+ * so the caller can route to the typed-recovery-words fallback with an
  * accurate error message.
  */
 export async function unlockSeedWithPasskey(params: {
@@ -555,7 +556,7 @@ export async function unlockSeedWithPasskey(params: {
   if (!prfOutput) {
     throw new Error(
       "This passkey doesn't support PRF, or your browser didn't return " +
-        'a PRF output. Try a different passkey or use your recovery key.',
+        'a PRF output. Try a different passkey or use your recovery words.',
     )
   }
 
@@ -564,7 +565,7 @@ export async function unlockSeedWithPasskey(params: {
   if (!slot) {
     throw new Error(
       'The passkey you tapped has no recovery slot. Use a different ' +
-        'passkey or fall back to the recovery key.',
+        'passkey or use your recovery words.',
     )
   }
 

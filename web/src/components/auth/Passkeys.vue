@@ -12,6 +12,7 @@ import { useAppService } from '@/services/app.service'
 import { useIdentityStore } from '@/stores/identity.store'
 import { useResponsive } from '@/lib/utils'
 import { toast } from '@/lib/toast'
+import { passkeyDeleteRisk, type PasskeyDeleteRisk } from '@/lib/identity/passkey-delete-risk'
 
 import { H4 } from '@/components/ui/typography'
 import DataTable from '@/components/table/DataTable.vue'
@@ -43,6 +44,12 @@ const { passkeySlotCredentialIds, hasLocalIdentity, passkeyListVersion } =
 const { t } = useI18n()
 const { isTabletScreen } = useResponsive()
 const passkeys = ref<Passkey[]>([])
+
+const DELETE_DESCRIPTIONS: Record<PasskeyDeleteRisk, string> = {
+  'sign-in': 'settings.auth.passkeys.deleteConfirmDescription',
+  unlock: 'settings.auth.passkeys.deleteUnlockDescription',
+  'last-unlock': 'settings.auth.passkeys.deleteLastUnlockDescription',
+}
 
 // Track which passkey (if any) is currently mid-enrollment — spinner on
 // that row, disable the others' buttons so we don't pile up ceremonies.
@@ -244,9 +251,19 @@ async function enableRecovery(credentialId: string) {
 }
 
 async function deletePasskey(passkeyId: string) {
+  await identityStore.refreshSlotAvailability()
+  const risk = passkeyDeleteRisk(
+    passkeyId,
+    passkeySlotCredentialIds.value,
+    identityStore.hasSavedRecoveryWords,
+  )
   const confirmed = await appService.confirm({
-    title: t('settings.auth.passkeys.deleteConfirmTitle'),
-    description: t('settings.auth.passkeys.deleteConfirmDescription'),
+    title: t(
+      risk === 'last-unlock'
+        ? 'settings.auth.passkeys.deleteLastUnlockTitle'
+        : 'settings.auth.passkeys.deleteConfirmTitle',
+    ),
+    description: t(DELETE_DESCRIPTIONS[risk]),
     destructive: true,
     continueText: t('general.delete'),
   })

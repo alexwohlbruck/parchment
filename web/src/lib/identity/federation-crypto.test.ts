@@ -19,8 +19,6 @@ import {
   sign,
   verify,
   deriveSharedSecret,
-  exportRecoveryKey,
-  importRecoveryKey,
   exportPublicKey,
   importPublicKey,
   buildSignableMessage,
@@ -108,38 +106,6 @@ describe('Key Derivation', () => {
     const keys2 = deriveAllKeys(otherSeed)
     expect(keys1.signing.privateKey).not.toEqual(keys2.signing.privateKey)
     expect(keys1.encryption.privateKey).not.toEqual(keys2.encryption.privateKey)
-  })
-})
-
-describe('Recovery Key Export/Import', () => {
-  test('exports seed as base64 string', () => {
-    const seed = generateSeed()
-    const recoveryKey = exportRecoveryKey(seed)
-    expect(typeof recoveryKey).toBe('string')
-    // Base64 of 32 bytes is ~44 characters
-    expect(recoveryKey.length).toBe(44)
-  })
-
-  test('imports recovery key back to seed', () => {
-    const originalSeed = generateSeed()
-    const recoveryKey = exportRecoveryKey(originalSeed)
-    const importedSeed = importRecoveryKey(recoveryKey)
-    expect(importedSeed).toEqual(originalSeed)
-  })
-
-  test('throws on invalid recovery key', () => {
-    // Short string fails base64 decoding or length check
-    expect(() => importRecoveryKey('short')).toThrow()
-    // Valid base64 but wrong length (16 bytes)
-    expect(() => importRecoveryKey('AAAAAAAAAAAAAAAAAAAAAA==')).toThrow('Invalid recovery key')
-  })
-
-  test('handles whitespace in recovery key', () => {
-    const seed = generateSeed()
-    const recoveryKey = exportRecoveryKey(seed)
-    const paddedKey = `  ${recoveryKey}  `
-    const importedSeed = importRecoveryKey(paddedKey)
-    expect(importedSeed).toEqual(seed)
   })
 })
 

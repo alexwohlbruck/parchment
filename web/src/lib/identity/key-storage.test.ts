@@ -244,36 +244,6 @@ describe('browser path (no Tauri runtime) — wrapped localStorage', () => {
     // to setup instead of looping on an unreadable value.
     expect(window.localStorage.getItem('parchment-identity-seed')).toBeNull()
   })
-
-  test('verifySeedMatchesRecoveryKey still matches through the wrap', async () => {
-    apiGetImpl = async () => makeSecretResponse(randomSecretB64())
-
-    const ks = await freshKeyStorage()
-    const seed = makeSeed(0x33)
-    await ks.storeSeed(seed)
-
-    let recoveryKey = ''
-    for (let i = 0; i < seed.length; i++)
-      recoveryKey += String.fromCharCode(seed[i])
-    recoveryKey = btoa(recoveryKey)
-
-    expect(await ks.verifySeedMatchesRecoveryKey(recoveryKey)).toBe(true)
-  })
-
-  test('verifySeedMatchesRecoveryKey rejects a different seed', async () => {
-    apiGetImpl = async () => makeSecretResponse(randomSecretB64())
-
-    const ks = await freshKeyStorage()
-    await ks.storeSeed(makeSeed(0x44))
-
-    const other = makeSeed(0x55)
-    let recoveryKey = ''
-    for (let i = 0; i < other.length; i++)
-      recoveryKey += String.fromCharCode(other[i])
-    recoveryKey = btoa(recoveryKey)
-
-    expect(await ks.verifySeedMatchesRecoveryKey(recoveryKey)).toBe(false)
-  })
 })
 
 describe('tauri-keychain path (unchanged by wrap feature)', () => {

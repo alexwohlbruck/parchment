@@ -73,7 +73,6 @@ import {
   generateSeed,
   deriveAllKeys,
   derivePersonalKey,
-  bytesToBase64,
   exportPublicKey,
   type DerivedKeys,
 } from '@/lib/identity/federation-crypto'
@@ -103,6 +102,7 @@ import {
   encryptRouteMetadata,
 } from '@/lib/identity/library-crypto'
 import { deriveCollectionKey, importPublicKey } from '@/lib/identity/federation-crypto'
+import { seedToRecoveryWords } from '@/lib/identity/recovery-words'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -137,7 +137,7 @@ function makeAssertionWithPrf(prfOutput: Uint8Array) {
 
 const hooks = {
   friendEncryptionKey: (_handle: string): string | null => null,
-  confirmRecoveryKey: async (_key: string) => true,
+  confirmRecoveryWords: async (_words: string[]) => true,
 }
 
 beforeEach(() => {
@@ -839,15 +839,15 @@ describe('rotateMasterKey — routes, canvases and shares', () => {
   })
 })
 
-describe('rotateMasterKey — recovery key', () => {
+describe('rotateMasterKey — recovery words', () => {
   beforeEach(() => {
     getHandlers.set('/me/blobs', () => ({ data: { blobs: [] } }))
     getHandlers.set('/library/collections', () => ({ data: [] }))
     getHandlers.set('/users/me/wrapped-keys', () => ({ data: { slots: [] } }))
   })
 
-  test('shows the new recovery key and commits only once it is saved', async () => {
-    let shown: string | undefined
+  test('shows the new recovery words and commits only once they are saved', async () => {
+    let shown: string[] | undefined
     let body: any
     postHandlers.set('/users/me/km-version/commit', (b) => {
       body = b
@@ -856,8 +856,8 @@ describe('rotateMasterKey — recovery key', () => {
 
     const result = await rotateMasterKey({
       ...hooks,
-      confirmRecoveryKey: async (key) => {
-        shown = key
+      confirmRecoveryWords: async (words) => {
+        shown = words
         return true
       },
       userId: 'u',
@@ -866,15 +866,15 @@ describe('rotateMasterKey — recovery key', () => {
       assertPasskeyForSlot: vi.fn(),
     })
 
-    expect(shown).toBe(bytesToBase64(result.newSeed))
+    expect(shown).toEqual(seedToRecoveryWords(result.newSeed))
     expect(body.recoveryKeyConfirmed).toBe(true)
   })
 
-  test('backing out of the recovery key leaves the keys unchanged', async () => {
+  test('backing out of the recovery words leaves the keys unchanged', async () => {
     await expect(
       rotateMasterKey({
         ...hooks,
-        confirmRecoveryKey: async () => false,
+        confirmRecoveryWords: async () => false,
         userId: 'u',
         oldSeed: generateSeed(),
         currentKmVersion: 1,

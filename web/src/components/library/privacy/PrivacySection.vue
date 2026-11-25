@@ -12,7 +12,7 @@ import type { EncryptionScheme } from '@/types/library.types'
 
 const props = defineProps<{
   scheme: EncryptionScheme
-  /** False on a device without the recovery key, which can't encrypt. */
+  /** False on a device without the recovery words, which can't encrypt. */
   hasIdentity: boolean
   disabled?: boolean
   /** Only the owner can move a record between schemes. */

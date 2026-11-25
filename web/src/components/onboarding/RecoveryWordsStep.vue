@@ -5,11 +5,11 @@ import { ref, inject, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useIdentityStore } from '@/stores/identity.store'
 import { validateKey } from './types'
-import RecoveryKeySetupContent from '@/components/identity/RecoveryKeySetupContent.vue'
+import RecoveryWordsSetupContent from '@/components/identity/RecoveryWordsSetupContent.vue'
 
 const { t } = useI18n()
 const identityStore = useIdentityStore()
-const contentRef = ref<InstanceType<typeof RecoveryKeySetupContent>>()
+const contentRef = ref<InstanceType<typeof RecoveryWordsSetupContent>>()
 
 const validation = inject(validateKey)
 
@@ -38,6 +38,6 @@ watch(
       :icon="KeyRound"
     />
 
-    <RecoveryKeySetupContent ref="contentRef" hide-footer />
+    <RecoveryWordsSetupContent ref="contentRef" hide-footer />
   </div>
 </template>

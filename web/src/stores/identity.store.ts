@@ -5,9 +5,9 @@ import {
   fetchIdentityFromServer,
   generateNewIdentity,
   completeIdentitySetup,
-  importIdentityFromRecoveryKey,
+  importIdentityFromRecoveryWords,
   getLocalIdentity,
-  getRecoveryKey,
+  getRecoveryWords,
   updateAlias as updateAliasService,
   clearLocalIdentity,
   verifyAndSyncKeys,
@@ -17,12 +17,13 @@ import {
   unlockSeedWithPasskey,
   resetServerIdentity,
   type Identity,
+  type RecoveryImportResult,
   type ResetProof,
 } from '@/services/identity.service'
 import { useAuthService } from '@/services/auth.service'
 import { useAuthStore } from '@/stores/auth.store'
 import { api } from '@/lib/api'
-import type { DerivedKeys } from '@/lib/identity/federation-crypto'
+import { exportPublicKey, type DerivedKeys } from '@/lib/identity/federation-crypto'
 import {
   rotateMasterKey,
   RotationConflictError,
@@ -78,7 +79,7 @@ export const useIdentityStore = defineStore('identity', () => {
   const localKeys = ref<DerivedKeys | null>(null)
   const isLoading = ref(false)
   const hasLocalIdentity = ref(false)
-  const pendingRecoveryKey = ref<string | null>(null)
+  const pendingRecoveryWords = ref<string[] | null>(null)
   const pendingSeed = ref<Uint8Array | null>(null)
   const pendingKeys = ref<DerivedKeys | null>(null)
   // Set of credentialIds that have a wrapped-K_m recovery slot on the
@@ -144,6 +145,24 @@ export const useIdentityStore = defineStore('identity', () => {
   const needsImport = computed(() => 
     !hasLocalIdentity.value && !!identity.value?.signingKey
   )
+
+  /**
+   * The signing key whose recovery words the user showed they kept,
+   * synced with the account. `undefined` until the account's copy has
+   * loaded. New keys (rotation, reset) bring new words, so a stale value
+   * reads as unsaved.
+   */
+  const recoveryWordsSavedFor = ref<string | null>()
+  const hasSavedRecoveryWords = computed(() => {
+    if (recoveryWordsSavedFor.value === undefined || !identity.value?.signingKey) return undefined
+    return recoveryWordsSavedFor.value === identity.value.signingKey
+  })
+  /** Records that the words for this device's own seed were saved; false when they're outdated. */
+  function markRecoveryWordsSaved(): boolean {
+    if (isStale.value || !localKeys.value) return false
+    recoveryWordsSavedFor.value = exportPublicKey(localKeys.value.signing.publicKey)
+    return true
+  }
   
   // Key accessors for encryption
   const signingPrivateKey = computed(() => localKeys.value?.signing.privateKey || null)
@@ -188,20 +207,18 @@ export const useIdentityStore = defineStore('identity', () => {
 
   /**
    * Start the identity setup flow
-   * Generates new seed and keys, returns recovery key for user to save
+   * Generates new seed and keys, and the recovery words for the user to save
    */
-  async function startSetup(): Promise<string> {
-    const { seed, keys, recoveryKey } = await generateNewIdentity()
-    
+  async function startSetup(): Promise<void> {
+    const { seed, keys, recoveryWords } = await generateNewIdentity()
+
     pendingSeed.value = seed
     pendingKeys.value = keys
-    pendingRecoveryKey.value = recoveryKey
-    
-    return recoveryKey
+    pendingRecoveryWords.value = recoveryWords
   }
 
   /**
-   * Complete setup after user confirms they've saved recovery key
+   * Complete setup after user confirms they've saved their recovery words
    */
   async function completeSetup(): Promise<{ success: boolean; error?: string }> {
     if (!pendingSeed.value || !pendingKeys.value) {
@@ -219,11 +236,13 @@ export const useIdentityStore = defineStore('identity', () => {
       // the new signingKey before we try to ship any client-signed
       // messages to them.
       await refreshIdentity()
+      // Setup only completes once the user has retyped words from their copy.
+      markRecoveryWordsSaved()
 
       // Clear pending state
       pendingSeed.value = null
       pendingKeys.value = null
-      pendingRecoveryKey.value = null
+      pendingRecoveryWords.value = null
 
       void retryPendingRevocations()
 
@@ -265,36 +284,34 @@ export const useIdentityStore = defineStore('identity', () => {
   function cancelSetup() {
     pendingSeed.value = null
     pendingKeys.value = null
-    pendingRecoveryKey.value = null
+    pendingRecoveryWords.value = null
   }
 
   /**
-   * Import identity from recovery key
+   * Import identity from recovery words
    */
-  async function importFromRecoveryKey(
-    recoveryKey: string,
-  ): Promise<{ success: boolean; error?: string }> {
+  async function importFromRecoveryWords(
+    recoveryWords: string,
+  ): Promise<RecoveryImportResult> {
     isLoading.value = true
     try {
-      const result = await importIdentityFromRecoveryKey(recoveryKey)
-      
+      const result = await importIdentityFromRecoveryWords(recoveryWords)
+
       if (result.success) {
         hasLocalIdentity.value = true
         localKeys.value = await getLocalIdentity()
         await refreshIdentity()
+        markRecoveryWordsSaved()
       }
-      
+
       return result
     } finally {
       isLoading.value = false
     }
   }
 
-  /**
-   * Get the recovery key for display
-   */
-  async function fetchRecoveryKey(): Promise<string | null> {
-    return getRecoveryKey()
+  async function fetchRecoveryWords(): Promise<string[] | null> {
+    return getRecoveryWords()
   }
 
   /**
@@ -316,7 +333,7 @@ export const useIdentityStore = defineStore('identity', () => {
   }
 
   /**
-   * Last-resort reset when the user has lost their recovery key AND has
+   * Last-resort reset when the user has lost their recovery words AND has
    * no working passkey slot AND no other signed-in device to transfer
    * from. Wipes all seed-encrypted data on the server, clears the local
    * seed, and resets store state so the Friends / Settings screens route
@@ -342,7 +359,7 @@ export const useIdentityStore = defineStore('identity', () => {
       hasLocalIdentity.value = false
       pendingSeed.value = null
       pendingKeys.value = null
-      pendingRecoveryKey.value = null
+      pendingRecoveryWords.value = null
       passkeySlotCredentialIds.value = new Set()
       return { success: true }
     } finally {
@@ -361,9 +378,10 @@ export const useIdentityStore = defineStore('identity', () => {
     hasLocalIdentity.value = false
     pendingSeed.value = null
     pendingKeys.value = null
-    pendingRecoveryKey.value = null
+    pendingRecoveryWords.value = null
     passkeySlotCredentialIds.value = new Set()
     isStale.value = false
+    recoveryWordsSavedFor.value = undefined
   }
 
   /**
@@ -574,7 +592,7 @@ export const useIdentityStore = defineStore('identity', () => {
    */
   async function rotateKeys(options: {
     onProgress?: (phase: RotationPhase) => void
-    confirmRecoveryKey: (recoveryKey: string) => Promise<boolean>
+    confirmRecoveryWords: (words: string[]) => Promise<boolean>
   }): Promise<{
     success: boolean
     error?: string
@@ -630,7 +648,7 @@ export const useIdentityStore = defineStore('identity', () => {
         friendEncryptionKey: handle =>
           friendsStore.friends.find(f => f.friendHandle === handle)
             ?.friendEncryptionKey,
-        confirmRecoveryKey: options.confirmRecoveryKey,
+        confirmRecoveryWords: options.confirmRecoveryWords,
         onProgress: options.onProgress,
       })
 
@@ -638,6 +656,8 @@ export const useIdentityStore = defineStore('identity', () => {
       // happened during rotation; just reflect it locally.
       localKeys.value = await getLocalIdentity()
       await refreshIdentity()
+      // Rotation only commits once the new words were retyped.
+      markRecoveryWordsSaved()
       return { success: true, slotResults: result.slotResults }
     } catch (err) {
       if (err instanceof RotationConflictError) {
@@ -725,7 +745,9 @@ export const useIdentityStore = defineStore('identity', () => {
     localKeys,
     isLoading,
     hasLocalIdentity,
-    pendingRecoveryKey,
+    pendingRecoveryWords,
+    recoveryWordsSavedFor,
+    hasSavedRecoveryWords,
     hasAnyPasskeySlot,
     passkeySlotCredentialIds,
     passkeyListVersion,
@@ -751,8 +773,9 @@ export const useIdentityStore = defineStore('identity', () => {
     startSetup,
     completeSetup,
     cancelSetup,
-    importFromRecoveryKey,
-    fetchRecoveryKey,
+    importFromRecoveryWords,
+    fetchRecoveryWords,
+    markRecoveryWordsSaved,
     updateAlias,
     clear,
     refreshSlotAvailability,

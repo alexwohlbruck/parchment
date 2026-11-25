@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Code } from '@/components/ui/code'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import RecoveryKeyDialog from './RecoveryKeyDialog.vue'
+import RecoveryWordsDialog from './RecoveryWordsDialog.vue'
 import RotateKeysDialog from './RotateKeysDialog.vue'
 import TransferIdentityDialog from './TransferIdentityDialog.vue'
 import {
@@ -38,6 +38,7 @@ const {
   needsImport,
   isLoading,
   isStale,
+  hasSavedRecoveryWords,
   identityUnavailable,
   rotateKeysRequestCounter,
 } = storeToRefs(identityStore)
@@ -294,11 +295,15 @@ function handleSetupComplete() {
         <!-- Recovery Key -->
         <SettingsItem
           :title="t('friends.security.recoveryKey')"
-          :description="t('friends.security.recoveryKeyDescription')"
+          :description="t(hasSavedRecoveryWords === false ? 'friends.security.recoveryKeyUnsavedDescription' : 'friends.security.recoveryKeyDescription')"
           :icon="Key"
         >
-          <Button variant="outline" size="sm" @click="openViewDialog">
-            {{ t('friends.security.viewKey') }}
+          <Button
+            :variant="hasSavedRecoveryWords === false ? 'default' : 'outline'"
+            size="sm"
+            @click="openViewDialog"
+          >
+            {{ t(hasSavedRecoveryWords === false ? 'friends.security.saveWords' : 'friends.security.viewKey') }}
           </Button>
         </SettingsItem>
 
@@ -335,7 +340,7 @@ function handleSetupComplete() {
     </template>
 
     <!-- Recovery Key Dialog -->
-    <RecoveryKeyDialog
+    <RecoveryWordsDialog
       v-model:open="showRecoveryDialog"
       :mode="recoveryDialogMode"
       @complete="handleSetupComplete"

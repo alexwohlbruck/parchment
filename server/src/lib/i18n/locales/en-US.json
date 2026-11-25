@@ -37,7 +37,8 @@
       "invalidOsmType": "Invalid OSM type. Format should be \"type/id\" where type is node, way, or relation.",
       "notFoundWithParams": "Place not found with the provided parameters",
       "retrievalError": "Error retrieving place data",
-      "coordinatesRequired": "lat and lng are required"
+      "coordinatesRequired": "lat and lng are required",
+      "invalidStay": "Choose a stay of 1 to 30 nights starting today or later"
     },
     "server": {
       "internal": "An internal server error occurred",

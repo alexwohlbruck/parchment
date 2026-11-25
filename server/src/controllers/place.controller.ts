@@ -13,6 +13,8 @@ import { SOURCE } from '../lib/constants.js'
 import { WidgetType } from '../types/place.types'
 import { fetchWidgetData } from '../services/widget.service'
 import { fetchNearestStreetImage } from '../services/street-imagery.service'
+import { getStayRates } from '../services/stay.service'
+import { isValidStay, MAX_STAY_ADULTS } from '../lib/place/stay-dates'
 import { logError, logger } from '../lib/logger'
 import { i18nPlugin } from '../lib/i18n/plugin'
 
@@ -268,6 +270,47 @@ app.get(
     detail: {
       tags: ['Places'],
       summary: 'Get nearest street-level image to a coordinate',
+    },
+  },
+)
+
+// Live room rates for the hotel at a place, for one set of dates and guests.
+app.get(
+  '/stay-rates',
+  async (ctx) => {
+    const { query, status, t } = ctx
+    if (!isValidStay(query.checkin, query.checkout)) {
+      return status(400, { message: t('errors.place.invalidStay') })
+    }
+    try {
+      const rates = await getStayRates({ source: query.source, id: query.id }, {
+        checkin: query.checkin,
+        checkout: query.checkout,
+        adults: query.adults ?? 2,
+        currency: query.currency?.toUpperCase() ?? 'USD',
+        guestNationality: query.nationality?.toUpperCase() ?? 'US',
+      })
+      return { rates }
+    } catch (err) {
+      logError('Error fetching stay rates', err)
+      return status(502, { message: err instanceof Error ? err.message : 'Error fetching stay rates' })
+    }
+  },
+  {
+    query: t.Object({
+      source: t.String({ minLength: 1, description: 'Place source, e.g. osm' }),
+      id: t.String({ minLength: 1, description: 'Place id within its source, e.g. node/4176535246' }),
+      checkin: t.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'YYYY-MM-DD' }),
+      checkout: t.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'YYYY-MM-DD' }),
+      adults: t.Optional(t.Numeric({ minimum: 1, maximum: MAX_STAY_ADULTS, default: 2 })),
+      currency: t.Optional(t.String({ pattern: '^[A-Za-z]{3}$', description: 'ISO 4217, default USD' })),
+      nationality: t.Optional(t.String({ pattern: '^[A-Za-z]{2}$', description: 'ISO 3166-1 alpha-2, default US' })),
+    }),
+    detail: {
+      tags: ['Places'],
+      summary: 'Get live room rates for a hotel',
+      description:
+        'Looks up the place\'s stored listing on the hotel rates provider (LiteAPI) and returns the cheapest offer per room for the dates and guests, each with a checkout link for that exact offer. `rates` is null when no provider is configured or the place has no matched listing. Stays run 1 to 30 nights. Cached for 10 minutes.',
     },
   },
 )

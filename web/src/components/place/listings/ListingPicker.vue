@@ -97,7 +97,7 @@ function detail(candidate: ListingSummary) {
     :description="t('place.listings.pickerDescription')"
   >
     <template #content>
-      <div class="flex flex-col gap-3">
+      <div class="flex min-w-0 flex-col gap-3">
         <Input
           v-if="listing?.searchable"
           v-model="query"
@@ -105,7 +105,7 @@ function detail(candidate: ListingSummary) {
           data-testid="listing-search"
         />
 
-        <div class="flex flex-col -mx-2">
+        <div class="-mx-2 flex min-w-0 flex-col">
           <div v-if="loading && !options.length" class="flex justify-center py-6">
             <Spinner />
           </div>
@@ -120,7 +120,7 @@ function detail(candidate: ListingSummary) {
             v-for="candidate in options"
             :key="candidate.id"
             type="button"
-            class="flex items-center gap-3 rounded-md px-2 py-2 text-left hover:bg-muted disabled:opacity-60"
+            class="flex w-full min-w-0 items-center gap-3 rounded-md px-2 py-2 text-left hover:bg-muted disabled:opacity-60"
             :disabled="!!saving"
             data-testid="listing-candidate"
             @click="choose(candidate.id)"
@@ -139,7 +139,7 @@ function detail(candidate: ListingSummary) {
 
           <button
             type="button"
-            class="flex items-center gap-3 rounded-md px-2 py-2 text-left hover:bg-muted disabled:opacity-60"
+            class="flex w-full min-w-0 items-center gap-3 rounded-md px-2 py-2 text-left hover:bg-muted disabled:opacity-60"
             :disabled="!!saving"
             data-testid="listing-none"
             @click="choose(null)"

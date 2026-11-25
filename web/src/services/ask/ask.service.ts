@@ -6,6 +6,7 @@ import { useAskHistoryService } from '@/services/ask/ask-history.service'
 import { useRoutesStore } from '@/stores/library/routes.store'
 import { useCanvasesStore } from '@/stores/library/canvases.store'
 import type { AskAccess, AskEvent, AskPoint, AskWhere } from '@/types/ask.types'
+import type { WebPlaceLookup } from '@/types/place.types'
 
 let controller: AbortController | null = null
 
@@ -40,6 +41,12 @@ export function useAskService() {
     if (askStore.access && !fresh) return askStore.access
     const { data } = await api.get<AskAccess>('/ask/access', { silent: true })
     askStore.access = data
+    return data
+  }
+
+  /** Looks a business the map lacks up on its own website. Counts as one question. */
+  async function findPlaceOnWeb(query: string, near: { lat: number; lng: number }) {
+    const { data } = await api.post<WebPlaceLookup>('/ask/web-place', { query, ...near })
     return data
   }
 
@@ -101,5 +108,5 @@ export function useAskService() {
     }
   }
 
-  return { loadAccess, ask, cancel }
+  return { loadAccess, ask, findPlaceOnWeb, cancel }
 }

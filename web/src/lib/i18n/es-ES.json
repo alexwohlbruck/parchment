@@ -2923,7 +2923,10 @@
       "description": "Encontrado en {site}. Añádelo para que otros también lo encuentren.",
       "add": "Añadir al mapa",
       "note": "Avisar a los mapeadores",
-      "noteText": "{name} no aparece en el mapa. Dirección: {address}. Sitio web: {website}"
+      "noteText": "{name} no aparece en el mapa. Dirección: {address}. Sitio web: {website}",
+      "findOnWeb": "Buscar “{query}” en la web",
+      "findOnWebHint": "Para lugares que aún no están en el mapa",
+      "finding": "Buscando su sitio web…"
     }
   },
   "settings": {

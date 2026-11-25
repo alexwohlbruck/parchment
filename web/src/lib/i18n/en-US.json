@@ -3027,7 +3027,10 @@
       "description": "Found on {site}. Add it so others can find it too.",
       "add": "Add to map",
       "note": "Tell mappers",
-      "noteText": "{name} is missing from the map. Address: {address}. Website: {website}"
+      "noteText": "{name} is missing from the map. Address: {address}. Website: {website}",
+      "findOnWeb": "Find “{query}” on the web",
+      "findOnWebHint": "For places that aren't on the map yet",
+      "finding": "Looking for its website…"
     }
   },
   "settings": {

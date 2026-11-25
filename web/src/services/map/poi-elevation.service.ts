@@ -252,8 +252,10 @@ export function attachPoiElevation(map: any, raised: () => boolean) {
     for (const tile of sourceTileFeatures(map, tiles, 'poi')) {
       for (const entry of tilePois(tile)) {
         if (++read % 64 === 0) yield
-        if (seen.has(entry.key)) continue
-        seen.add(entry.key)
+        // A parent and a child tile can both be drawn: the same POI then comes from each, at a slightly different point.
+        const identity = entry.feature.id ?? entry.key
+        if (seen.has(identity)) continue
+        seen.add(identity)
         const _elev = lift
           ? nextElevations.get(entry.heightKey) ?? elevations.get(entry.heightKey) ?? Math.round(poiElevation(entry.point, entry.feature.properties?.level, currentNear) * 2) / 2
           : 0
@@ -265,15 +267,25 @@ export function attachPoiElevation(map: any, raised: () => boolean) {
     elevations = nextElevations
     // setData re-tiles and repaints, which ends in another idle: an unchanged
     // set has to stop here or the map never rests.
-    const next = `${lift}|${positions.sort().join(';')}`
-    if (next === signature) return
-    signature = next
+    // Mid-gesture only new POIs go in; leaving tiles and late building heights wait for the pass after `moveend`, or each pass re-tiles thousands.
+    const moving = !!map.isMoving?.()
+    if (moving) signature = ''
+    else {
+      const next = `${lift}|${positions.sort().join(';')}`
+      if (next === signature) return
+      signature = next
+    }
     const source = map.getSource(SOURCE)
     // Only what changed, where the source can take it: writing every POI again re-tiles the whole view for a handful that arrived.
-    const diff = shown && source?.updateData ? raisedDiff(shown, features) : null
-    if (diff) source.updateData(diff)
-    else source?.setData({ type: 'FeatureCollection', features })
-    shown = raisedDiff(new Map(), features) ? new Map(features.map(f => [f.id, f.properties._elev])) : null
+    const diff = shown && source?.updateData ? raisedDiff(shown, features, moving) : null
+    if (diff) {
+      if (diff.add.length || diff.remove.length) source.updateData(diff)
+      for (const id of diff.remove) shown!.delete(id)
+      for (const f of diff.add) shown!.set(f.id, f.properties._elev)
+    } else {
+      source?.setData({ type: 'FeatureCollection', features })
+      shown = raisedDiff(new Map(), features) ? new Map(features.map(f => [f.id, f.properties._elev])) : null
+    }
   }
 
   const hydration = frameTask(hydrate)

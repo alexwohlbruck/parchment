@@ -97,17 +97,22 @@ type Raised = { id?: string | number; properties: { _elev: number } }
 /**
  * What to change in a source showing `shown` (each id's height) so it shows
  * `features`: the ids gone, and the features new or moved to another height.
- * Null where the features cannot be told apart by id, and the whole
- * collection has to be written instead.
+ * `onlyNew` adds the ids not shown and changes nothing else. Null where the
+ * features cannot be told apart by id, and the whole collection has to be
+ * written instead.
  */
-export function raisedDiff<T extends Raised>(shown: Map<string | number, number>, features: T[]): { remove: Array<string | number>; add: T[] } | null {
+export function raisedDiff<T extends Raised>(
+  shown: Map<string | number, number>,
+  features: T[],
+  onlyNew = false,
+): { remove: Array<string | number>; add: T[] } | null {
   const next = new Set<string | number>()
   for (const f of features) {
     if (f.id === undefined || f.id === null || next.has(f.id)) return null
     next.add(f.id)
   }
   return {
-    remove: [...shown.keys()].filter(id => !next.has(id)),
-    add: features.filter(f => shown.get(f.id!) !== f.properties._elev),
+    remove: onlyNew ? [] : [...shown.keys()].filter(id => !next.has(id)),
+    add: features.filter(f => (onlyNew ? !shown.has(f.id!) : shown.get(f.id!) !== f.properties._elev)),
   }
 }

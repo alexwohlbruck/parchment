@@ -41,10 +41,11 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 // URL, in dev and in a production build alike, and `setWorkerUrl` is the
 // library's supported way to say where it went.
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
-import { tileWorkerCount } from '@/lib/map/tile-workers'
 
 setWorkerUrl(maplibreWorkerUrl)
-setWorkerCount(tileWorkerCount(typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : undefined))
+// MapLibre parses every source on one worker outside Safari. Two cut tile waits 3-5x; more delivered tiles faster than the
+// main thread could take them and dropped frames mid-gesture.
+setWorkerCount(2)
 // Start the workers now, while the rest of the bundle is still evaluating,
 // rather than when the map is made at the end of it. Each fetches the worker
 // and then the chunk it imports, one after the other, and no tile can be laid

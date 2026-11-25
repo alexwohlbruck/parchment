@@ -71,8 +71,8 @@ interface CacheEntry {
  *  - PLACE_INFO — enriches an opened place with photos, hours, ratings.
  *
  * Conflation for enrichment uses the Place Match endpoint (`matchPlace`),
- * which returns a single best `fsq_place_id` + confidence — the id we later
- * persist in Barrelman so users can correct a bad match.
+ * which returns a single best `fsq_place_id` + confidence — the id stored in
+ * Barrelman's provider match store so later opens skip the match.
  */
 export class FoursquareIntegration
   implements Integration<FoursquareConfig>
@@ -295,8 +295,7 @@ export class FoursquareIntegration
    * The v2025 API requires structured `name` + `address` + `city` + `cc`
    * (country code) — so a match isn't possible without all of them, in which
    * case we return null and skip enrichment. Returns the single best
-   * `fsq_place_id` (+ confidence if the API supplies one) — the id we later
-   * store in Barrelman for user correction.
+   * `fsq_place_id` (+ confidence if the API supplies one).
    */
   async matchPlace(
     name: string,

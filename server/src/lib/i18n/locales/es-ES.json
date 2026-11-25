@@ -35,6 +35,7 @@
     "place": {
       "invalidParams": "Proporcione source+id, name+lat+lng o lat+lng",
       "invalidOsmType": "Tipo OSM no válido. El formato debe ser \"type/id\" donde type es node, way o relation.",
+      "listingUnsupported": "Solo se pueden cambiar los anuncios de lugares de OpenStreetMap.",
       "notFoundWithParams": "Lugar no encontrado con los parámetros proporcionados",
       "retrievalError": "Error al recuperar datos del lugar",
       "coordinatesRequired": "Se requieren lat y lng",

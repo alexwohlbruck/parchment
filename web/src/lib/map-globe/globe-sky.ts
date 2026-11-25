@@ -222,6 +222,8 @@ export class GlobeSky implements CustomLayerInterface {
     private readonly satellite: () => boolean = () => false,
     /** Leave the space around the globe to the page, as a printed chart does. */
     private readonly hidden: () => boolean = () => false,
+    /** The instant the sun, moon and stars are placed for. */
+    private readonly now: () => Date = () => new Date(),
   ) {}
 
   onAdd(map: Map, context: WebGLRenderingContext | WebGL2RenderingContext) {
@@ -256,7 +258,7 @@ export class GlobeSky implements CustomLayerInterface {
     const satellite = this.satellite()
     const dayNight = this.map.getLayer(DAYNIGHT_LAYER_ID)
     const lighting = !!dayNight && this.map.getLayoutProperty(DAYNIGHT_LAYER_ID, 'visibility') !== 'none'
-    const date = new Date()
+    const date = this.now()
     const sun = globeSunDirection(date)
     gl.uniform3fv(u.u_moon, moonPosition(date))
     gl.uniform1f(u.u_moon_visible, satellite ? 1 : 0)

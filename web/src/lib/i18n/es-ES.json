@@ -692,9 +692,11 @@
       "rail": "Tren",
       "bus": "Autobús",
       "ferry": "Ferri",
-      "other": "Otros",
-      "serviceTime": "Hora de servicio",
-      "live": "En directo"
+      "other": "Otros"
+    },
+    "time": {
+      "title": "Hora",
+      "now": "Ahora"
     },
     "meta": {
       "title": "Información de la capa",
@@ -2956,6 +2958,18 @@
     "unavailable": {
       "title": "Lugar no disponible",
       "description": "No pudimos cargar este lugar"
+    },
+    "listings": {
+      "title": "Fichas de negocio",
+      "none": "Sin ficha",
+      "change": "Cambiar",
+      "pickerTitle": "Ficha de {provider}",
+      "pickerDescription": "Elige la ficha de este lugar. Todos verán tu elección.",
+      "search": "Buscar en {provider}",
+      "noneOption": "No está en {provider}",
+      "noCandidates": "No hay fichas cerca",
+      "saved": "Ficha actualizada",
+      "failed": "No se pudo actualizar la ficha"
     }
   },
   "settings": {

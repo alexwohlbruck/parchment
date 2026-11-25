@@ -1703,7 +1703,6 @@
       "noLocationDescription": "Este amigo aún no ha compartido su ubicación contigo.",
       "locationSharing": "Compartir ubicación",
       "shareMyLocation": "Compartir mi ubicación",
-      "sharingEnabled": "Tu ubicación se comparte con este amigo",
       "sharingDisabled": "Tu ubicación está oculta de este amigo",
       "accuracy": "Precisión",
       "altitude": "Altitud",
@@ -1729,6 +1728,21 @@
       "verified": "Verificado",
       "keysTrusted": "Claves de confianza",
       "loadFailed": "No se pudo cargar este amigo"
+    },
+    "sharing": {
+      "title": "Compartir mi ubicación",
+      "duration": {
+        "1h": "Durante 1 hora",
+        "4h": "Durante 4 horas",
+        "tomorrow": "Hasta mañana",
+        "indefinite": "Hasta que lo desactives"
+      },
+      "minutesLeft": "Quedan {n} min",
+      "hoursLeft": "Quedan {n} h",
+      "until": "Hasta las {time}",
+      "untilTomorrow": "Hasta mañana a las {time}",
+      "untilTurnedOff": "Hasta que lo desactives",
+      "change": "Cambiar duración"
     }
   },
   "dashboard": {

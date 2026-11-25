@@ -69,17 +69,17 @@ describe('bookingLinks', () => {
       tags: { ...restaurant.tags, 'website:booking': 'https://supperland.example/book' },
     })
     expect(links[0]).toEqual({ provider: 'venue', url: 'https://supperland.example/book' })
-    expect(links.map(l => l.provider)).toEqual(['venue', 'opentable', 'resy'])
+    expect(links.map(l => l.provider)).toEqual(['venue'])
   })
 
-  it('uses a tagged provider page in place of searching that provider', () => {
+  it('drops the searches once a tagged provider page is known', () => {
     const url = 'https://resy.com/cities/charlotte-nc/venues/supperland'
     const links = bookingLinks({
       ...restaurant,
       tags: { ...restaurant.tags, 'reservation:website': url },
     })
     expect(links).toContainEqual({ provider: 'resy', url: 'https://resy.com/cities/charlotte-nc/venues/supperland' })
-    expect(links.map(l => l.provider)).toEqual(['resy', 'opentable'])
+    expect(links.map(l => l.provider)).toEqual(['resy'])
   })
 
   it('skips booking URLs that are not web links', () => {
@@ -106,13 +106,13 @@ describe('bookingLinks', () => {
 describe('bookingLinks with known venues', () => {
   const plan = { party: 2, day: '2026-11-25', checkout: '2026-11-26', tableTime: '2026-11-25T19:00' }
 
-  it('links stored venues straight to their page, prefilled, and drops the web search', () => {
+  it('links stored venues straight to their page, prefilled, and drops every search', () => {
     const links = bookingLinks({ ...restaurant, plan, venues: { resy: 'charlotte-nc/supperland' } })
     expect(links[0]).toEqual({
       provider: 'resy',
       url: 'https://resy.com/cities/charlotte-nc/venues/supperland?date=2026-11-25&seats=2',
     })
-    expect(links.map(l => l.provider)).toEqual(['resy', 'opentable'])
+    expect(links.map(l => l.provider)).toEqual(['resy'])
   })
 
   it('uses reservation links from the place data, labelled by site', () => {
@@ -125,7 +125,7 @@ describe('bookingLinks with known venues', () => {
         { kind: 'delivery', url: 'https://www.ubereats.com/store/x' },
       ],
     })
-    expect(links.map(l => l.provider)).toEqual(['opentable', 'tock', 'other', 'resy'])
+    expect(links.map(l => l.provider)).toEqual(['opentable', 'tock', 'other'])
     expect(links[2]).toEqual({ provider: 'other', url: 'https://supperland.example/reserve', name: 'supperland.example' })
   })
 
@@ -138,6 +138,14 @@ describe('bookingLinks with known venues', () => {
     expect(links[0].url).toBe(
       'https://www.booking.com/hotel/us/the-iveys.html?checkin=2026-11-25&checkout=2026-11-26&group_adults=2&no_rooms=1',
     )
+  })
+})
+
+describe('searches', () => {
+  it('are marked as searches, and only appear when no page is known', () => {
+    const links = bookingLinks(restaurant)
+    expect(links.every(l => l.search)).toBe(true)
+    expect(bookingLinks({ ...restaurant, venues: { resy: 'charlotte-nc/supperland' } }).some(l => l.search)).toBe(false)
   })
 })
 
@@ -203,14 +211,14 @@ describe('bookingLinks for lodging', () => {
 
   it("puts the hotel's own booking page first", () => {
     const links = bookingLinks({ ...hotel, tags: { ...hotel.tags, 'website:booking': 'https://ivey.example/stay' } })
-    expect(links.map(l => l.provider)).toEqual(['venue', 'bookingcom', 'expedia', 'googleHotels'])
+    expect(links.map(l => l.provider)).toEqual(['venue'])
   })
 
   it('uses a tagged Booking.com page in place of searching it', () => {
     const url = 'https://www.booking.com/hotel/us/the-iveys.html'
     const links = bookingLinks({ ...hotel, tags: { ...hotel.tags, 'reservation:website': url } })
     expect(links[0]).toEqual({ provider: 'bookingcom', url })
-    expect(links.map(l => l.provider)).toEqual(['bookingcom', 'expedia', 'googleHotels'])
+    expect(links.map(l => l.provider)).toEqual(['bookingcom'])
   })
 })
 

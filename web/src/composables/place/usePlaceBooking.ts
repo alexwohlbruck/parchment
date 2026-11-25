@@ -3,6 +3,8 @@ import type { Place } from '@/types/place.types'
 import {
   bookingLinks,
   deliveryLinks,
+  googleHotelsSearchUrl,
+  type BookingTarget,
   effectiveBookingKind,
   isDiningPlace,
   isLodgingPlace,
@@ -32,11 +34,11 @@ export function usePlaceBooking(
   )
   const kind = computed(() => effectiveBookingKind(tags.value, knownElsewhere.value))
 
-  const links = computed(() => {
+  const target = computed((): BookingTarget => {
     const p = toValue(place)
     const address = p?.address?.value
     const chosen = toValue(plan)
-    return bookingLinks({
+    return {
       name: p?.name?.value ?? '',
       tags: tags.value,
       kind: kind.value,
@@ -55,8 +57,9 @@ export function usePlaceBooking(
             tableTime: tableTime(chosen.day),
           }
         : undefined,
-    })
+    }
   })
+  const links = computed(() => bookingLinks(target.value))
 
   return {
     policy: computed(() => reservationPolicy(tags.value)),
@@ -64,5 +67,6 @@ export function usePlaceBooking(
     placeId,
     links,
     delivery: computed(() => deliveryLinks(actions.value)),
+    googleHotelsUrl: computed(() => googleHotelsSearchUrl(target.value)),
   }
 }

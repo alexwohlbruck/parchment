@@ -31,6 +31,8 @@ export interface BookingLink {
   url: string
   /** The site's name, for a provider we have no name for. */
   name?: string
+  /** A search on the site rather than the place's own page there. */
+  search?: boolean
 }
 
 export interface BookingTarget {
@@ -172,9 +174,9 @@ function directLink(raw: string, target: BookingTarget, own: boolean): BookingLi
 }
 
 /**
- * Ways to book a place, best first: its own pages on booking sites, then
- * searches on the sites where none is known. A web search is only offered
- * when nothing direct is. Empty when it can't be booked.
+ * Ways to book a place, best first. Its own pages on booking sites when any
+ * is known; otherwise searches, so a search never sits beside a real page and
+ * passes for one. Empty when it can't be booked.
  */
 export function bookingLinks(target: BookingTarget): BookingLink[] {
   const kind = target.kind ?? bookingKind(target.tags)
@@ -196,12 +198,12 @@ export function bookingLinks(target: BookingTarget): BookingLink[] {
     if (action.kind === 'reservation') add(directLink(action.url, target, false))
   }
 
-  const direct = links.length > 0
+  if (links.length) return links
+
   for (const [provider, search] of SEARCHES[kind]) {
-    if (provider === 'search' && direct) continue
-    if (target.unlisted?.includes(provider as VenueProvider) || links.some(l => l.provider === provider)) continue
+    if (target.unlisted?.includes(provider as VenueProvider)) continue
     const url = search(target)
-    if (url) add({ provider, url })
+    if (url) add({ provider, url, search: true })
   }
   return links
 }

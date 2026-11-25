@@ -31,6 +31,9 @@ const SAME_PLACE_M = 300
 const FETCH_TIMEOUT_MS = 8000
 const MAX_REDIRECTS = 4
 const MAX_CONTACT_PAGES = 2
+/** Reasoning models spend most of these thinking before they answer. */
+const SITE_TOKENS = 1000
+const READ_TOKENS = 1500
 
 export class WebPlaceError extends Error {}
 
@@ -107,7 +110,7 @@ async function findOfficialSite(query: string, { model, signal }: Options) {
       { role: 'user', content: query },
     ],
     webSearch: { maxResults: 5 },
-    maxTokens: 120,
+    maxTokens: SITE_TOKENS,
     signal,
   })
   const website = message.content?.match(/https?:\/\/[^\s"'<>)\]]+/)?.[0]?.replace(/[.,;]+$/, '')
@@ -201,7 +204,7 @@ async function readWithModel(pages: Page[], { model, signal }: Options): Promise
       { role: 'system', content: READ_BRIEF },
       { role: 'user', content },
     ],
-    maxTokens: 400,
+    maxTokens: READ_TOKENS,
     signal,
   })
   return parseModelBusiness(message.content ?? '')

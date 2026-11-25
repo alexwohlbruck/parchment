@@ -46,6 +46,14 @@ export const CATEGORY_TAGS: Record<string, Record<string, string>> = {
   SportingGoodsStore: { shop: 'sports' },
   DryCleaningOrLaundry: { shop: 'dry_cleaning' },
   AutoRepair: { shop: 'car_repair' },
+  MusicStore: { shop: 'musical_instrument' },
+  MovingCompany: { office: 'moving_company' },
+  Locksmith: { craft: 'locksmith' },
+  Plumber: { craft: 'plumber' },
+  Electrician: { craft: 'electrician' },
+  HomeGoodsStore: { shop: 'houseware' },
+  OutletStore: { shop: 'clothes' },
+  SelfStorage: { shop: 'storage_rental' },
   Bank: { amenity: 'bank' },
   Library: { amenity: 'library' },
   ChildCare: { amenity: 'childcare' },
@@ -62,6 +70,11 @@ export const CATEGORY_TAGS: Record<string, Record<string, string>> = {
 }
 
 const SERVES_FOOD = new Set(['restaurant', 'fast_food', 'cafe'])
+
+/** True when one of the business's types says what kind of place it is. */
+export function hasCategory(business: SiteBusiness): boolean {
+  return business.types.some((type) => CATEGORY_TAGS[type])
+}
 
 /** The OSM tags a new node for this business would carry, from the business's own site. */
 export function businessTags(business: SiteBusiness, website: string): Record<string, string> {

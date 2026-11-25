@@ -29,6 +29,15 @@ describe('parseModelBusiness', () => {
   })
 })
 
+test('leaves the type to the mapper when the site says only that it is a business', () => {
+  const place = webPlace(
+    { name: 'Pianoland', types: ['LocalBusiness'], address: { street: '2527 65th St' } },
+    'https://pianoland.example/',
+    { lat: 40.6095, lng: -73.9735 },
+  )
+  expect(place.unmapped?.presetId).toBeNull()
+})
+
 describe('webPlace', () => {
   const place = webPlace(
     {

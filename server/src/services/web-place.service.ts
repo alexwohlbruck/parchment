@@ -7,7 +7,7 @@ import { logError } from '../lib/logger'
 import { assertPublicUrl, outboundRequestConfig } from '../lib/outbound-fetch'
 import { matchTags } from '../lib/osm-presets'
 import { readSiteBusinesses, type SiteBusiness } from '../lib/web-place/schema-org'
-import { addressLine, businessTags, CATEGORY_TAGS } from '../lib/web-place/osm-tags'
+import { addressLine, businessTags, CATEGORY_TAGS, hasCategory } from '../lib/web-place/osm-tags'
 import {
   contactLinks,
   hostOf,
@@ -143,7 +143,10 @@ async function readSite(website: string, name: string, options: Options) {
     pages.push(page)
     business = pickBusiness(readSiteBusinesses(page.html), name, options.near) ?? business
   }
-  business ??= (await readWithModel(pages, options)) ?? undefined
+  if (!business || !hasCategory(business)) {
+    const read = await readWithModel(pages, options)
+    business = business && read ? { ...business, types: [...read.types, ...business.types] } : (business ?? read ?? undefined)
+  }
   return business ? { business, url: home.url, title } : null
 }
 
@@ -299,7 +302,7 @@ export function webPlace(
     externalIds: { [SOURCE.WEB]: id },
     tags,
     sources: [{ id: SOURCE.WEB, name: hostOf(website) ?? website, url: website }],
-    unmapped: { tags, presetId: matchTags(tags, 'point')?.preset.id ?? null },
+    unmapped: { tags, presetId: hasCategory(business) ? (matchTags(tags, 'point')?.preset.id ?? null) : null },
   }
 }
 

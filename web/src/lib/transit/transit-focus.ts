@@ -151,3 +151,9 @@ export function yourVehicleIds(
 function isRun(tripId: string, vehicle: TransitVehiclePosition): boolean {
   return tripId === localTripId(vehicle) || (!!vehicle.tripId && tripId.endsWith(`_${vehicle.tripId}`))
 }
+
+/** A board's run id (`{yyyymmdd}_{hh:mm}_{feed}_{trip}`) as the feed's own trip id, which trip updates and vehicles carry. */
+export function boardRunTripId(runId: string, feedId: string): string {
+  const trip = runId.replace(/^\d{8}_\d{1,2}:\d{2}_/, '')
+  return trip.startsWith(`${feedId}_`) ? trip.slice(feedId.length + 1) : trip
+}

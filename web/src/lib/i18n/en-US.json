@@ -2763,6 +2763,10 @@
       "activeVehicles": "{count} {type} active",
       "selectVehicle": "Select a {type}",
       "closestVehicle": "Closest",
+      "followedRun": "To {destination}",
+      "followedRunUnknown": "This {type}",
+      "stopFollowing": "Stop following",
+      "followRun": "Follow this run",
       "everyNMin": "Every {n} min",
       "stops": "Stops",
       "alerts": {

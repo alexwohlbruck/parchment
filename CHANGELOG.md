@@ -4,6 +4,7 @@
 
 * The command palette lists the commands you use most at the top.
 * On a place, the command palette offers directions, call, website, share and edit, and **D** gets directions there.
+* Switch the app style or the map style from the command palette.
 
 ### Changed
 

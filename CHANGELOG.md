@@ -4,7 +4,7 @@
 
 ### Changed
 
-* Map tiles appear up to 3× faster while you pan and zoom.
+* Map tiles appear up to 3× faster, and panning, rotating and zooming stay smoother while they load.
 
 ### Fixed
 

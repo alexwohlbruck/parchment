@@ -13,7 +13,7 @@ import { SOURCE } from '../lib/constants.js'
 import { WidgetType } from '../types/place.types'
 import { fetchWidgetData } from '../services/widget.service'
 import { fetchNearestStreetImage } from '../services/street-imagery.service'
-import { getStayRates } from '../services/stay.service'
+import { getStayOffers } from '../services/stay.service'
 import { isValidStay, MAX_STAY_ADULTS } from '../lib/place/stay-dates'
 import { isVenueId, isVenueProvider } from '../lib/place/booking-venues'
 import { getBookingVenues } from '../services/place/booking-venues.service'
@@ -282,26 +282,26 @@ app.get(
   },
 )
 
-// Live room rates for the hotel at a place, for one set of dates and guests.
+// Every seller's price for the hotel at a place, for one set of dates and guests.
 app.get(
-  '/stay-rates',
+  '/stay-offers',
   async (ctx) => {
     const { query, status, t } = ctx
     if (!isValidStay(query.checkin, query.checkout)) {
       return status(400, { message: t('errors.place.invalidStay') })
     }
     try {
-      const rates = await getStayRates(query.source as Source, query.id, {
+      const offers = await getStayOffers(query.source as Source, query.id, {
         checkin: query.checkin,
         checkout: query.checkout,
         adults: query.adults ?? 2,
         currency: query.currency?.toUpperCase() ?? 'USD',
         guestNationality: query.nationality?.toUpperCase() ?? 'US',
       })
-      return { rates }
+      return { offers }
     } catch (err) {
-      logError('Error fetching stay rates', err)
-      return status(502, { message: err instanceof Error ? err.message : 'Error fetching stay rates' })
+      logError('Error fetching stay offers', err)
+      return status(502, { message: err instanceof Error ? err.message : 'Error fetching stay offers' })
     }
   },
   {
@@ -316,9 +316,9 @@ app.get(
     }),
     detail: {
       tags: ['Places'],
-      summary: 'Get live room rates for a hotel',
+      summary: "Compare sellers' prices for a hotel",
       description:
-        'Uses the place\'s stored LiteAPI listing, matching one the first time (a nearby hotel with the same name within 250 m) and storing the result, a miss included, and returns the cheapest offer per room for the dates and guests, each with a checkout link for that exact offer. `rates` is null when no provider is configured or the place has no matched listing. Stays run 1 to 30 nights. Cached for 10 minutes.',
+        'One offer per seller from Google Hotels (SerpApi) and from our booking partner (LiteAPI, `bookHere`), each with its nightly price before taxes, the stay total with taxes and fees, free cancellation, and a link to that seller\'s page for these dates. The hotel is matched to each source once, by name within 250 m, and stored in the match store (`google_hotels`, `liteapi`), a miss included. `offers` is null when no source is configured or none lists the hotel. Stays run 1 to 30 nights. Cached for 30 minutes.',
     },
   },
 )

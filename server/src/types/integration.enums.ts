@@ -39,6 +39,8 @@ export enum IntegrationId {
   OPENROUTER = 'openrouter',
   /** LiteAPI (Nuitée) — live hotel room rates and a white-label booking site. */
   LITEAPI = 'liteapi',
+  /** SerpApi — Google Hotels prices from every seller of a hotel. */
+  SERPAPI = 'serpapi',
 }
 
 export enum IntegrationCapabilityId {
@@ -67,4 +69,5 @@ export enum IntegrationCapabilityId {
   TTS = 'tts',
   LANGUAGE_MODEL = 'languageModel',
   HOTEL_RATES = 'hotelRates',
+  HOTEL_PRICES = 'hotelPrices',
 }

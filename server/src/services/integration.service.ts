@@ -397,6 +397,19 @@ const availableIntegrations: IntegrationDefinition[] = [
     scope: [IntegrationScope.SYSTEM],
   },
   {
+    id: IntegrationId.SERPAPI,
+    name: 'SerpApi',
+    description: 'Every seller\'s price for a hotel, from Google Hotels',
+    color: '#2E7D5B',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(IntegrationId.SERPAPI)
+    },
+    paid: true,
+    cloud: true,
+    configSchema: 'serpapiSchema',
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
     id: IntegrationId.OPENSTREETMAP,
     name: 'OpenStreetMap',
     description:

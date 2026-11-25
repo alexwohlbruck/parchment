@@ -28,6 +28,7 @@ import { EsriIntegration } from './esri-integration'
 import { QuackbackIntegration } from './quackback-integration'
 import { OpenRouterIntegration } from './openrouter-integration'
 import { LiteApiIntegration } from './liteapi-integration'
+import { SerpApiIntegration } from './serpapi-integration'
 
 /**
  * Registry for all integrations
@@ -71,6 +72,7 @@ export class IntegrationRegistry {
     this.registerIntegration(new QuackbackIntegration())
     this.registerIntegration(new OpenRouterIntegration())
     this.registerIntegration(new LiteApiIntegration())
+    this.registerIntegration(new SerpApiIntegration())
   }
 
   /**

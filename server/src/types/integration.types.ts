@@ -766,6 +766,46 @@ export interface HotelRatesCapability {
   getHotel(hotelId: string): Promise<HotelCandidate | null>
 }
 
+/** The dates and guests a stay is priced for. */
+export type Stay = Omit<StayRatesRequest, 'hotelId'>
+
+/** One seller's price for a stay. */
+export interface StayOffer {
+  seller: string
+  logo: string | null
+  /** The hotel's own site. */
+  official: boolean
+  /** Google's featured sellers, shown above the rest. */
+  featured: boolean
+  /** Sold through Parchment's booking partner. */
+  bookHere: boolean
+  /** Per night, before taxes and fees. */
+  nightly: StayMoney | null
+  /** The whole stay with taxes and fees. */
+  total: StayMoney | null
+  freeCancellation: boolean
+  /** The seller's booking page for these dates and guests. */
+  url: string
+}
+
+export interface StayOffers {
+  offers: StayOffer[]
+}
+
+export interface GoogleHotelsSearch {
+  /** Candidates keyed by property token. */
+  candidates: HotelCandidate[]
+  /** Set when Google resolved the query to one hotel and returned its prices with it. */
+  property?: { candidate: HotelCandidate; offers: StayOffer[] }
+}
+
+export interface HotelPricesCapability {
+  /** Hotels matching a query, priced for the stay when Google resolves it to one. */
+  searchHotels(query: string, stay: Stay): Promise<GoogleHotelsSearch>
+  /** Every seller's price for one hotel by its property token. */
+  getOffers(propertyToken: string, stay: Stay): Promise<StayOffer[]>
+}
+
 // ── Capability container ─────────────────────────────────────────────
 
 export interface IntegrationCapabilities {
@@ -789,6 +829,7 @@ export interface IntegrationCapabilities {
   transitRouting?: TransitRoutingCapability
   rideshareEstimate?: RideshareEstimateCapability
   hotelRates?: HotelRatesCapability
+  hotelPrices?: HotelPricesCapability
   feedback?: FeedbackCapability
   languageModel?: LanguageModelCapability
 }

@@ -4,6 +4,7 @@ import { AUTO_MATCHED_PROVIDERS, type ProviderMatch } from '../../lib/place/prov
 import type { Language } from '../../lib/i18n/i18n.types'
 import type { Place } from '../../types/place.types'
 import type { ListingSummary, ProviderListing } from '../../types/place-listing.types'
+import type { Stay } from '../../types/integration.types'
 import { IntegrationCapabilityId } from '../../types/integration.enums'
 import { integrationManager } from '../integrations'
 import { lookupPlaceById, lookupPlacesByNameAndLocation } from '../place.service'
@@ -11,7 +12,13 @@ import { getProviderMatches, setProviderMatch } from './provider-matches.service
 import { LISTED_VENUE_PROVIDERS, isVenueProvider, venuePageUrl } from '../../lib/place/booking-venues'
 import { bookingKind } from '../../lib/place/booking-kind'
 import { HOTEL_SEARCH_RADIUS_M, hotelNameSimilarity, metresBetween, type HotelCandidate } from '../../lib/place/hotel-match'
-import { LITEAPI_PROVIDER, hotelRatesCapability } from '../stay.service'
+import {
+  GOOGLE_HOTELS_PROVIDER,
+  LITEAPI_PROVIDER,
+  hotelPricesCapability,
+  hotelRatesCapability,
+  searchGoogleHotels,
+} from '../stay.service'
 
 const CANDIDATE_RADIUS_M = 500
 const MAX_HOTEL_CANDIDATES = 20
@@ -30,8 +37,9 @@ function summarizeHotel(hotel: HotelCandidate, origin?: { lat: number; lng: numb
 function bookingProviders(place: Place | null): string[] {
   const kind = bookingKind(place?.tags)
   if (!kind) return []
+  const prices = kind === 'stay' && hotelPricesCapability() ? [GOOGLE_HOTELS_PROVIDER] : []
   const rates = kind === 'stay' && hotelRatesCapability() ? [LITEAPI_PROVIDER] : []
-  return [...rates, ...LISTED_VENUE_PROVIDERS[kind]]
+  return [...prices, ...rates, ...LISTED_VENUE_PROVIDERS[kind]]
 }
 
 async function storedSummary(
@@ -54,6 +62,7 @@ async function storedSummary(
 }
 
 function isSearchable(provider: string): boolean {
+  if (provider === GOOGLE_HOTELS_PROVIDER) return !!hotelPricesCapability()
   if (provider === LITEAPI_PROVIDER) return !!hotelRatesCapability()
   return hasCapability(provider, IntegrationCapabilityId.SEARCH)
 }
@@ -129,6 +138,7 @@ export async function searchListingCandidates(
   const query = options.query?.trim() || place?.name?.value
   if (!center || !query) return []
   if (provider === LITEAPI_PROVIDER) return searchHotelCandidates(center, query)
+  if (provider === GOOGLE_HOTELS_PROVIDER) return searchGoogleHotelCandidates(center, query, place?.address?.value?.locality)
   const otherSources = Object.values(SOURCE).filter((s) => s !== provider) as Source[]
   const found = await lookupPlacesByNameAndLocation(query, center, {
     radius: CANDIDATE_RADIUS_M,
@@ -155,6 +165,28 @@ async function searchHotelCandidates(center: { lat: number; lng: number }, query
     .sort((a, b) => b.similarity - a.similarity || metresBetween(center, a.hotel) - metresBetween(center, b.hotel))
     .slice(0, MAX_HOTEL_CANDIDATES)
     .map(({ hotel }) => summarizeHotel(hotel, center))
+}
+
+/** One night from tonight, for a Google Hotels search that needs dates to run. */
+function tonight(): Stay {
+  const checkin = new Date()
+  const checkout = new Date(checkin.getTime() + 24 * 60 * 60 * 1000)
+  const day = (d: Date) => d.toISOString().slice(0, 10)
+  return { checkin: day(checkin), checkout: day(checkout), adults: 2, currency: 'USD', guestNationality: 'US' }
+}
+
+/** Google Hotels listings for the query in the place's town, within the search radius, nearest first. */
+async function searchGoogleHotelCandidates(
+  center: { lat: number; lng: number },
+  query: string,
+  locality: string | undefined,
+): Promise<ListingSummary[]> {
+  const hotels = await searchGoogleHotels([query, locality].filter(Boolean).join(', '), tonight())
+  return hotels
+    .map((hotel) => summarizeHotel(hotel, center))
+    .filter((summary) => summary.distance === null || summary.distance <= HOTEL_SEARCH_RADIUS_M)
+    .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
+    .slice(0, MAX_HOTEL_CANDIDATES)
 }
 
 /** A person's correction: this listing, or `null` for none. Automatic matching won't override it. */

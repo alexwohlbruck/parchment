@@ -33,9 +33,14 @@ const hotels = [
   { id: 'lp-1', name: 'The Ivey’s Hotel', lat: 35.2272, lng: -80.8431, address: '127 N Tryon St' },
 ]
 let hotelRates: any = null
+let hotelPrices: any = null
+const searchGoogleHotels = mock(async (..._args: unknown[]) => hotels)
 mock.module('../stay.service', () => ({
   LITEAPI_PROVIDER: 'liteapi',
+  GOOGLE_HOTELS_PROVIDER: 'google_hotels',
   hotelRatesCapability: () => hotelRates,
+  hotelPricesCapability: () => hotelPrices,
+  searchGoogleHotels,
 }))
 
 const { getPlaceListings, searchListingCandidates, correctListing } = await import('./listing-matches.service')
@@ -45,6 +50,8 @@ beforeEach(() => {
   stored = {}
   osmTags = {}
   hotelRates = null
+  hotelPrices = null
+  searchGoogleHotels.mockClear()
   setProviderMatch.mockClear()
   lookupPlacesByNameAndLocation.mockReset()
 })
@@ -130,6 +137,26 @@ describe('searchListingCandidates for LiteAPI', () => {
     expect(found.map((c) => c.id)).toEqual(['lp-1', 'lp-far'])
     expect(found[0]).toMatchObject({ name: 'The Ivey’s Hotel', address: '127 N Tryon St', distance: 11 })
     expect(lookupPlacesByNameAndLocation).not.toHaveBeenCalled()
+  })
+})
+
+describe('Google Hotels listings', () => {
+  test('lists Google Hotels for a hotel when SerpApi is configured, searchable', async () => {
+    osmTags = { tourism: 'hotel' }
+    hotelPrices = {}
+    const listings = await getPlaceListings('osm' as any, 'node/1')
+    expect(listings.map((l) => [l.provider, l.searchable])).toEqual([
+      ['google_hotels', true],
+      ['booking', false],
+      ['expedia', false],
+    ])
+  })
+
+  test('searches Google Hotels in the place’s town, keeping hotels within 1 km, nearest first', async () => {
+    hotelPrices = {}
+    const found = await searchListingCandidates('osm' as any, 'node/1', 'google_hotels', { query: 'Ivey' })
+    expect(searchGoogleHotels.mock.calls[0][0]).toBe('Ivey, Charlotte')
+    expect(found.map((c) => c.id)).toEqual(['lp-1', 'lp-far'])
   })
 })
 

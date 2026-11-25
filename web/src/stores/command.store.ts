@@ -2,7 +2,7 @@ import { POI_STYLES } from '@/lib/map-style/build'
 import { defineStore, storeToRefs } from 'pinia'
 import { ASK_OPTION, BROWSE_OPTION_PREFIX, RECENT_ASK_PREFIX, buildSearchSuggestions } from '@/services/search-suggestions.service'
 import { recentSearchRoute } from '@/services/place/place-display'
-import { computed } from 'vue'
+import { computed, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
 import { Command, CommandArgumentOption } from '@/types/command.types'
 import type { Icon } from '@/types/app.types'
@@ -224,7 +224,7 @@ export const useCommandStore = defineStore('command', () => {
     return !command.engine || command.engine.includes(settings.value.engine)
   }
 
-  function getCommand(id: CommandName) {
+  function getCommand(id: string) {
     const command = commands.value.find(c => c.id === id)!
 
     if (commandIsAvailable(command)) {
@@ -234,7 +234,7 @@ export const useCommandStore = defineStore('command', () => {
     return null
   }
 
-  function useCommand(id: CommandName) {
+  function useCommand(id: string) {
     return computed(() => getCommand(id))
   }
 
@@ -810,11 +810,29 @@ export const useCommandStore = defineStore('command', () => {
     ]
   })
 
+  const contextualOwners = shallowRef(new Map<symbol, Command[]>())
+  const contextualCommands = computed(() =>
+    [...contextualOwners.value.values()].flat(),
+  )
+
+  function setContextualCommands(owner: symbol, list: Command[]) {
+    contextualOwners.value = new Map(contextualOwners.value).set(owner, list)
+  }
+
+  function clearContextualCommands(owner: symbol) {
+    const next = new Map(contextualOwners.value)
+    next.delete(owner)
+    contextualOwners.value = next
+  }
+
   return {
     commandIsAvailable,
     getCommand,
     useCommand,
     getCommandArgumentOptions,
     commands,
+    contextualCommands,
+    setContextualCommands,
+    clearContextualCommands,
   }
 })

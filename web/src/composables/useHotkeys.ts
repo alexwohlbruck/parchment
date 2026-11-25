@@ -75,62 +75,60 @@ export function getAllEphemeralHotkeys() {
   return hotkeyStore.getAllEphemeralHotkeys()
 }
 
-export function useHotkeys(bindings: HotkeyBinding | HotkeyBinding[]) {
+/** Binds one hotkey and returns its unbind. */
+export function bindHotkey(
+  {
+    key,
+    handler,
+    id,
+    name,
+    description,
+    category,
+    preventDefault = true,
+    allowInInput,
+  }: HotkeyBinding,
+  componentName?: string,
+): () => void {
   const hotkeyStore = useHotkeyStore()
+  const mousetrapKey = hotkeyStore.registerBinding(
+    id,
+    key,
+    handler,
+    name,
+    description,
+    componentName,
+    preventDefault,
+    allowInInput,
+    category,
+  )
+
+  // One mousetrap callback per key, dispatching to every component that asked
+  // for it: mousetrap unbinds a whole key at once.
+  if (!hotkeyStore.isBound(mousetrapKey)) {
+    mousetrap.bind(mousetrapKey, e => {
+      if (hotkeyStore.preventsDefault(mousetrapKey)) e.preventDefault()
+      hotkeyStore.dispatch(mousetrapKey)
+    })
+  }
+
+  return () => {
+    if (hotkeyStore.unregisterBinding(key, handler)) mousetrap.unbind(mousetrapKey)
+  }
+}
+
+export function useHotkeys(bindings: HotkeyBinding | HotkeyBinding[]) {
   const instance = getCurrentInstance()
   const componentName =
     instance?.type?.name || instance?.type?.__name || 'Unknown'
+  let unbinds: (() => void)[] = []
 
   onMounted(() => {
     const bindingArray = Array.isArray(bindings) ? bindings : [bindings]
-
-    bindingArray.forEach(
-      ({
-        key,
-        handler,
-        id,
-        name,
-        description,
-        category,
-        preventDefault = true,
-        allowInInput,
-      }) => {
-        // Register binding in the store (handles ephemeral hotkey registration)
-        const mousetrapKey = hotkeyStore.registerBinding(
-          id,
-          key,
-          handler,
-          name,
-          description,
-          componentName,
-          preventDefault,
-          allowInInput,
-          category,
-        )
-
-        // One mousetrap callback per key, dispatching to every component that
-        // asked for it. Binding per component looked equivalent but wasn't:
-        // mousetrap unbinds a whole key at once, so the first component to
-        // unmount took the others' handlers down with it.
-        if (hotkeyStore.isBound(mousetrapKey)) return
-        mousetrap.bind(mousetrapKey, e => {
-          if (hotkeyStore.preventsDefault(mousetrapKey)) e.preventDefault()
-          hotkeyStore.dispatch(mousetrapKey)
-        })
-      },
-    )
+    unbinds = bindingArray.map(binding => bindHotkey(binding, componentName))
   })
 
   onUnmounted(() => {
-    const bindingArray = Array.isArray(bindings) ? bindings : [bindings]
-
-    bindingArray.forEach(({ key, handler }) => {
-      // Only the last handler for a key may take the key off mousetrap.
-      const wasLast = hotkeyStore.unregisterBinding(key, handler)
-      if (!wasLast) return
-
-      const mousetrapKey = Array.isArray(key) ? key.join('+') : key
-      mousetrap.unbind(mousetrapKey)
-    })
+    unbinds.forEach(unbind => unbind())
+    unbinds = []
   })
 }

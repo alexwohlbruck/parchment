@@ -2,10 +2,14 @@
 
 ### Added
 
+* The command palette lists the commands you use most at the top.
+* On a place, the command palette offers directions, call, website, share and edit, and **D** gets directions there.
+
 ### Changed
 
 ### Fixed
 
+* Sharing a place copies its link when the browser can't open a share sheet.
 * Uploaded profile photos show up instead of a blank square.
 
 ## [0.27.0] - 2026-11-24

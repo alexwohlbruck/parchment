@@ -1,5 +1,12 @@
 import { Place } from '@/types/place.types'
 
+export function placeWebsites(place: Partial<Place> | null | undefined): string[] {
+  const all = place?.contactInfo?.websites?.value
+  if (all?.length) return all
+  const single = place?.contactInfo?.website?.value
+  return single ? [single] : []
+}
+
 export function formatAddress(place: Place): string {
   if (!place.address) return ''
 

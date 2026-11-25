@@ -696,9 +696,11 @@
       "rail": "Rail",
       "bus": "Bus",
       "ferry": "Ferry",
-      "other": "Other",
-      "serviceTime": "Service time",
-      "live": "Live"
+      "other": "Other"
+    },
+    "time": {
+      "title": "Time",
+      "now": "Now"
     },
     "meta": {
       "title": "Layer info",

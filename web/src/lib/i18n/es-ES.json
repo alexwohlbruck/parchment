@@ -688,9 +688,11 @@
       "rail": "Tren",
       "bus": "Autobús",
       "ferry": "Ferri",
-      "other": "Otros",
-      "serviceTime": "Hora de servicio",
-      "live": "En directo"
+      "other": "Otros"
+    },
+    "time": {
+      "title": "Hora",
+      "now": "Ahora"
     },
     "meta": {
       "title": "Información de la capa",

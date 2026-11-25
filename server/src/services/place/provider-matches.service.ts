@@ -17,16 +17,22 @@ export async function getProviderMatches(source: Source, placeId: string): Promi
   if (!ref) return {}
   const body = await sendBarrelman<{ matches: (ProviderMatch & { provider: string })[] }>('GET', matchesPath(ref))
   return Object.fromEntries(
-    (body?.matches ?? []).map(({ provider, providerPlaceId, confirmed }) => [provider, { providerPlaceId, confirmed }]),
+    (body?.matches ?? []).map(({ provider, providerPlaceId, confirmed, label }) => [
+      provider,
+      { providerPlaceId, confirmed, label: label ?? null },
+    ]),
   )
 }
 
-/** The id of this place's listing at any provider, or null when none is stored or the place has none there. */
-export async function getProviderMatch(source: Source, placeId: string, provider: string): Promise<string | null> {
-  return (await getProviderMatches(source, placeId))[provider]?.providerPlaceId ?? null
+/** This place's stored match at a provider (its listing id, or null for none, and display name), or null when nothing is stored. */
+export async function getProviderMatch(source: Source, placeId: string, provider: string): Promise<ProviderMatch | null> {
+  return (await getProviderMatches(source, placeId))[provider] ?? null
 }
 
-/** Record a place's listing at a provider, or `providerPlaceId: null` for none. Returns false for places the store can't key. */
+/**
+ * Record a place's listing at a provider, or `providerPlaceId: null` for none,
+ * with its display name when given. Returns false for places the store can't key.
+ */
 export async function setProviderMatch(
   source: Source,
   placeId: string,

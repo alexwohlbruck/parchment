@@ -29,9 +29,9 @@ afterEach(() => {
 })
 
 describe('provider match store', () => {
-  test('reads the stored id for any provider', async () => {
+  test('reads the stored match for any provider', async () => {
     matches = [{ provider: 'liteapi', providerPlaceId: 'lp-1', confirmed: false, updatedAt: '' }]
-    expect(await getProviderMatch('osm', 'node/4176535246', 'liteapi')).toBe('lp-1')
+    expect(await getProviderMatch('osm', 'node/4176535246', 'liteapi')).toEqual({ providerPlaceId: 'lp-1', confirmed: false, label: null })
     expect(await getProviderMatch('osm', 'node/4176535246', 'resy')).toBeNull()
     expect(calls[0].url).toBe('http://barrelman.test/place/node/4176535246/matches')
   })
@@ -41,6 +41,18 @@ describe('provider match store', () => {
     expect(calls).toEqual([
       { method: 'PUT', url: 'http://barrelman.test/place/way/7/matches/opentable', body: { providerPlaceId: 'ot-9', confirmed: false } },
     ])
+  })
+
+  test('reads and writes a listing’s display name', async () => {
+    matches = [{ provider: 'google_hotels', providerPlaceId: 'ChoIp8', confirmed: true, label: 'EVEN Hotel Brooklyn by IHG', updatedAt: '' }]
+    expect((await getProviderMatch('osm', 'way/575449026', 'google_hotels'))?.label).toBe('EVEN Hotel Brooklyn by IHG')
+    await setProviderMatch('osm', 'way/575449026', 'google_hotels', { providerPlaceId: 'ChoIp8', confirmed: true, label: 'EVEN Hotel' })
+    expect(calls.at(-1)?.body).toEqual({ providerPlaceId: 'ChoIp8', confirmed: true, label: 'EVEN Hotel' })
+  })
+
+  test('leaves the stored name alone when a write gives none', async () => {
+    await setProviderMatch('osm', 'way/7', 'foursquare', { providerPlaceId: 'x', confirmed: false })
+    expect(calls.at(-1)?.body).not.toHaveProperty('label')
   })
 
   test('stores nothing for places Barrelman cannot key', async () => {

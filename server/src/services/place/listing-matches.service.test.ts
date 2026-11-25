@@ -22,7 +22,7 @@ const lookupPlaceById = mock(async (source: string, id: string) =>
 const lookupPlacesByNameAndLocation = mock(async (..._args: unknown[]) => [] as any[])
 mock.module('../place.service', () => ({ lookupPlaceById, lookupPlacesByNameAndLocation }))
 
-let stored: Record<string, { providerPlaceId: string | null; confirmed: boolean }> = {}
+let stored: Record<string, { providerPlaceId: string | null; confirmed: boolean; label?: string | null }> = {}
 const setProviderMatch = mock(async (..._args: unknown[]) => true)
 mock.module('./provider-matches.service', () => ({ getProviderMatches: async () => stored, setProviderMatch }))
 
@@ -51,6 +51,19 @@ describe('getPlaceListings', () => {
         searchable: false,
       },
     ])
+  })
+})
+
+describe('stored display names', () => {
+  test('names a listing that can’t be looked up from its stored label', async () => {
+    stored = { google_hotels: { providerPlaceId: 'ChoIp8', confirmed: true, label: 'EVEN Hotel Brooklyn by IHG' } }
+    const listings = await getPlaceListings('osm' as any, 'node/1')
+    expect(listings.find((l) => l.provider === 'google_hotels')?.listing).toEqual({
+      id: 'ChoIp8',
+      name: 'EVEN Hotel Brooklyn by IHG',
+      address: null,
+      distance: null,
+    })
   })
 })
 

@@ -59,7 +59,7 @@ export async function getPlaceListings(
         const found = hasCapability(provider, IntegrationCapabilityId.PLACE_INFO)
           ? await lookupPlaceById(provider as Source, id, options).catch(() => null)
           : null
-        listing = (found && summarize(found, center)) ?? { id, name: null, address: null, distance: null }
+        listing = (found && summarize(found, center)) ?? { id, name: match?.label ?? null, address: null, distance: null }
       }
       return {
         provider,

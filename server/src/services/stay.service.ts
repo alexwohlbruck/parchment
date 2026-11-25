@@ -1,32 +1,21 @@
 import { integrationManager } from './integrations'
 import { LiteApiIntegration } from './integrations/liteapi-integration'
-import { IntegrationCapabilityId } from '../types/integration.enums'
-import { IntegrationId } from '../types/integration.enums'
+import { IntegrationCapabilityId, IntegrationId } from '../types/integration.enums'
+import type { Source } from '../lib/constants'
+import { pickHotelMatch, HOTEL_SEARCH_RADIUS_M } from '../lib/place/hotel-match'
+import { logWarn } from '../lib/logger'
+import { lookupPlaceById } from './place.service'
+import { getProviderMatches, setProviderMatch } from './place/provider-matches.service'
 import type {
   HotelRatesCapability,
   StayRates,
   StayRatesRequest,
 } from '../types/integration.types'
 
-export interface StayPlace {
-  source: string
-  id: string
-}
-
 export type Stay = Omit<StayRatesRequest, 'hotelId'>
 
-/** Finds the provider's id for a place's listing. */
-export type VenueIdLookup = (place: StayPlace, provider: IntegrationId) => Promise<string | null>
-
-/**
- * Venue ids come from the provider match store (PAR-271, #1084). Until it
- * lands nothing resolves, so every place falls back to the search links.
- */
-let lookupVenueId: VenueIdLookup = async () => null
-
-export function setVenueIdLookup(lookup: VenueIdLookup): void {
-  lookupVenueId = lookup
-}
+/** The provider key LiteAPI hotel ids are stored under in the match store. */
+export const LITEAPI_PROVIDER = IntegrationId.LITEAPI
 
 const CACHE_TTL_MS = 10 * 60 * 1000
 const CACHE_LIMIT = 500
@@ -44,7 +33,8 @@ function ratesFromEnv(): HotelRatesCapability | null {
   return (envRates = integration.capabilities.hotelRates!)
 }
 
-function configuredRates(): HotelRatesCapability | null {
+/** The configured hotel rates provider, from Settings first and the environment second. */
+export function hotelRatesCapability(): HotelRatesCapability | null {
   for (const record of integrationManager.getConfiguredIntegrationsByCapability(
     IntegrationCapabilityId.HOTEL_RATES,
   )) {
@@ -52,6 +42,43 @@ function configuredRates(): HotelRatesCapability | null {
     if (capability) return capability
   }
   return ratesFromEnv()
+}
+
+const matching = new Map<string, Promise<string | null>>()
+
+/**
+ * Finds the place's hotel near it and saves the result, a miss as null, unconfirmed,
+ * so a person can still correct it. A match that fails to save is still used.
+ */
+async function matchHotel(source: Source, placeId: string, capability: HotelRatesCapability): Promise<string | null> {
+  const place = await lookupPlaceById(source, placeId)
+  const name = place?.name?.value
+  const center = place?.geometry?.value?.center
+  if (!name || !center) return null
+  const candidates = await capability.findHotels(center, HOTEL_SEARCH_RADIUS_M)
+  const hotelId = pickHotelMatch(candidates, { name, ...center })?.id ?? null
+  await setProviderMatch(source, placeId, LITEAPI_PROVIDER, { providerPlaceId: hotelId, confirmed: false }).catch(
+    (error) => logWarn('Could not save LiteAPI match', error),
+  )
+  return hotelId
+}
+
+/** The LiteAPI hotel at a place: its stored match, or a lookup made once and then stored. Null means none. */
+export async function liteApiHotelId(
+  source: Source,
+  placeId: string,
+  capability: HotelRatesCapability,
+): Promise<string | null> {
+  const stored = (await getProviderMatches(source, placeId))[LITEAPI_PROVIDER]
+  if (stored) return stored.providerPlaceId
+
+  const key = `${source}:${placeId}`
+  let pending = matching.get(key)
+  if (!pending) {
+    pending = matchHotel(source, placeId, capability).finally(() => matching.delete(key))
+    matching.set(key, pending)
+  }
+  return pending
 }
 
 const cache = new Map<string, { rates: StayRates; at: number }>()
@@ -80,10 +107,10 @@ function remember(key: string, rates: StayRates): void {
  * Live rooms for the hotel at a place. Null when no rates provider is set up
  * or the place has no matched listing, so the client falls back to its search links.
  */
-export async function getStayRates(place: StayPlace, stay: Stay): Promise<StayRates | null> {
-  const capability = configuredRates()
+export async function getStayRates(source: Source, placeId: string, stay: Stay): Promise<StayRates | null> {
+  const capability = hotelRatesCapability()
   if (!capability) return null
-  const hotelId = await lookupVenueId(place, IntegrationId.LITEAPI)
+  const hotelId = await liteApiHotelId(source, placeId, capability)
   if (!hotelId) return null
   const request: StayRatesRequest = { ...stay, hotelId }
 
@@ -98,6 +125,6 @@ export async function getStayRates(place: StayPlace, stay: Stay): Promise<StayRa
 
 export function resetStayRatesForTests(): void {
   cache.clear()
+  matching.clear()
   envRates = undefined
-  lookupVenueId = async () => null
 }

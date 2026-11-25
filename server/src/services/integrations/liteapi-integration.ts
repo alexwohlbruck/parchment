@@ -1,4 +1,5 @@
 import type {
+  HotelCandidate,
   HotelRatesCapability,
   Integration,
   IntegrationCapabilities,
@@ -9,9 +10,13 @@ import type {
 } from '../../types/integration.types'
 import { IntegrationCapabilityId, IntegrationId } from '../../types/integration.enums'
 import {
+  adaptLiteApiHotel,
+  adaptLiteApiHotelDetail,
   adaptLiteApiRooms,
   liteApiCheckoutUrl,
   liteApiHotelUrl,
+  type LiteApiHotel,
+  type LiteApiHotelDetail,
   type LiteApiRoomType,
 } from './adapters/liteapi-adapter'
 
@@ -24,6 +29,7 @@ export interface LiteApiConfig extends IntegrationConfig {
 export const LITEAPI_BASE = 'https://api.liteapi.travel/v3.0'
 
 const RATES_TIMEOUT_SECONDS = 8
+const MIN_SEARCH_RADIUS_M = 1000
 
 /**
  * LiteAPI (Nuitée): live room rates from one API across its suppliers. The
@@ -39,6 +45,8 @@ export class LiteApiIntegration implements Integration<LiteApiConfig> {
   readonly capabilities: IntegrationCapabilities = {
     hotelRates: {
       getStayRates: this.getStayRates.bind(this),
+      findHotels: this.findHotels.bind(this),
+      getHotel: this.getHotel.bind(this),
     } satisfies HotelRatesCapability,
   }
 
@@ -88,6 +96,29 @@ export class LiteApiIntegration implements Integration<LiteApiConfig> {
     })
     if (!res.ok) throw new Error(`LiteAPI ${path}: ${res.status}`)
     return (await res.json()) as T
+  }
+
+  private async findHotels(center: { lat: number; lng: number }, radius: number): Promise<HotelCandidate[]> {
+    const params = new URLSearchParams({
+      latitude: String(center.lat),
+      longitude: String(center.lng),
+      radius: String(Math.max(radius, MIN_SEARCH_RADIUS_M)),
+      limit: '50',
+    })
+    const { data = [] } = await this.request<{ data?: LiteApiHotel[] }>(`/data/hotels?${params}`)
+    return data.map(adaptLiteApiHotel)
+  }
+
+  private async getHotel(hotelId: string): Promise<HotelCandidate | null> {
+    try {
+      const { data } = await this.request<{ data?: LiteApiHotelDetail }>(
+        `/data/hotel?${new URLSearchParams({ hotelId })}`,
+      )
+      return data ? adaptLiteApiHotelDetail(data) : null
+    } catch (error) {
+      if (error instanceof Error && /: (400|404)$/.test(error.message)) return null
+      throw error
+    }
   }
 
   private async getStayRates(request: StayRatesRequest): Promise<StayRates> {

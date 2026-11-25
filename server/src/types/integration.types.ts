@@ -1,3 +1,4 @@
+import type { HotelCandidate } from '../lib/place/hotel-match'
 import type { EntrancePurpose } from '../lib/transit/entrance-choice'
 import type { SpeechCapability } from './speech.types'
 import type { LanguageModelCapability } from './language-model.types'
@@ -714,6 +715,8 @@ export interface RideshareEstimateCapability {
 
 // ── Hotel rates ──────────────────────────────────────────────────────
 
+export type { HotelCandidate }
+
 export interface StayRatesRequest {
   /** The provider's id for the hotel, from the place's stored provider match. */
   hotelId: string
@@ -757,6 +760,10 @@ export interface StayRates {
 export interface HotelRatesCapability {
   /** Live room rates for one of the provider's hotels. */
   getStayRates(request: StayRatesRequest): Promise<StayRates>
+  /** The provider's hotels within `radius` metres. */
+  findHotels(center: { lat: number; lng: number }, radius: number): Promise<HotelCandidate[]>
+  /** One hotel by the provider's id, or null when it no longer exists. */
+  getHotel(hotelId: string): Promise<HotelCandidate | null>
 }
 
 // ── Capability container ─────────────────────────────────────────────

@@ -1,4 +1,39 @@
-import type { StayMoney, StayRoom } from '../../../types/integration.types'
+import type { HotelCandidate, StayMoney, StayRoom } from '../../../types/integration.types'
+
+export interface LiteApiHotel {
+  id: string
+  name: string
+  latitude: number
+  longitude: number
+  address?: string
+  city?: string
+}
+
+export interface LiteApiHotelDetail {
+  id: string
+  name: string
+  address?: string
+  city?: string
+  location?: { latitude: number; longitude: number }
+}
+
+function hotelAddress(hotel: { address?: string; city?: string }): string | null {
+  return [hotel.address, hotel.city].filter(Boolean).join(', ') || null
+}
+
+export function adaptLiteApiHotel(hotel: LiteApiHotel): HotelCandidate {
+  return { id: hotel.id, name: hotel.name, lat: hotel.latitude, lng: hotel.longitude, address: hotelAddress(hotel) }
+}
+
+export function adaptLiteApiHotelDetail(hotel: LiteApiHotelDetail): HotelCandidate {
+  return {
+    id: hotel.id,
+    name: hotel.name,
+    lat: hotel.location?.latitude ?? NaN,
+    lng: hotel.location?.longitude ?? NaN,
+    address: hotelAddress(hotel),
+  }
+}
 
 interface LiteApiAmount {
   amount: number

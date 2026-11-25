@@ -501,6 +501,10 @@ export interface Place {
   // Icon/category for display
   icon?: PlaceIcon
 
+  // A business found on its own website that OSM doesn't have yet, with the
+  // tags a new node for it would carry, all from that site
+  unmapped?: { tags: Record<string, string>; presetId: string | null }
+
   // IANA timezone resolved from coordinates (e.g. "America/New_York")
   timezone?: string
 

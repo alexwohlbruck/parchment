@@ -8,6 +8,7 @@ import { findBookmarkByExternalIds } from './library/bookmarks.service'
 import * as turf from '@turf/turf'
 import { integrationManager } from './integrations'
 import { IntegrationCapabilityId, IntegrationId } from '../types/integration.types'
+import { getWebPlace } from './web-place.service'
 import { FoursquareIntegration } from './integrations/foursquare-integration'
 import { User } from '../schema/users.schema'
 import { WikidataIntegration } from './integrations/wikidata-integration'
@@ -169,6 +170,7 @@ export async function lookupPlaceById(
 ): Promise<Place | null> {
   try {
     logger.debug(`[lookupPlaceById] Looking up source=${source}, placeId=${placeId}`)
+    if (source === SOURCE.WEB) return await getWebPlace(placeId)
     const integrationRecord =
       integrationManager.getConfiguredIntegrationForSource(
         source,

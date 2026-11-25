@@ -2728,6 +2728,22 @@
         "expedia": "Expedia",
         "googleHotels": "Google Hotels",
         "search": "Buscar en la web"
+      },
+      "party": "{n} persona | {n} personas",
+      "guests": "{n} huésped | {n} huéspedes",
+      "nights": "{n} noche | {n} noches",
+      "day": {
+        "tonight": "Esta noche",
+        "today": "Hoy",
+        "tomorrow": "Mañana"
+      },
+      "rooms": {
+        "freeCancel": "Cancelación gratis hasta el {date}",
+        "noRefund": "Sin reembolso",
+        "atHotel": "+{price} en el hotel",
+        "soldOut": "No quedan habitaciones para estas fechas",
+        "allRooms": "Ver todas las habitaciones",
+        "compare": "Comparar en"
       }
     },
     "details": {

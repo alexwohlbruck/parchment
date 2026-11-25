@@ -2823,6 +2823,22 @@
         "expedia": "Expedia",
         "googleHotels": "Google Hotels",
         "search": "Search the web"
+      },
+      "party": "{n} person | {n} people",
+      "guests": "{n} guest | {n} guests",
+      "nights": "{n} night | {n} nights",
+      "day": {
+        "tonight": "Tonight",
+        "today": "Today",
+        "tomorrow": "Tomorrow"
+      },
+      "rooms": {
+        "freeCancel": "Free cancellation until {date}",
+        "noRefund": "Can't be refunded",
+        "atHotel": "+{price} at the hotel",
+        "soldOut": "No rooms left for these dates",
+        "allRooms": "See all rooms",
+        "compare": "Compare on"
       }
     },
     "details": {

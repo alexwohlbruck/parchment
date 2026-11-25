@@ -8,7 +8,9 @@
 * Share your location with a friend for 1 hour, 4 hours, until tomorrow morning or until you turn it off. Your friends list shows how long is left.
 * Switch the app style or the map style from the command palette.
 * Named buildings show their names when you zoom in, like the halls on a school or college campus.
-* Restaurants that take reservations link to booking on OpenTable, Resy or their own site, and hotels link to Booking.com, Expedia and Google Hotels, with your party size and dates already filled in.
+* Restaurants link straight to their booking page on OpenTable, Resy, Tock or SevenRooms for your party size and date, with a search as the fallback.
+* Hotels show a Compare prices card with each seller's nightly price, taxes and fees, and free cancellation, linking to that seller for your dates.
+* Places that deliver link to order on Uber Eats, DoorDash and other delivery services.
 * Day & Night can show daylight and darkness at any time in the coming week, using the same time control as transit.
 
 ### Changed

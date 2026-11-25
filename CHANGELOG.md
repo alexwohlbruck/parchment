@@ -4,8 +4,11 @@
 
 ### Changed
 
+* Map tiles appear up to 3× faster while you pan and zoom.
+
 ### Fixed
 
+* The map no longer freezes for seconds when zooming out over parks and woods.
 * Uploaded profile photos show up instead of a blank square.
 
 ## [0.27.0] - 2026-11-24

@@ -36,6 +36,7 @@ import {
   RECENT_PLACES_OWN_LAYOUT,
   recentPlacesPaint,
 } from '@/constants/layers'
+import { POINT_SOURCE_MAXZOOM } from '@/lib/map/point-source'
 
 function isPlaceRoute(name: unknown): boolean {
   return [
@@ -194,6 +195,7 @@ export function useRecentPlacesLayerService() {
     if (!map.getSource(RECENT_PLACES_SOURCE_ID)) {
       map.addSource(RECENT_PLACES_SOURCE_ID, {
         type: 'geojson',
+        maxzoom: POINT_SOURCE_MAXZOOM,
         data: { type: 'FeatureCollection', features: [] },
       } as any)
     }

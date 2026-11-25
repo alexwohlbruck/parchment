@@ -17,6 +17,7 @@
  */
 import type { FlavorId } from './build'
 import { SDF_BUFFER } from './sdf.mjs'
+import { POINT_SOURCE_MAXZOOM } from '../map/point-source'
 
 /**
  * One source for every detail overlay a client reads at z≤16.
@@ -257,6 +258,7 @@ export function detailSources(tileUrl: (source: string) => string) {
     },
     [GOLF_PIN_SOURCE]: {
       type: 'geojson' as const,
+      maxzoom: POINT_SOURCE_MAXZOOM,
       data: { type: 'FeatureCollection' as const, features: [] },
     },
     [FURNITURE_SOURCE]: {

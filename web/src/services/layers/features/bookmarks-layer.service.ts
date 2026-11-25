@@ -42,6 +42,7 @@ import {
   BOOKMARKS_ICONS_LAYER_CONFIG,
   EMPTY_BOOKMARKS_GEOJSON,
 } from '@/constants/layers'
+import { POINT_SOURCE_MAXZOOM } from '@/lib/map/point-source'
 
 const LAYER_CONFIGS = [
   BOOKMARKS_CIRCLES_LAYER_CONFIG,
@@ -204,6 +205,7 @@ export function useBookmarksLayerService() {
     if (!map.getSource(BOOKMARKS_SOURCE_ID)) {
       map.addSource(BOOKMARKS_SOURCE_ID, {
         type: 'geojson',
+        maxzoom: POINT_SOURCE_MAXZOOM,
         data: EMPTY_BOOKMARKS_GEOJSON,
       } as any)
     }

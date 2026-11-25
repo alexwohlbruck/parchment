@@ -18,6 +18,7 @@ import {
 } from '@/constants/layers'
 import { footprintIndex, poiElevation, raisedDiff, type BuildingFootprint } from '@/lib/map/poi-elevation'
 import { RAISED_POI_SOURCE } from '@/lib/map/basemap-poi-look'
+import { POINT_SOURCE_MAXZOOM } from '@/lib/map/point-source'
 
 const SOURCE = RAISED_POI_SOURCE
 const KEEPER = 'poi-tiles-keeper'
@@ -130,7 +131,7 @@ export function attachPoiElevation(map: any, raised: () => boolean) {
     )
     if (!layers.length) return false
     tiles = layers[0].source
-    map.addSource(SOURCE, { type: 'geojson', data: EMPTY })
+    map.addSource(SOURCE, { type: 'geojson', maxzoom: POINT_SOURCE_MAXZOOM, data: EMPTY })
     // MapLibre only parses a source-layer some layer reads, and hydration
     // queries the tiles: an invisible reader keeps the POIs in them.
     map.addLayer({

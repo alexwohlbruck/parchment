@@ -108,6 +108,8 @@ export interface SearchResponse {
   query: string
   results: SearchResult[]
   totalCount: number
+  /** The id of the one place the query names, when it names exactly one. */
+  match?: string
 }
 
 export interface AutocompleteResponse {

@@ -19,6 +19,15 @@ import { getPlaceOsmTags, isAreaPlace } from '../lib/place-tags'
 import { reverseGeocode } from './geocoding.service'
 import { isTappedPlace } from '../lib/tapped-place'
 import { logError, logWarn, logger } from '../lib/logger'
+import {
+  matchedProviderIds,
+  planMatchUpdate,
+  type ProviderIds,
+} from '../lib/place/provider-matches'
+import {
+  applyProviderMatchUpdate,
+  getProviderMatches,
+} from './place/provider-matches.service'
 
 /** True for an aborted/cancelled request (axios CanceledError or DOM AbortError). */
 function isAbortError(error: unknown): boolean {
@@ -633,8 +642,7 @@ async function enrichPlaceWithWikiData(
  * attached during the search blend, or otherwise resolving one via the Place
  * Match endpoint (a single best id + confidence) — then fetches full Premium
  * details and merges them under Foursquare attribution. The matched id is
- * carried on `externalIds` so it can later be persisted in Barrelman for
- * user correction.
+ * carried on `externalIds`, from where the caller persists it.
  *
  * Premium-gated and Foursquare-optional: a no-op unless the caller has premium
  * data access and Foursquare is configured.
@@ -694,6 +702,55 @@ async function enrichPlaceWithFoursquareData(
   }
 }
 
+async function loadProviderMatches(source: Source, id: string): Promise<ProviderIds> {
+  try {
+    return await getProviderMatches(source, id)
+  } catch (error) {
+    logError('Error loading stored provider matches', error)
+    return {}
+  }
+}
+
+/**
+ * Fetches each stored match directly. A provider that no longer returns the
+ * place marks its id stale; an unconfigured provider is left alone.
+ */
+async function resolveStoredMatches(
+  stored: ProviderIds,
+  language: Language,
+): Promise<{ places: Place[]; stale: Source[] }> {
+  const entries = (Object.entries(stored) as [Source, string][]).filter(([provider]) =>
+    integrationManager.getConfiguredIntegrationForSource(
+      provider,
+      IntegrationCapabilityId.PLACE_INFO,
+    ),
+  )
+  const results = await Promise.all(
+    entries.map(([provider, providerId]) => lookupPlaceById(provider, providerId, { language })),
+  )
+  const places: Place[] = []
+  const stale: Source[] = []
+  results.forEach((result, i) => {
+    if (result) places.push(result)
+    else stale.push(entries[i][0])
+  })
+  return { places, stale }
+}
+
+async function saveProviderMatches(
+  source: Source,
+  id: string,
+  stored: ProviderIds,
+  found: ProviderIds,
+  stale: Source[],
+): Promise<void> {
+  try {
+    await applyProviderMatchUpdate(source, id, planMatchUpdate(stored, found, stale))
+  } catch (error) {
+    logError('Error saving provider matches', error)
+  }
+}
+
 /**
  * Look up a place by ID and enrich it with data from other sources
  *
@@ -734,26 +791,37 @@ export async function lookupEnrichedPlaceById(
     const businessData = premiumData && !isAreaPlace(place)
     const skipThirdPartySearch = !businessData || (isPlaceTransitStop(place) && source === SOURCE.TRANSITLAND)
 
+    const baseIds = { ...place.externalIds }
+    const storedMatches = businessData ? await loadProviderMatches(source, id) : {}
+    let staleMatches: Source[] = []
+
     if (place.name?.value && place.geometry.value.center && !skipThirdPartySearch) {
       const step2Start = Date.now()
       const { lat, lng } = place.geometry.value.center
 
-      const thirdPartyPlace = await lookupPlaceByNameAndLocation(
-        place.name.value,
-        { lat, lng },
-        {
-          radius: 500,
-          sourceBlacklist: [source], // Exclude the original source
-          language,
-          sameAs: place,
-        },
-      )
+      const stored = await resolveStoredMatches(storedMatches, language)
+      staleMatches = stored.stale
+      const thirdPartyPlaces = stored.places
+
+      if (!thirdPartyPlaces.length || staleMatches.length) {
+        const searched = await lookupPlaceByNameAndLocation(
+          place.name.value,
+          { lat, lng },
+          {
+            radius: 500,
+            sourceBlacklist: [source], // Exclude the original source
+            language,
+            sameAs: place,
+          },
+        )
+        if (searched) thirdPartyPlaces.push(searched)
+      }
       const step2Time = Date.now() - step2Start
       logger.debug(`[PERF] Step 2 - Third party place lookup: ${step2Time}ms`)
 
-      if (thirdPartyPlace) {
+      if (thirdPartyPlaces.length) {
         const mergeStart = Date.now()
-        place = mergePlaces(place, thirdPartyPlace)
+        place = mergePlaces(place, ...thirdPartyPlaces)
         const mergeTime = Date.now() - mergeStart
         logger.debug(`[PERF] Step 2b - Place merge: ${mergeTime}ms`)
       }
@@ -779,6 +847,16 @@ export async function lookupEnrichedPlaceById(
     place = mergePlaces(wikiEnrichedPlace, addressEnrichedPlace, foursquareEnrichedPlace)
     const enrichmentTime = Date.now() - enrichmentStart
     logger.debug(`[PERF] Step 3-4 - Parallel enrichment (Wiki + Address): ${enrichmentTime}ms`)
+
+    if (businessData) {
+      await saveProviderMatches(
+        source,
+        id,
+        storedMatches,
+        matchedProviderIds(source, baseIds, place.externalIds),
+        staleMatches,
+      )
+    }
 
     // Step 5: Resolve timezone from coordinates
     if (place.geometry?.value?.center) {

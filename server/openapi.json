@@ -7744,6 +7744,7 @@
           "Feedback"
         ],
         "summary": "Submit feedback",
+        "description": "Accepts JSON, or multipart form data to attach up to 4 screenshots (JPEG, PNG or WebP, 10MB each, judged by their contents). Screenshots are stored as public WebP files and embedded in the post.",
         "requestBody": {
           "required": true,
           "content": {
@@ -7761,8 +7762,18 @@
                     "type": "string"
                   },
                   "content": {
-                    "maxLength": 10000,
+                    "maxLength": 9000,
                     "type": "string"
+                  },
+                  "screenshots": {
+                    "elysiaMeta": "Files",
+                    "default": "Files",
+                    "type": "array",
+                    "items": {
+                      "default": "Files",
+                      "type": "string",
+                      "format": "binary"
+                    }
                   }
                 },
                 "required": [
@@ -7785,8 +7796,18 @@
                     "type": "string"
                   },
                   "content": {
-                    "maxLength": 10000,
+                    "maxLength": 9000,
                     "type": "string"
+                  },
+                  "screenshots": {
+                    "elysiaMeta": "Files",
+                    "default": "Files",
+                    "type": "array",
+                    "items": {
+                      "default": "Files",
+                      "type": "string",
+                      "format": "binary"
+                    }
                   }
                 },
                 "required": [
@@ -7809,8 +7830,18 @@
                     "type": "string"
                   },
                   "content": {
-                    "maxLength": 10000,
+                    "maxLength": 9000,
                     "type": "string"
+                  },
+                  "screenshots": {
+                    "elysiaMeta": "Files",
+                    "default": "Files",
+                    "type": "array",
+                    "items": {
+                      "default": "Files",
+                      "type": "string",
+                      "format": "binary"
+                    }
                   }
                 },
                 "required": [

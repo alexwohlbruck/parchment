@@ -3,7 +3,6 @@ import { Icon } from '@/types/app.types'
 import { MapEngine } from '@/types/map.types'
 import type { RouteBulletStyle } from '@/types/transit.types'
 import type { ThemeColor } from '@/lib/utils'
-import { CommandName } from '@/stores/command.store'
 
 export type Hotkey = string[]
 
@@ -31,7 +30,9 @@ export type PaletteItem = {
 }
 
 export type Command = PaletteItem & {
-  id: CommandName
+  id: string
+  /** Names the page or item a contextual command belongs to, e.g. a place's name. */
+  context?: string
   category?: CommandCategory
   engine?: MapEngine[]
   /** Hides the command while this says no, e.g. a feature the user turned off. */

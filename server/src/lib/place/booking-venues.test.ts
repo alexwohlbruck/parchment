@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { isVenueId, parseVenueUrl, venuePageUrl, venueProviderOf } from './booking-venues'
+import { isVenueId, parseVenueUrl, venuePageUrl, venueProviderOf, venuesFromActions, venueUpserts } from './booking-venues'
 
 describe('parseVenueUrl', () => {
   test.each([
@@ -17,6 +17,12 @@ describe('parseVenueUrl', () => {
     ['https://resy.com/cities/ny/lilia', 'ny/lilia'],
   ])('Resy %s', (url, id) => {
     expect(parseVenueUrl('resy', url)).toBe(id)
+  })
+
+  test('Tock and SevenRooms', () => {
+    expect(parseVenueUrl('tock', 'https://www.exploretock.com/atomix/experience/12345/tasting')).toBe('atomix')
+    expect(parseVenueUrl('sevenrooms', 'https://www.sevenrooms.com/reservations/carbonelondon?venues=x')).toBe('carbonelondon')
+    expect(parseVenueUrl('sevenrooms', 'https://www.sevenrooms.com/explore/carbonelondon/reservations/create/search')).toBe('carbonelondon')
   })
 
   test.each([
@@ -61,6 +67,10 @@ describe('venuePageUrl', () => {
     expect(venuePageUrl('resy', 'new-york-ny/aita-trattoria', plan)).toBe(
       'https://resy.com/cities/new-york-ny/venues/aita-trattoria?date=2026-11-27&seats=3',
     )
+    expect(venuePageUrl('tock', 'atomix', plan)).toBe('https://www.exploretock.com/atomix/search?date=2026-11-27&size=3&time=19%3A00')
+    expect(venuePageUrl('sevenrooms', 'carbonelondon', plan)).toBe(
+      'https://www.sevenrooms.com/reservations/carbonelondon?date=2026-11-27&party_size=3',
+    )
     expect(venuePageUrl('booking', 'us/the-ludlow', plan)).toBe(
       'https://www.booking.com/hotel/us/the-ludlow.html?checkin=2026-11-27&checkout=2026-11-29&group_adults=3&no_rooms=1',
     )
@@ -77,5 +87,41 @@ describe('venuePageUrl', () => {
   test('round-trips a parsed URL', () => {
     const id = parseVenueUrl('booking', 'https://www.booking.com/hotel/us/the-ludlow.html')!
     expect(parseVenueUrl('booking', venuePageUrl('booking', id)!)).toBe(id)
+  })
+})
+
+describe('venuesFromActions', () => {
+  test('keeps reservation pages on booking sites, the first per site', () => {
+    expect(
+      venuesFromActions([
+        { kind: 'reservation', url: 'https://www.opentable.com/r/the-tavern-at-gramercy-tavern-new-york' },
+        { kind: 'reservation', url: 'https://resy.com/cities/new-york-ny/venues/the-dining-room-at-gramercy-tavern' },
+        { kind: 'reservation', url: 'https://resy.com/cities/new-york-ny/venues/other' },
+        { kind: 'reservation', url: 'https://gramercytavern.com/reserve' },
+        { kind: 'delivery', url: 'https://www.ubereats.com/store/gramercy' },
+      ]),
+    ).toEqual({
+      opentable: 'r/the-tavern-at-gramercy-tavern-new-york',
+      resy: 'new-york-ny/the-dining-room-at-gramercy-tavern',
+    })
+  })
+})
+
+describe('venueUpserts', () => {
+  test('stores new and changed venues and leaves confirmed ones alone', () => {
+    expect(
+      venueUpserts(
+        {
+          opentable: { providerPlaceId: 'r/kept', confirmed: true },
+          resy: { providerPlaceId: 'ny/same', confirmed: false },
+          tock: { providerPlaceId: 'old', confirmed: false },
+        },
+        { opentable: 'r/new', resy: 'ny/same', tock: 'new', sevenrooms: 'fresh' },
+      ),
+    ).toEqual({ tock: 'new', sevenrooms: 'fresh' })
+  })
+
+  test('respects a confirmed "not listed"', () => {
+    expect(venueUpserts({ resy: { providerPlaceId: null, confirmed: true } }, { resy: 'ny/x' })).toEqual({})
   })
 })

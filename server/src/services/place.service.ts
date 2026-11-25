@@ -30,7 +30,9 @@ import {
 import {
   applyProviderMatchUpdate,
   getProviderMatches,
+  setProviderMatch,
 } from './place/provider-matches.service'
+import { venuesFromActions, venueUpserts, type VenueIds } from '../lib/place/booking-venues'
 
 /** True for an aborted/cancelled request (axios CanceledError or DOM AbortError). */
 function isAbortError(error: unknown): boolean {
@@ -754,6 +756,19 @@ async function saveProviderMatches(
   }
 }
 
+/** Booking-site venues a place's reservation links point at, stored so free lookups link straight to them. */
+async function saveBookingVenues(source: Source, id: string, stored: ProviderMatches, found: VenueIds): Promise<void> {
+  try {
+    await Promise.all(
+      Object.entries(venueUpserts(stored, found)).map(([provider, providerPlaceId]) =>
+        setProviderMatch(source, id, provider, { providerPlaceId, confirmed: false }),
+      ),
+    )
+  } catch (error) {
+    logError('Error saving booking venues', error)
+  }
+}
+
 /**
  * Look up a place by ID and enrich it with data from other sources
  *
@@ -853,13 +868,16 @@ export async function lookupEnrichedPlaceById(
     logger.debug(`[PERF] Step 3-4 - Parallel enrichment (Wiki + Address): ${enrichmentTime}ms`)
 
     if (businessData) {
-      await saveProviderMatches(
-        source,
-        id,
-        storedMatches,
-        matchedProviderIds(source, baseIds, place.externalIds),
-        staleMatches,
-      )
+      await Promise.all([
+        saveProviderMatches(
+          source,
+          id,
+          storedMatches,
+          matchedProviderIds(source, baseIds, place.externalIds),
+          staleMatches,
+        ),
+        saveBookingVenues(source, id, storedMatches, venuesFromActions(place.placeActions?.value)),
+      ])
     }
 
     // Step 5: Resolve timezone from coordinates

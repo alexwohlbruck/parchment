@@ -8,8 +8,7 @@ import { IntegrationCapabilityId } from '../../types/integration.enums'
 import { integrationManager } from '../integrations'
 import { lookupPlaceById, lookupPlacesByNameAndLocation } from '../place.service'
 import { getProviderMatches, setProviderMatch } from './provider-matches.service'
-import { venueProvidersFor } from './booking-venues.service'
-import { isVenueProvider, venuePageUrl } from '../../lib/place/booking-venues'
+import { LISTED_VENUE_PROVIDERS, isVenueProvider, venuePageUrl } from '../../lib/place/booking-venues'
 import { bookingKind } from '../../lib/place/booking-kind'
 import { HOTEL_SEARCH_RADIUS_M, hotelNameSimilarity, metresBetween, type HotelCandidate } from '../../lib/place/hotel-match'
 import { LITEAPI_PROVIDER, hotelRatesCapability } from '../stay.service'
@@ -29,8 +28,10 @@ function summarizeHotel(hotel: HotelCandidate, origin?: { lat: number; lng: numb
 
 /** Providers this place can be matched at beyond the auto-matched ones: its hotel rates and booking sites. */
 function bookingProviders(place: Place | null): string[] {
-  const rates = bookingKind(place?.tags) === 'stay' && hotelRatesCapability() ? [LITEAPI_PROVIDER] : []
-  return [...rates, ...venueProvidersFor(place)]
+  const kind = bookingKind(place?.tags)
+  if (!kind) return []
+  const rates = kind === 'stay' && hotelRatesCapability() ? [LITEAPI_PROVIDER] : []
+  return [...rates, ...LISTED_VENUE_PROVIDERS[kind]]
 }
 
 async function storedSummary(

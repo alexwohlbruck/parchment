@@ -1,9 +1,18 @@
 import type { BookingKind } from './booking-kind'
+import type { ProviderMatches } from './provider-matches'
+import type { PlaceAction } from '../../types/place.types'
 
 /** Booking sites a place's own venue page can be stored for, by match-store provider key. */
-export type VenueProvider = 'opentable' | 'resy' | 'booking' | 'expedia'
+export type VenueProvider = 'opentable' | 'resy' | 'tock' | 'sevenrooms' | 'booking' | 'expedia'
 
 export const VENUE_PROVIDERS: Readonly<Record<BookingKind, readonly VenueProvider[]>> = {
+  table: ['opentable', 'resy', 'tock', 'sevenrooms'],
+  stay: ['booking', 'expedia'],
+  ahead: [],
+}
+
+/** The sites offered for correction on every place of a kind; the rest show once a venue is known there. */
+export const LISTED_VENUE_PROVIDERS: Readonly<Record<BookingKind, readonly VenueProvider[]>> = {
   table: ['opentable', 'resy'],
   stay: ['booking', 'expedia'],
   ahead: [],
@@ -25,6 +34,8 @@ const SLUG = '[a-z0-9][a-z0-9-]*'
 const ID_PATTERNS: Record<VenueProvider, RegExp> = {
   opentable: new RegExp(`^(r/${SLUG}|rid/[1-9]\\d*)$`),
   resy: new RegExp(`^${SLUG}/${SLUG}$`),
+  tock: new RegExp(`^${SLUG}$`),
+  sevenrooms: new RegExp(`^${SLUG}$`),
   booking: new RegExp(`^[a-z]{2}/${SLUG}$`),
   expedia: /^[1-9]\d*$/,
 }
@@ -32,6 +43,8 @@ const ID_PATTERNS: Record<VenueProvider, RegExp> = {
 const HOSTS: Record<VenueProvider, RegExp> = {
   opentable: /(^|\.)opentable\.[a-z.]+$/,
   resy: /(^|\.)resy\.com$/,
+  tock: /(^|\.)exploretock\.com$/,
+  sevenrooms: /(^|\.)sevenrooms\.com$/,
   booking: /(^|\.)booking\.com$/,
   expedia: /(^|\.)expedia\.[a-z.]+$/,
 }
@@ -73,6 +86,10 @@ function idFrom(provider: VenueProvider, url: URL): string | null {
       const match = /^\/cities\/([^/]+)\/(?:venues\/)?([^/]+)$/.exec(path)
       return match && match[2] !== 'search' ? `${match[1]}/${match[2]}` : null
     }
+    case 'tock':
+      return /^\/([^/]+)/.exec(path)?.[1] ?? null
+    case 'sevenrooms':
+      return /^\/(?:reservations|explore)\/([^/]+)/.exec(path)?.[1] ?? null
     case 'booking': {
       const match = /^\/hotel\/([a-z]{2})\/([^/.]+)(?:\.[a-z-]+)?\.html$/.exec(path)
       return match ? `${match[1]}/${match[2]}` : null
@@ -115,6 +132,22 @@ export function venuePageUrl(provider: VenueProvider, id: string, plan?: VenuePl
       }
       break
     }
+    case 'tock':
+      url = new URL(`https://www.exploretock.com/${id}`)
+      if (plan) {
+        url.pathname += '/search'
+        url.searchParams.set('date', plan.day)
+        url.searchParams.set('size', String(plan.party))
+        url.searchParams.set('time', plan.tableTime.slice(11))
+      }
+      break
+    case 'sevenrooms':
+      url = new URL(`https://www.sevenrooms.com/reservations/${id}`)
+      if (plan) {
+        url.searchParams.set('date', plan.day)
+        url.searchParams.set('party_size', String(plan.party))
+      }
+      break
     case 'booking':
       url = new URL(`https://www.booking.com/hotel/${id}.html`)
       if (plan) {
@@ -134,4 +167,30 @@ export function venuePageUrl(provider: VenueProvider, id: string, plan?: VenuePl
       break
   }
   return url.toString()
+}
+
+export type VenueIds = Partial<Record<VenueProvider, string>>
+
+/** Venues on known booking sites among a place's reservation links, the first per site. */
+export function venuesFromActions(actions: PlaceAction[] | undefined): VenueIds {
+  const venues: VenueIds = {}
+  for (const action of actions ?? []) {
+    if (action.kind !== 'reservation') continue
+    const provider = venueProviderOf(action.url)
+    if (!provider || venues[provider]) continue
+    const id = parseVenueUrl(provider, action.url)
+    if (id) venues[provider] = id
+  }
+  return venues
+}
+
+/** Venues worth storing: new or changed, never over a person's confirmed choice. */
+export function venueUpserts(stored: ProviderMatches, found: VenueIds): VenueIds {
+  const upserts: VenueIds = {}
+  for (const [provider, id] of Object.entries(found) as [VenueProvider, string][]) {
+    const current = stored[provider]
+    if (current?.confirmed || current?.providerPlaceId === id) continue
+    upserts[provider] = id
+  }
+  return upserts
 }

@@ -68,9 +68,11 @@ let storedMatches: Record<string, { providerPlaceId: string | null; confirmed: b
 const auto = (providerPlaceId: string) => ({ providerPlaceId, confirmed: false })
 const getProviderMatches = mock(async () => storedMatches)
 const applyProviderMatchUpdate = mock(async (..._args: unknown[]) => {})
+const setProviderMatch = mock(async (..._args: unknown[]) => true)
 mock.module('./place/provider-matches.service', () => ({
   getProviderMatches,
   applyProviderMatchUpdate,
+  setProviderMatch,
 }))
 
 mock.module('../lib/logger', () => ({
@@ -393,6 +395,30 @@ describe('stored provider matches', () => {
     await lookupEnrichedPlaceById(SOURCE.OSM as any, 'node/1', premium)
 
     expect(lastUpdate()[2]).toEqual({ upserts: {}, removals: [SOURCE.GOOGLE] })
+  })
+
+  test('stores the booking venues its reservation links point at, unconfirmed', async () => {
+    storedMatches = { resy: { providerPlaceId: 'new-york-ny/kept', confirmed: true } }
+    googleSearch()
+    setProviderMatch.mockClear()
+    searchPlaces.mockImplementation(async () => [
+      basePlace({
+        id: 'google/ChIJ1',
+        externalIds: { google: 'ChIJ1' },
+        placeActions: {
+          value: [
+            { kind: 'reservation', url: 'https://www.opentable.com/r/the-tavern-at-gramercy-tavern-new-york' },
+            { kind: 'reservation', url: 'https://resy.com/cities/new-york-ny/venues/the-dining-room-at-gramercy-tavern' },
+          ],
+        },
+      }),
+    ])
+
+    await lookupEnrichedPlaceById(SOURCE.OSM as any, 'node/1', premium)
+
+    expect(setProviderMatch.mock.calls).toEqual([
+      [SOURCE.OSM, 'node/1', 'opentable', { providerPlaceId: 'r/the-tavern-at-gramercy-tavern-new-york', confirmed: false }],
+    ])
   })
 
   test('saves the id a first search matched', async () => {

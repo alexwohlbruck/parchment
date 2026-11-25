@@ -35,7 +35,21 @@ import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
 import SheetPageHost from '@/components/sheet/SheetPageHost.vue'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useConnectivity } from '@/composables/useConnectivity'
-import { MapPinOffIcon } from 'lucide-vue-next'
+import {
+  ArrowDownToDotIcon,
+  GlobeIcon,
+  MapPinOffIcon,
+  PencilIcon,
+  PhoneIcon,
+  RouteIcon,
+  ShareIcon,
+} from 'lucide-vue-next'
+import {
+  useContextualCommands,
+  type ContextualCommand,
+} from '@/composables/command/useContextualCommands'
+import { useExternalLink } from '@/composables/useExternalLink'
+import { placeWebsites } from '@/lib/place/place-details'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useI18n } from 'vue-i18n'
 import { providePlaceTabs } from '@/composables/place/usePlaceTabs'
@@ -85,7 +99,7 @@ watch(
   },
 )
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 const route = useRoute()
 
 const coordinates = computed(() => {
@@ -220,22 +234,19 @@ function editPlace() {
   router.push({ name: AppRoute.QUICK_EDIT_ELEMENT, params: { type, id } })
 }
 
-function sharePlace() {
+async function sharePlace() {
   const url = window.location.href
+  const name = props.place?.name?.value ?? ''
   if (navigator.share) {
     try {
-      const name = props.place?.name?.value ?? ''
-      navigator.share({
-        url,
-        title: name,
-        text: name,
-      })
+      await navigator.share({ url, title: name, text: name })
       return
     } catch (err) {
-      navigator.clipboard.writeText(url)
-      toast.info(t('sharing.publicLink.copied'))
+      if (err instanceof DOMException && err.name === 'AbortError') return
     }
   }
+  await navigator.clipboard.writeText(url)
+  toast.info(t('sharing.publicLink.copied'))
 }
 
 function handleDirectionsClick() {
@@ -261,6 +272,51 @@ function handleDirectionsFromClick() {
   directionsService.directionsFrom(waypoint)
   router.push({ name: AppRoute.DIRECTIONS })
 }
+
+const { openExternalLink } = useExternalLink()
+const optionalText = (key: string) => (te(key) ? t(key) : undefined)
+
+const placeCommands = computed(() => {
+  const place = props.place
+  if (!place || props.loading) return []
+
+  const command = (
+    key: string,
+    icon: ContextualCommand['icon'],
+    action: () => void,
+    extra: Partial<ContextualCommand> = {},
+  ): ContextualCommand => ({
+    id: `place.${key}`,
+    name: t(`palette.commands.place.${key}.name`),
+    description: optionalText(`palette.commands.place.${key}.description`),
+    keywords: optionalText(`palette.commands.place.${key}.keywords`),
+    icon,
+    action,
+    ...extra,
+  })
+
+  const phone = place.contactInfo?.phone?.value
+  const website = placeWebsites(place)[0]
+
+  return [
+    ...(coordinates.value
+      ? [
+          command('directions', ArrowDownToDotIcon, handleDirectionsClick, { hotkey: ['d'] }),
+          command('directionsFrom', RouteIcon, handleDirectionsFromClick),
+        ]
+      : []),
+    ...(phone
+      ? [command('call', PhoneIcon, () => window.open(`tel:${phone}`, '_self'), { description: phone })]
+      : []),
+    ...(website
+      ? [command('website', GlobeIcon, () => openExternalLink(website), { description: website })]
+      : []),
+    command('share', ShareIcon, sharePlace),
+    ...(place.externalIds?.osm ? [command('edit', PencilIcon, editPlace)] : []),
+  ]
+})
+
+useContextualCommands(() => props.place?.name?.value, placeCommands)
 
 function handlePlaceImageLoad() {
   placeImageLoaded.value = true

@@ -516,6 +516,33 @@
             "name": "Ahorro de batería"
           }
         }
+      },
+      "place": {
+        "directions": {
+          "name": "Cómo llegar",
+          "description": "Obtén indicaciones hasta este lugar"
+        },
+        "directionsFrom": {
+          "name": "Salir desde aquí",
+          "description": "Planifica una ruta que empieza aquí"
+        },
+        "call": {
+          "name": "Llamar",
+          "keywords": "teléfono marcar"
+        },
+        "website": {
+          "name": "Abrir sitio web",
+          "keywords": "enlace url"
+        },
+        "share": {
+          "name": "Compartir",
+          "description": "Envía un enlace a este lugar"
+        },
+        "edit": {
+          "name": "Sugerir un cambio",
+          "description": "Corrige los datos en OpenStreetMap",
+          "keywords": "osm editar"
+        }
       }
     },
     "toggleState": {
@@ -527,7 +554,8 @@
       "appearance": "Apariencia",
       "map": "Mapa",
       "tools": "Herramientas"
-    }
+    },
+    "suggested": "Frecuentes"
   },
   "hotkeys": {
     "search": "Buscar atajos"

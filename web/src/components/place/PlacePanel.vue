@@ -23,6 +23,7 @@ import PlaceHeader from './header/PlaceHeader.vue'
 import PlaceGallery from './gallery/PlaceGallery.vue'
 import PlaceActions from './header/PlaceActions.vue'
 import PlaceSources from './sources/PlaceSources.vue'
+import PlaceListings from './listings/PlaceListings.vue'
 import DetailsList from './details/DetailsList.vue'
 import ReviewsSection from './reviews/ReviewsSection.vue'
 import PlaceWidgets from './widgets/PlaceWidgets.vue'
@@ -471,6 +472,7 @@ function handleBrandLogoError() {
 
             <!-- Attribution stays outside the tabs so it's always visible. -->
             <PlaceSources :place="place" />
+            <PlaceListings :place="place" />
           </template>
         </div>
       </template>

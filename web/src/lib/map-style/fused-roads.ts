@@ -97,6 +97,12 @@ function mergeBlock(block: 'paint' | 'layout', members: Layer[], when: unknown[]
   return out
 }
 
+/** An expression filter's `all` clauses, nested ones flattened. */
+const conjuncts = (filter: unknown): unknown[] =>
+  Array.isArray(filter) && filter[0] === 'all' ? filter.slice(1).flatMap(conjuncts) : [filter]
+
+const allOf = (clauses: unknown[]) => (clauses.length === 0 ? true : clauses.length === 1 ? clauses[0] : ['all', ...clauses])
+
 /** The members drawn as one layer, or `null` when something they set can't vary per feature. */
 export function fuseLayers(id: string, members: Layer[]): Layer | null {
   const [first] = members
@@ -107,7 +113,11 @@ export function fuseLayers(id: string, members: Layer[]): Layer | null {
   // The rungs' filters overlap (`Minor road` takes trunks too), so a feature
   // takes the paint of the topmost rung drawing it: the one that showed.
   const topFirst = [...members].reverse()
-  const when = topFirst.map(m => combineFilters([m.filter]) ?? true)
+  const clauses = topFirst.map(m => conjuncts(combineFilters([m.filter]) ?? true))
+  const shared = clauses[0].filter(c => clauses.every(cs => cs.some(o => JSON.stringify(o) === JSON.stringify(c))))
+  const isShared = (c: unknown) => shared.some(s => JSON.stringify(s) === JSON.stringify(c))
+  // Paint is evaluated per feature on the worker, so it tells the rungs apart by what differs between them only.
+  const when = clauses.map(cs => allOf(cs.filter(c => !isShared(c))))
   const layout = mergeBlock('layout', topFirst, when)
   const paint = mergeBlock('paint', topFirst, when)
   if (!layout || !paint) return null
@@ -115,7 +125,7 @@ export function fuseLayers(id: string, members: Layer[]): Layer | null {
   return {
     ...first,
     id,
-    filter: ['any', ...when],
+    filter: allOf([...shared, ['any', ...when]]),
     layout: { ...layout, 'line-sort-key': caseOf(topFirst.map((_, i) => members.length - 1 - i), when) },
     paint,
   }

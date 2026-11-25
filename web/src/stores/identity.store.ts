@@ -109,7 +109,7 @@ export const useIdentityStore = defineStore('identity', () => {
   async function refreshIdentity(): Promise<void> {
     resetBlobKeyVersion()
     try {
-      await refreshIdentity()
+      identity.value = await fetchIdentityFromServer()
       identityUnavailable.value = false
     } catch {
       identityUnavailable.value = true

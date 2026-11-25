@@ -33,6 +33,7 @@ import { canvasIdFromLayerId, CANVASES_GROUP_ID } from '@/lib/canvas/canvas-laye
 import { RECENT_PLACES_TOGGLE_ID } from '@/lib/recents/recent-place-markers'
 import { useCanvasesStore } from '@/stores/library/canvases.store'
 import { usePortolanTransitStore } from '@/stores/portolan.store'
+import { useMapTimeStore } from '@/stores/map-time.store'
 import { useLayerAppearanceStore } from '@/stores/layer-appearance.store'
 import { LAYER_APPEARANCES } from '@/lib/map/layer-appearances'
 import {
@@ -42,7 +43,7 @@ import {
   type TransitClassGroup,
 } from '@/services/layers/features/portolan/portolan-ui'
 import LayerSelectorRow from './LayerSelectorRow.vue'
-import TransitServiceTimeControl from '@/components/transit/TransitServiceTimeControl.vue'
+import MapTimeControl from './MapTimeControl.vue'
 import type { SelectorNode } from '@/components/map/layers/layer-selector.types'
 import { BookmarkIcon, Paintbrush2Icon } from 'lucide-vue-next'
 
@@ -51,6 +52,7 @@ const layersService = useLayersService()
 const mapStore = useMapStore()
 const mapService = useMapService()
 const portolanStore = usePortolanTransitStore()
+const mapTimeStore = useMapTimeStore()
 const appearanceStore = useLayerAppearanceStore()
 const canvasesStore = useCanvasesStore()
 const authStore = useAuthStore()
@@ -396,23 +398,21 @@ function findGroupNode(id: string, tree: any[]): any {
               {{ t('layers.selector.overlays') }}
             </p>
             <div class="space-y-0.5 rounded-md border bg-card/70 p-1">
-              <template v-for="node in mapLayerNodes" :key="node.id">
-                <LayerSelectorRow
-                  :node="node"
-                  :expanded="expanded"
-                  @toggle-expanded="toggleExpanded"
-                >
-                  <template #options>
-                    <TransitServiceTimeControl
-                      v-if="
-                        node.id === TRANSIT_GROUP_ID &&
-                        node.appearance?.id === 'live'
-                      "
-                    />
-                  </template>
-                </LayerSelectorRow>
-              </template>
+              <LayerSelectorRow
+                v-for="node in mapLayerNodes"
+                :key="node.id"
+                :node="node"
+                :expanded="expanded"
+                @toggle-expanded="toggleExpanded"
+              />
             </div>
+          </section>
+
+          <section v-if="mapTimeStore.active" class="space-y-2">
+            <p class="px-0.5 text-xs font-medium text-muted-foreground">
+              {{ t('layers.time.title') }}
+            </p>
+            <MapTimeControl />
           </section>
         </TabsContent>
 

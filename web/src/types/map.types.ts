@@ -13,6 +13,12 @@ export type Basemap = (typeof BASEMAPS)[number]
 /** Basemap style. Light/dark is driven by the app theme, not by this. */
 export const MAP_STYLE_IDS = ['charlotte', 'chart', 'cupertino', 'mountain-view'] as const
 export type MapStyleId = (typeof MAP_STYLE_IDS)[number]
+export const MAP_STYLE_NAMES: Record<MapStyleId, string> = {
+  charlotte: 'Charlotte',
+  chart: 'Parchment',
+  cupertino: 'Cupertino',
+  'mountain-view': 'Mountain View',
+}
 
 /**
  * How points of interest are drawn on the basemap.

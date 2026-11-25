@@ -1,40 +1,44 @@
 import { api } from '@/lib/api'
 import { createSharedComposable } from '@vueuse/core'
 
+export interface LocationShareConfig {
+  id: string
+  userId: string
+  friendHandle: string
+  enabled: boolean
+  expiresAt: Date | null
+}
+
+type LocationShareConfigResponse = Omit<LocationShareConfig, 'expiresAt'> & {
+  expiresAt: string | null
+}
+
+function toShareConfig(raw: LocationShareConfigResponse): LocationShareConfig {
+  return { ...raw, expiresAt: raw.expiresAt ? new Date(raw.expiresAt) : null }
+}
+
 function locationService() {
   // ============================================================================
   // Location Sharing Configuration
   // ============================================================================
 
-  /**
-   * Get location sharing config for all friends.
-   *
-   * NOTE: server still returns `refreshInterval` and `expiresAt` for
-   * legacy schema reasons but the client no longer uses them. They're
-   * omitted from the typed return value here.
-   */
-  async function getE2eeConfigs() {
+  /** Sharing config for every friend with an unexpired share. */
+  async function getE2eeConfigs(): Promise<LocationShareConfig[]> {
     const { data } = await api.get('/location/e2ee/config')
-    return data.configs as Array<{
-      id: string
-      userId: string
-      friendHandle: string
-      enabled: boolean
-    }>
+    return (data.configs as LocationShareConfigResponse[]).map(toShareConfig)
   }
 
-  /**
-   * Set location sharing config for a friend
-   */
+  /** Share with a friend until `expiresAt`, or until turned off when it is null. */
   async function setE2eeConfig(
     friendHandle: string,
-    config: { enabled?: boolean },
-  ) {
+    config: { enabled?: boolean; expiresAt?: Date | null },
+  ): Promise<LocationShareConfig> {
     const { data } = await api.post('/location/e2ee/config', {
       friendHandle,
-      ...config,
+      enabled: config.enabled,
+      expiresAt: config.expiresAt?.toISOString() ?? null,
     })
-    return data.config
+    return toShareConfig(data.config)
   }
 
   /**
@@ -70,7 +74,7 @@ function locationService() {
       results: Array<{
         friendHandle: string
         stored: boolean
-        reason?: 'not-a-friend' | 'not-enabled' | 'replayed' | 'error'
+        reason?: 'not-a-friend' | 'not-enabled' | 'expired' | 'replayed' | 'error'
       }>
     }
   }

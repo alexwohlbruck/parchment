@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useIdentityStore } from '@/stores/identity.store'
-import RecoveryKeyDialog from '@/components/identity/RecoveryKeyDialog.vue'
+import RecoveryWordsDialog from '@/components/identity/RecoveryWordsDialog.vue'
 
 const SESSION_KEY = 'parchment:key-restore-dismissed'
 
@@ -36,7 +36,7 @@ function handleComplete() {
 </script>
 
 <template>
-  <RecoveryKeyDialog
+  <RecoveryWordsDialog
     :open="open"
     mode="import"
     @update:open="handleClose"

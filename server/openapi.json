@@ -15027,6 +15027,7 @@
           "Location"
         ],
         "summary": "Get location sharing configuration for all friends",
+        "description": "Shares whose `expiresAt` has passed are left out, as though sharing had been turned off.",
         "responses": {
           "200": {}
         }
@@ -15038,7 +15039,7 @@
           "Location"
         ],
         "summary": "Set location sharing configuration for a friend",
-        "description": "The handle must be an accepted friend on this server; sharing with friends on other servers is refused with 400. Turning sharing off also deletes the location held for that friend and clears their marker.",
+        "description": "The handle must be an accepted friend on this server; sharing with friends on other servers is refused with 400. Turning sharing off also deletes the location held for that friend and clears their marker. An `expiresAt` in the past is refused with 400. Once a share expires the server stops accepting and serving locations for it, then removes it and clears the friend’s marker.",
         "requestBody": {
           "required": true,
           "content": {
@@ -15052,6 +15053,19 @@
                   },
                   "enabled": {
                     "type": "boolean"
+                  },
+                  "expiresAt": {
+                    "nullable": true,
+                    "anyOf": [
+                      {
+                        "format": "date-time",
+                        "description": "When sharing ends. Null or omitted shares until turned off.",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -15069,6 +15083,19 @@
                   },
                   "enabled": {
                     "type": "boolean"
+                  },
+                  "expiresAt": {
+                    "nullable": true,
+                    "anyOf": [
+                      {
+                        "format": "date-time",
+                        "description": "When sharing ends. Null or omitted shares until turned off.",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -15086,6 +15113,19 @@
                   },
                   "enabled": {
                     "type": "boolean"
+                  },
+                  "expiresAt": {
+                    "nullable": true,
+                    "anyOf": [
+                      {
+                        "format": "date-time",
+                        "description": "When sharing ends. Null or omitted shares until turned off.",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -15130,6 +15170,7 @@
           "Location"
         ],
         "summary": "Broadcast encrypted location to friends",
+        "description": "Items for a friend whose share has expired are refused with reason `expired`.",
         "requestBody": {
           "required": true,
           "content": {
@@ -21915,6 +21956,13 @@
                           "description": "The look chosen for each built-in layer, by layer id.",
                           "type": "object",
                           "properties": {}
+                        },
+                        "security": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "The signing key whose recovery words the user has confirmed they saved.",
+                          "type": "object",
+                          "properties": {}
                         }
                       }
                     }
@@ -22117,6 +22165,13 @@
                           "additionalProperties": true,
                           "maxProperties": 64,
                           "description": "The look chosen for each built-in layer, by layer id.",
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "security": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "The signing key whose recovery words the user has confirmed they saved.",
                           "type": "object",
                           "properties": {}
                         }
@@ -22323,6 +22378,13 @@
                           "description": "The look chosen for each built-in layer, by layer id.",
                           "type": "object",
                           "properties": {}
+                        },
+                        "security": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "The signing key whose recovery words the user has confirmed they saved.",
+                          "type": "object",
+                          "properties": {}
                         }
                       }
                     }
@@ -22343,7 +22405,7 @@
         "tags": [
           "Users"
         ],
-        "description": "Get current user preferences: language, unit system, navigation, Ask and app. Each navigation section (excludedModes, sortPreference, routing, speech, guidance) and app section (theme, map, general, layerAppearances) is absent until first saved."
+        "description": "Get current user preferences: language, unit system, navigation, Ask and app. Each navigation section (excludedModes, sortPreference, routing, speech, guidance) and app section (theme, map, general, layerAppearances, security) is absent until first saved."
       },
       "put": {
         "parameters": [],
@@ -22541,6 +22603,13 @@
                           "description": "The look chosen for each built-in layer, by layer id.",
                           "type": "object",
                           "properties": {}
+                        },
+                        "security": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "The signing key whose recovery words the user has confirmed they saved.",
+                          "type": "object",
+                          "properties": {}
                         }
                       }
                     }
@@ -22745,6 +22814,13 @@
                           "description": "The look chosen for each built-in layer, by layer id.",
                           "type": "object",
                           "properties": {}
+                        },
+                        "security": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "The signing key whose recovery words the user has confirmed they saved.",
+                          "type": "object",
+                          "properties": {}
                         }
                       }
                     }
@@ -22947,6 +23023,13 @@
                           "additionalProperties": true,
                           "maxProperties": 64,
                           "description": "The look chosen for each built-in layer, by layer id.",
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "security": {
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "description": "The signing key whose recovery words the user has confirmed they saved.",
                           "type": "object",
                           "properties": {}
                         }
@@ -23182,6 +23265,13 @@
                         "description": "The look chosen for each built-in layer, by layer id.",
                         "type": "object",
                         "properties": {}
+                      },
+                      "security": {
+                        "additionalProperties": true,
+                        "maxProperties": 64,
+                        "description": "The signing key whose recovery words the user has confirmed they saved.",
+                        "type": "object",
+                        "properties": {}
                       }
                     }
                   },
@@ -23402,6 +23492,13 @@
                         "description": "The look chosen for each built-in layer, by layer id.",
                         "type": "object",
                         "properties": {}
+                      },
+                      "security": {
+                        "additionalProperties": true,
+                        "maxProperties": 64,
+                        "description": "The signing key whose recovery words the user has confirmed they saved.",
+                        "type": "object",
+                        "properties": {}
                       }
                     }
                   },
@@ -23620,6 +23717,13 @@
                         "additionalProperties": true,
                         "maxProperties": 64,
                         "description": "The look chosen for each built-in layer, by layer id.",
+                        "type": "object",
+                        "properties": {}
+                      },
+                      "security": {
+                        "additionalProperties": true,
+                        "maxProperties": 64,
+                        "description": "The signing key whose recovery words the user has confirmed they saved.",
                         "type": "object",
                         "properties": {}
                       }

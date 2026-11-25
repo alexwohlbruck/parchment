@@ -1,7 +1,7 @@
 {
   "name": "parchment",
   "private": true,
-  "version": "0.26.0",
+  "version": "0.27.1",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
@@ -52,6 +52,7 @@
     "@noble/curves": "^2.0.1",
     "@noble/ed25519": "^3.0.0",
     "@noble/hashes": "^2.0.1",
+    "@scure/bip39": "^2.4.0",
     "@simplewebauthn/browser": "^10.0.0",
     "@tanstack/vue-table": "^8.17.0",
     "@tanstack/vue-virtual": "^3.13.24",
@@ -83,7 +84,7 @@
     "lucide-vue-next": "0.475.0",
     "mapbox-gl": "^3.27.0",
     "mapillary-js": "^4.1.2",
-    "maplibre-gl": "github:alexwohlbruck/maplibre-gl-js#v6.19.0-transit.1-terrain.8",
+    "maplibre-gl": "github:alexwohlbruck/maplibre-gl-js#v6.19.0-transit.1-terrain.10",
     "mitt": "^3.0.1",
     "modern-screenshot": "^4.7.0",
     "mousetrap": "^1.6.5",

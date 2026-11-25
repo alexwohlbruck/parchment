@@ -51,7 +51,7 @@ import {
 
 /** Shown when an e2ee action is attempted on a device with no identity key. */
 const IDENTITY_REQUIRED =
-  'This device has no identity key yet — import your recovery key first.'
+  'This device has no identity key yet — enter your recovery words first.'
 
 function stampMetadata(canvas: Canvas, metadata: CanvasMetadata): void {
   if (metadata.name !== undefined) canvas.name = metadata.name

@@ -32,7 +32,7 @@ export interface DerivedKeys {
 
 /**
  * Generate a cryptographically secure 32-byte seed
- * This is the recovery key that users save to their password manager
+ * The recovery words encode this seed
  */
 export function generateSeed(): Uint8Array {
   return crypto.getRandomValues(new Uint8Array(32))
@@ -143,29 +143,6 @@ export function deriveSharedSecret(
   theirPublicKey: Uint8Array,
 ): Uint8Array {
   return x25519.getSharedSecret(myPrivateKey, theirPublicKey)
-}
-
-/**
- * Export seed as a recovery key string (base64)
- * @param seed - 32-byte seed
- * @returns Base64-encoded recovery key (~44 characters)
- */
-export function exportRecoveryKey(seed: Uint8Array): string {
-  return bytesToBase64(seed)
-}
-
-/**
- * Import seed from a recovery key string
- * @param recoveryKey - Base64-encoded recovery key
- * @returns 32-byte seed
- * @throws Error if invalid format
- */
-export function importRecoveryKey(recoveryKey: string): Uint8Array {
-  const seed = base64ToBytes(recoveryKey.trim())
-  if (seed.length !== 32) {
-    throw new Error('Invalid recovery key: must be 32 bytes')
-  }
-  return seed
 }
 
 /**

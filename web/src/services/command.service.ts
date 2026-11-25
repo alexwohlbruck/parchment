@@ -5,6 +5,7 @@ import { ArgumentType, Command } from '@/types/command.types'
 import { type Command as TCommand } from '@/types/command.types'
 import { createSharedComposable } from '@vueuse/core'
 import { appEventBus } from '@/lib/event-bus'
+import { useCommandUsageStore } from '@/stores/command-usage.store'
 
 const activeCommand = ref<TCommand | null>(null)
 const activeArgumentIndex = ref<number | null>(null)
@@ -18,6 +19,7 @@ const argumentsList = ref<ArgumentType[]>([])
 
 function commandService() {
   const commandStore = useCommandStore()
+  const usageStore = useCommandUsageStore()
 
   async function executeCommand(command: TCommand, ...args: ArgumentType[]) {
     if (!command.action) return
@@ -31,6 +33,9 @@ function commandService() {
       : true
 
     if (argsFilled) {
+      if (!command.context && command.id !== CommandName.SEARCH) {
+        usageStore.record(command.id)
+      }
       try {
         await command.action(...argumentsList.value)
       } catch (error) {
@@ -47,7 +52,7 @@ function commandService() {
     argumentsList.value = []
   }
 
-  function bindHotkeyToCommand(id: CommandName) {
+  function bindHotkeyToCommand(id: string) {
     const command = commandStore.useCommand(id)
     if (!command.value?.hotkey || !command.value?.action) return
 

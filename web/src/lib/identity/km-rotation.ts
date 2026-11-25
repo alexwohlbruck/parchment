@@ -13,7 +13,7 @@
  *      both are bound to the old encryption key.
  *   6. Re-seal K_m into every existing passkey-PRF slot. One biometric
  *      tap per slot, each scoped to that slot's credentialId.
- *   7. Show the new recovery key and wait for the user to confirm it.
+ *   7. Show the new recovery words and wait for the user to confirm them.
  *   8. Single atomic POST to `/users/me/km-version/commit` with the
  *      full post-rotation state + expectedCurrent (CAS). The server
  *      refuses a commit that misses any seed-derived record.
@@ -30,11 +30,11 @@ import {
   derivePersonalKey,
   deriveCollectionKey,
   exportPublicKey,
-  exportRecoveryKey,
   importPublicKey,
   PERSONAL_KEY_CONTEXT,
   type DerivedKeys,
 } from '@/lib/identity/federation-crypto'
+import { seedToRecoveryWords } from '@/lib/identity/recovery-words'
 import {
   encryptEnvelopeString,
   decryptEnvelopeString,
@@ -136,7 +136,7 @@ export type RotationPhase =
       index: number
       total: number
     }
-  | { kind: 'confirming-recovery-key' }
+  | { kind: 'confirming-recovery-words' }
   | { kind: 'committing' }
   | { kind: 'storing-seed' }
   | { kind: 'done'; newKmVersion: number }
@@ -180,8 +180,8 @@ interface RotateParams {
   assertPasskeyForSlot: (credentialId: string) => Promise<unknown>
   /** A friend's cached X25519 public key, for re-sealing share envelopes. */
   friendEncryptionKey: (handle: string) => string | null | undefined
-  /** Show the new recovery key; resolves true once the user has saved it. */
-  confirmRecoveryKey: (recoveryKey: string) => Promise<boolean>
+  /** Show the new recovery words; resolves true once the user has saved them. */
+  confirmRecoveryWords: (words: string[]) => Promise<boolean>
   onProgress?: (phase: RotationPhase) => void
 }
 
@@ -364,9 +364,9 @@ export async function rotateMasterKey(
     slotResults.push(result.outcome)
   }
 
-  // 6. The old recovery key stops working, so the new one must be saved.
-  progress({ kind: 'confirming-recovery-key' })
-  if (!(await params.confirmRecoveryKey(exportRecoveryKey(newSeed)))) {
+  // 6. The old recovery words stop working, so the new ones must be saved.
+  progress({ kind: 'confirming-recovery-words' })
+  if (!(await params.confirmRecoveryWords(seedToRecoveryWords(newSeed)))) {
     throw new RotationCancelledError()
   }
 

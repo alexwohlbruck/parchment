@@ -89,6 +89,11 @@ interface Props
   items?: MenuItemDefinition[]
   customComponent?: Component
   customProps?: Record<string, any>
+  /**
+   * On phones too, open beside the trigger rather than as a sheet. For a few
+   * plain actions, where a sheet would push the page behind it out of view.
+   */
+  anchored?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -237,7 +242,7 @@ watch(internalOpen, open => {
 
 <template>
   <!-- Mobile: Trigger + Bottom Sheet -->
-  <template v-if="isMobileScreen">
+  <template v-if="isMobileScreen && !anchored">
     <slot name="trigger" :open="() => handleOpenChange(true)" />
 
     <!-- Main bottom sheet -->
@@ -507,8 +512,8 @@ watch(internalOpen, open => {
     <DropdownMenuContent
       :align="align"
       :side="side"
-      :side-offset="sideOffset"
-      :class="contentClass"
+      :side-offset="anchored && isMobileScreen ? 6 : sideOffset"
+      :class="[contentClass, anchored && isMobileScreen && 'p-1.5']"
     >
       <component
         v-if="SafeCustomComponent"
@@ -548,6 +553,7 @@ watch(internalOpen, open => {
             :disabled="item.disabled"
             :class="[
               item.trailing ? 'flex items-center justify-between' : 'flex items-center',
+              isMobileScreen && 'min-h-11 gap-3 px-3 text-base',
               {
                 'text-destructive focus:text-destructive':
                   item.variant === 'destructive' && !item.disabled,

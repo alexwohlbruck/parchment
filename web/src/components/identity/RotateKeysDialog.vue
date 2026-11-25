@@ -14,7 +14,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
-import RecoveryKeyDisplay from '@/components/identity/RecoveryKeyDisplay.vue'
+import RecoveryWordsDisplay from '@/components/identity/RecoveryWordsDisplay.vue'
+import RecoveryWordCheck from '@/components/identity/RecoveryWordCheck.vue'
 import { AlertTriangle, Check, RefreshCw, Fingerprint } from 'lucide-vue-next'
 
 interface Props {
@@ -27,27 +28,31 @@ const emit = defineEmits<{ 'update:open': [value: boolean] }>()
 const { t } = useI18n()
 const identityStore = useIdentityStore()
 
-type UiStep = 'confirm' | 'running' | 'recovery-key' | 'done' | 'error'
+type UiStep = 'confirm' | 'running' | 'recovery-words' | 'done' | 'error'
 
 const step = ref<UiStep>('confirm')
 const phase = ref<RotationPhase | null>(null)
 const error = ref<string | null>(null)
 const slotWarnings = ref<string[]>([])
-const newRecoveryKey = ref<string | null>(null)
-let resolveRecoveryKey: ((saved: boolean) => void) | null = null
+const newRecoveryWords = ref<string[] | null>(null)
+const checkingWords = ref(false)
+const wordsChecked = ref(false)
+let resolveRecoveryWords: ((saved: boolean) => void) | null = null
 
-function confirmRecoveryKey(recoveryKey: string): Promise<boolean> {
-  newRecoveryKey.value = recoveryKey
-  step.value = 'recovery-key'
+function confirmRecoveryWords(words: string[]): Promise<boolean> {
+  newRecoveryWords.value = words
+  checkingWords.value = false
+  wordsChecked.value = false
+  step.value = 'recovery-words'
   return new Promise(resolve => {
-    resolveRecoveryKey = resolve
+    resolveRecoveryWords = resolve
   })
 }
 
-function settleRecoveryKey(saved: boolean) {
-  resolveRecoveryKey?.(saved)
-  resolveRecoveryKey = null
-  newRecoveryKey.value = null
+function settleRecoveryWords(saved: boolean) {
+  resolveRecoveryWords?.(saved)
+  resolveRecoveryWords = null
+  newRecoveryWords.value = null
   if (saved) step.value = 'running'
 }
 
@@ -60,7 +65,7 @@ watch(
   () => props.open,
   (open) => {
     if (!open) {
-      settleRecoveryKey(false)
+      settleRecoveryWords(false)
     } else {
       step.value = 'confirm'
       phase.value = null
@@ -94,8 +99,8 @@ const progressMessage = computed(() => {
         index: p.index,
         total: p.total,
       })
-    case 'confirming-recovery-key':
-      return t('friends.rotateKeys.progress.confirmingRecoveryKey')
+    case 'confirming-recovery-words':
+      return t('friends.rotateKeys.progress.confirmingRecoveryWords')
     case 'committing':
       return t('friends.rotateKeys.progress.committing')
     case 'storing-seed':
@@ -115,7 +120,7 @@ async function handleConfirm() {
     onProgress: (p) => {
       phase.value = p
     },
-    confirmRecoveryKey,
+    confirmRecoveryWords,
   })
   if (result.cancelled) return
 
@@ -173,7 +178,7 @@ function handleClose() {
               <ul class="list-disc pl-4 space-y-1 text-xs mt-1">
                 <li>{{ t('friends.rotateKeys.warning.keepOpen') }}</li>
                 <li>{{ t('friends.rotateKeys.warning.tapEach') }}</li>
-                <li>{{ t('friends.rotateKeys.warning.newRecoveryKey') }}</li>
+                <li>{{ t('friends.rotateKeys.warning.newWords') }}</li>
                 <li>{{ t('friends.rotateKeys.warning.failsSafe') }}</li>
               </ul>
             </AlertDescription>
@@ -212,21 +217,30 @@ function handleClose() {
         </div>
       </template>
 
-      <template v-else-if="step === 'recovery-key'">
+      <template v-else-if="step === 'recovery-words' && newRecoveryWords">
         <DialogHeader>
-          <DialogTitle>{{ t('friends.rotateKeys.recoveryKeyTitle') }}</DialogTitle>
+          <DialogTitle>{{ t('friends.rotateKeys.recoveryWordsTitle') }}</DialogTitle>
           <DialogDescription>
-            {{ t('friends.rotateKeys.recoveryKeyDescription') }}
+            {{ t('friends.rotateKeys.recoveryWordsDescription') }}
           </DialogDescription>
         </DialogHeader>
 
-        <div class="py-2">
-          <RecoveryKeyDisplay :recovery-key="newRecoveryKey" />
+        <div v-if="checkingWords" class="flex flex-col gap-4 py-2">
+          <RecoveryWordCheck v-model:passed="wordsChecked" :words="newRecoveryWords" />
+          <button type="button" class="self-start text-sm text-muted-foreground hover:text-foreground" @click="checkingWords = false">
+            {{ t('settings.identity.recoveryKey.check.showAgain') }}
+          </button>
+        </div>
+        <div v-else class="py-2">
+          <RecoveryWordsDisplay :recovery-words="newRecoveryWords" />
         </div>
 
         <DialogFooter>
-          <Button @click="settleRecoveryKey(true)">
-            {{ t('friends.rotateKeys.recoveryKeySaved') }}
+          <Button v-if="checkingWords" :disabled="!wordsChecked" @click="settleRecoveryWords(true)">
+            {{ t('general.continue') }}
+          </Button>
+          <Button v-else @click="checkingWords = true">
+            {{ t('settings.identity.recoveryKey.check.start') }}
           </Button>
         </DialogFooter>
       </template>

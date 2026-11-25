@@ -222,7 +222,7 @@ function onBookmarkDeleted() {
         <TooltipContent>{{ t('general.share') }}</TooltipContent>
       </Tooltip>
 
-      <ResponsiveDropdown :items="moreItems" align="end" content-class="w-56">
+      <ResponsiveDropdown :items="moreItems" align="end" content-class="w-56" anchored>
         <template #trigger="{ open }">
           <Button size="icon" variant="outline" :aria-label="t('general.more')" @click="open">
             <EllipsisIcon class="size-4" />

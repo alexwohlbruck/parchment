@@ -68,6 +68,7 @@ import {
 } from './cycling-layers'
 import { barrelmanBuildingsReady, barrelmanBuildingsTiles } from './barrelman-buildings'
 import { poiDotLayer, POI_DOTS_LAYER } from './poi-dots'
+import { BUILDING_LABELS_LAYER, withBuildingLabels } from './building-labels'
 import { BASEMAP_CONTINENT_LABELS, GLOBE_CONTINENT_LABELS, GLOBE_NAMES, GLOBE_SOURCE, globeSources, withGlobeLayers } from './globe-layers'
 import { NEIGHBOURHOOD_SOURCE, NEIGHBOURHOOD_TILES, neighbourhoodSource, withNeighbourhoodLabels } from './neighbourhood-labels'
 import { ABORIGINAL_LANDS_SOURCE, ABORIGINAL_LANDS_TILES, aboriginalLandsSource, withAboriginalLands } from './aboriginal-lands'
@@ -359,6 +360,7 @@ function isTransitStopLayer(l: any): boolean {
 export const layerGroups = {
   poi: [
     POI_DOTS_LAYER,
+    BUILDING_LABELS_LAYER,
     ...idsWhere(
       l => l.type === 'symbol' && ['poi', 'housenumber', 'aerodrome_label', 'mountain_peak'].includes(l['source-layer']),
     ),
@@ -508,6 +510,7 @@ export function buildLayers(options: {
   base = withRoundedRoofEdge(base)
   base = useBarrelmanBuildings(base, flavor, paint)
   base = withPoiDots(base)
+  base = withBuildingLabels(base)
   base = withGlobeLayers(base, flavor, themeGlobe(mapStyle, flavor))
 
   const converted = withAboriginalLands(withNeighbourhoodLabels(base

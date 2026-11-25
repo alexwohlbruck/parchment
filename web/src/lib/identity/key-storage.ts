@@ -16,10 +16,10 @@
  *      cost: one small authenticated GET + one AES-GCM decrypt.
  *
  * Callers see the same async API regardless of backend — getSeed,
- * storeSeed, hasIdentity, clearIdentity, verifySeedMatchesRecoveryKey
- * all behave identically. The backend is detected once and cached; a
- * misconfigured Tauri build (e.g. commands missing) fails loud rather
- * than silently downgrading to localStorage.
+ * storeSeed, hasIdentity, clearIdentity all behave identically. The
+ * backend is detected once and cached; a misconfigured Tauri build
+ * (e.g. commands missing) fails loud rather than silently downgrading
+ * to localStorage.
  */
 
 import { useStorage } from '@vueuse/core'
@@ -305,31 +305,6 @@ export async function hasIdentity(): Promise<boolean> {
 export async function clearIdentity(): Promise<void> {
   const backend = await getBackend()
   await backend.delete(SEED_KEY)
-}
-
-export async function verifySeedMatchesRecoveryKey(
-  recoveryKey: string,
-): Promise<boolean> {
-  try {
-    const storedSeed = await getSeed()
-    if (!storedSeed) return false
-
-    const binaryString = atob(recoveryKey.trim())
-    const importedSeed = new Uint8Array(binaryString.length)
-    for (let i = 0; i < binaryString.length; i++) {
-      importedSeed[i] = binaryString.charCodeAt(i)
-    }
-
-    if (importedSeed.length !== 32) return false
-
-    for (let i = 0; i < 32; i++) {
-      if (storedSeed[i] !== importedSeed[i]) return false
-    }
-
-    return true
-  } catch {
-    return false
-  }
 }
 
 /**

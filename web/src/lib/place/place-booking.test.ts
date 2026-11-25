@@ -3,6 +3,7 @@ import {
   bookingComSearchUrl,
   bookingKind,
   bookingLinks,
+  deliveryLinks,
   reservationPolicy,
   resySearchUrl,
   openTableSearchUrl,
@@ -67,7 +68,7 @@ describe('bookingLinks', () => {
       tags: { ...restaurant.tags, 'website:booking': 'https://supperland.example/book' },
     })
     expect(links[0]).toEqual({ provider: 'venue', url: 'https://supperland.example/book' })
-    expect(links.map(l => l.provider)).toEqual(['venue', 'opentable', 'resy', 'search'])
+    expect(links.map(l => l.provider)).toEqual(['venue', 'opentable', 'resy'])
   })
 
   it('uses a tagged provider page in place of searching that provider', () => {
@@ -76,8 +77,8 @@ describe('bookingLinks', () => {
       ...restaurant,
       tags: { ...restaurant.tags, 'reservation:website': url },
     })
-    expect(links).toContainEqual({ provider: 'resy', url })
-    expect(links.map(l => l.provider)).toEqual(['resy', 'opentable', 'search'])
+    expect(links).toContainEqual({ provider: 'resy', url: 'https://resy.com/cities/charlotte-nc/venues/supperland' })
+    expect(links.map(l => l.provider)).toEqual(['resy', 'opentable'])
   })
 
   it('skips booking URLs that are not web links', () => {
@@ -98,6 +99,59 @@ describe('bookingLinks', () => {
   it('leaves Resy out outside the US', () => {
     expect(providers({ ...restaurant, locality: 'Paris', region: 'IDF', countryCode: 'FR' }))
       .toEqual(['opentable', 'search'])
+  })
+})
+
+describe('bookingLinks with known venues', () => {
+  const plan = { party: 2, day: '2026-11-25', checkout: '2026-11-26', tableTime: '2026-11-25T19:00' }
+
+  it('links stored venues straight to their page, prefilled, and drops the web search', () => {
+    const links = bookingLinks({ ...restaurant, plan, venues: { resy: 'charlotte-nc/supperland' } })
+    expect(links[0]).toEqual({
+      provider: 'resy',
+      url: 'https://resy.com/cities/charlotte-nc/venues/supperland?date=2026-11-25&seats=2',
+    })
+    expect(links.map(l => l.provider)).toEqual(['resy', 'opentable'])
+  })
+
+  it('uses reservation links from the place data, labelled by site', () => {
+    const links = bookingLinks({
+      ...restaurant,
+      actions: [
+        { kind: 'reservation', url: 'https://www.opentable.com/r/the-tavern-at-gramercy-tavern-new-york' },
+        { kind: 'reservation', url: 'https://www.exploretock.com/atomix' },
+        { kind: 'reservation', url: 'https://supperland.example/reserve' },
+        { kind: 'delivery', url: 'https://www.ubereats.com/store/x' },
+      ],
+    })
+    expect(links.map(l => l.provider)).toEqual(['opentable', 'tock', 'venue', 'resy'])
+  })
+
+  it('skips the search on a site a person said does not list the place', () => {
+    expect(providers({ ...restaurant, unlisted: ['resy'] })).toEqual(['opentable', 'search'])
+  })
+
+  it('links a stored Booking.com hotel with the dates', () => {
+    const links = bookingLinks({ ...hotel, plan, venues: { bookingcom: 'us/the-iveys' } })
+    expect(links[0].url).toBe(
+      'https://www.booking.com/hotel/us/the-iveys.html?checkin=2026-11-25&checkout=2026-11-26&group_adults=2&no_rooms=1',
+    )
+  })
+})
+
+describe('deliveryLinks', () => {
+  it('names each delivery service once', () => {
+    expect(
+      deliveryLinks([
+        { kind: 'delivery', url: 'https://www.ubereats.com/store/carbone/abc' },
+        { kind: 'delivery', url: 'https://www.ubereats.com/store/carbone/def' },
+        { kind: 'delivery', url: 'https://order.example.com/carbone' },
+        { kind: 'reservation', url: 'https://resy.com/cities/ny/carbone' },
+      ]),
+    ).toEqual([
+      { name: 'Uber Eats', url: 'https://www.ubereats.com/store/carbone/abc' },
+      { name: 'order.example.com', url: 'https://order.example.com/carbone' },
+    ])
   })
 })
 
@@ -127,19 +181,19 @@ describe('bookingKind', () => {
 
 describe('bookingLinks for lodging', () => {
   it('offers Booking.com, Expedia and Google Hotels', () => {
-    expect(providers(hotel)).toEqual(['bookingCom', 'expedia', 'googleHotels'])
+    expect(providers(hotel)).toEqual(['bookingcom', 'expedia', 'googleHotels'])
   })
 
   it("puts the hotel's own booking page first", () => {
     const links = bookingLinks({ ...hotel, tags: { ...hotel.tags, 'website:booking': 'https://ivey.example/stay' } })
-    expect(links.map(l => l.provider)).toEqual(['venue', 'bookingCom', 'expedia', 'googleHotels'])
+    expect(links.map(l => l.provider)).toEqual(['venue', 'bookingcom', 'expedia', 'googleHotels'])
   })
 
   it('uses a tagged Booking.com page in place of searching it', () => {
     const url = 'https://www.booking.com/hotel/us/the-iveys.html'
     const links = bookingLinks({ ...hotel, tags: { ...hotel.tags, 'reservation:website': url } })
-    expect(links[0]).toEqual({ provider: 'bookingCom', url })
-    expect(links.map(l => l.provider)).toEqual(['bookingCom', 'expedia', 'googleHotels'])
+    expect(links[0]).toEqual({ provider: 'bookingcom', url })
+    expect(links.map(l => l.provider)).toEqual(['bookingcom', 'expedia', 'googleHotels'])
   })
 })
 

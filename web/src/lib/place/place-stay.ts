@@ -1,5 +1,6 @@
 import type { BookingKind } from '@/lib/place/place-booking'
 import { addDays, localDay } from '@/lib/offline/expiry'
+import type { StayOffer } from '@server/types/integration.types'
 
 /** Who is going and when. A stay lasts `nights`; a table ignores it. */
 export interface BookingPlan {
@@ -63,4 +64,29 @@ export function dayLabelKey(day: string, kind: BookingKind, now = new Date()): '
   if (day === today) return kind === 'stay' || kind === 'table' ? 'tonight' : 'today'
   if (day === addNights(today, 1)) return 'tomorrow'
   return null
+}
+
+export interface OfferGroups {
+  featured: StayOffer[]
+  others: StayOffer[]
+  /** Sellers left out of `others` until expanded. */
+  hidden: number
+  /** The cheapest nightly price among the hidden sellers. */
+  hiddenFrom: StayOffer['nightly']
+}
+
+const SHOWN_OTHERS = 3
+
+/** Featured sellers above everyone else, optionally only those that cancel free, with the long tail folded away. */
+export function groupOffers(offers: StayOffer[], freeCancellationOnly: boolean, expanded: boolean): OfferGroups {
+  const kept = freeCancellationOnly ? offers.filter(o => o.freeCancellation) : offers
+  const featured = kept.filter(o => o.featured)
+  const rest = kept.filter(o => !o.featured)
+  const others = expanded ? rest : rest.slice(0, SHOWN_OTHERS)
+  const folded = rest.slice(others.length)
+  const hiddenFrom = folded
+    .map(o => o.nightly)
+    .filter((n): n is NonNullable<typeof n> => !!n)
+    .sort((a, b) => a.amount - b.amount)[0] ?? null
+  return { featured, others, hidden: folded.length, hiddenFrom }
 }

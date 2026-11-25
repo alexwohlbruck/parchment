@@ -9,6 +9,8 @@ import { Spinner } from '@/components/ui/spinner'
 import { toast } from '@/lib/toast'
 import { useUnits } from '@/composables/useUnits'
 import { listingProviderName } from '@/lib/place/listing-providers'
+import { Button } from '@/components/ui/button'
+import { isVenueProvider, parseVenueUrl } from '@server/lib/place/booking-venues'
 import {
   correctListing,
   fetchListingCandidates,
@@ -46,6 +48,12 @@ const options = computed(() => {
   return [current, ...candidates.value]
 })
 
+const pasted = ref('')
+const pastedId = computed(() =>
+  isVenueProvider(provider.value) && pasted.value.trim() ? parseVenueUrl(provider.value, pasted.value) : null,
+)
+const pasteInvalid = computed(() => !!pasted.value.trim() && !pastedId.value)
+
 let request = 0
 async function search() {
   if (!open.value || !provider.value || !props.listing?.searchable) return
@@ -64,6 +72,7 @@ async function search() {
 watch(open, isOpen => {
   if (!isOpen) return
   query.value = props.placeName ?? ''
+  pasted.value = ''
   candidates.value = []
   search()
 })
@@ -105,12 +114,35 @@ function detail(candidate: ListingSummary) {
           data-testid="listing-search"
         />
 
+        <form
+          v-if="listing?.acceptsUrl"
+          class="flex min-w-0 flex-col gap-1.5"
+          @submit.prevent="pastedId && choose(pastedId)"
+        >
+          <div class="flex gap-2">
+            <Input
+              v-model="pasted"
+              inputmode="url"
+              :placeholder="t('place.listings.pasteUrl', { provider: providerName })"
+              :aria-invalid="pasteInvalid"
+              data-testid="listing-url"
+            />
+            <Button type="submit" :disabled="!pastedId || !!saving">
+              <Spinner v-if="saving && saving === pastedId" class="size-4" />
+              <template v-else>{{ t('place.listings.save') }}</template>
+            </Button>
+          </div>
+          <p v-if="pasteInvalid" class="text-xs text-destructive">
+            {{ t('place.listings.invalidUrl', { provider: providerName }) }}
+          </p>
+        </form>
+
         <div class="-mx-2 flex min-w-0 flex-col">
           <div v-if="loading && !options.length" class="flex justify-center py-6">
             <Spinner />
           </div>
           <p
-            v-else-if="!options.length"
+            v-else-if="!options.length && !listing?.acceptsUrl"
             class="px-2 py-4 text-sm text-muted-foreground"
           >
             {{ t('place.listings.noCandidates') }}

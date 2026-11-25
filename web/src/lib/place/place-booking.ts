@@ -3,6 +3,15 @@ import {
   venueBookingUrl,
   type BookingKind,
 } from '@server/lib/place/booking-kind'
+import {
+  VENUE_PROVIDERS,
+  parseVenueUrl,
+  venuePageUrl,
+  venueProviderOf,
+  type VenueIds,
+  type VenueProvider,
+} from '@server/lib/place/booking-venues'
+import type { PlaceAction } from '@server/types/place.types'
 
 export {
   bookingKind,
@@ -13,14 +22,7 @@ export {
   type ReservationPolicy,
 } from '@server/lib/place/booking-kind'
 
-export type BookingProvider =
-  | 'venue'
-  | 'opentable'
-  | 'resy'
-  | 'bookingCom'
-  | 'expedia'
-  | 'googleHotels'
-  | 'search'
+export type BookingProvider = VenueProvider | 'venue' | 'googleHotels' | 'search'
 
 export interface BookingLink {
   provider: BookingProvider
@@ -36,24 +38,18 @@ export interface BookingTarget {
   countryCode?: string
   /** Prefills party size and dates on providers that take them. */
   plan?: { party: number; day: string; checkout: string; tableTime: string }
+  /** The place's own pages on booking sites, from the match store. */
+  venues?: VenueIds
+  /** Booking sites a person said don't list the place. */
+  unlisted?: VenueProvider[]
+  /** Reservation and delivery pages from the place's data. */
+  actions?: PlaceAction[]
 }
 
 const US_STATES = new Set(
   ('AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM ' +
     'NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY').split(' '),
 )
-
-const PROVIDER_HOSTS: [BookingProvider, RegExp][] = [
-  ['opentable', /(^|\.)opentable\.[a-z.]+$/],
-  ['resy', /(^|\.)resy\.com$/],
-  ['bookingCom', /(^|\.)booking\.com$/],
-  ['expedia', /(^|\.)expedia\.[a-z.]+$/],
-]
-
-function providerOf(url: URL): BookingProvider {
-  const host = url.hostname.toLowerCase()
-  return PROVIDER_HOSTS.find(([, pattern]) => pattern.test(host))?.[0] ?? 'venue'
-}
 
 function slugify(text: string): string {
   return text
@@ -145,26 +141,82 @@ const SEARCHES: Record<BookingKind, [BookingProvider, (target: BookingTarget) =>
     ['search', webSearchUrl],
   ],
   stay: [
-    ['bookingCom', bookingComSearchUrl],
+    ['bookingcom', bookingComSearchUrl],
     ['expedia', expediaSearchUrl],
     ['googleHotels', googleHotelsSearchUrl],
   ],
   ahead: [['search', webSearchUrl]],
 }
 
-/** Ways to book a place, best first. Empty when it can't be booked. */
+/** A booking page: on a known site it's that site's venue page, prefilled; anywhere else it's the venue's own. */
+function directLink(raw: string, target: BookingTarget): BookingLink {
+  const provider = venueProviderOf(raw)
+  const id = provider && parseVenueUrl(provider, raw)
+  const url = provider && id ? venuePageUrl(provider, id, target.plan) : null
+  return { provider: provider ?? 'venue', url: url ?? raw }
+}
+
+/**
+ * Ways to book a place, best first: its own pages on booking sites, then
+ * searches on the sites where none is known. A web search is only offered
+ * when nothing direct is. Empty when it can't be booked.
+ */
 export function bookingLinks(target: BookingTarget): BookingLink[] {
   const kind = bookingKind(target.tags)
   if (!kind || !target.name.trim()) return []
 
   const links: BookingLink[] = []
-  const venue = venueBookingUrl(target.tags)
-  if (venue) links.push({ provider: providerOf(venue), url: venue.toString() })
+  const add = (link: BookingLink | null) => {
+    if (link && !links.some(l => l.provider === link.provider)) links.push(link)
+  }
 
+  for (const provider of VENUE_PROVIDERS[kind]) {
+    const id = target.venues?.[provider]
+    const url = id ? venuePageUrl(provider, id, target.plan) : null
+    if (url) add({ provider, url })
+  }
+  const reservations = (target.actions ?? []).filter(a => a.kind === 'reservation').map(a => a.url)
+  const tagged = venueBookingUrl(target.tags)?.toString()
+  for (const raw of tagged ? [...reservations, tagged] : reservations) add(directLink(raw, target))
+
+  const direct = links.length > 0
   for (const [provider, search] of SEARCHES[kind]) {
-    if (links.some(l => l.provider === provider)) continue
+    if (provider === 'search' && direct) continue
+    if (target.unlisted?.includes(provider as VenueProvider) || links.some(l => l.provider === provider)) continue
     const url = search(target)
-    if (url) links.push({ provider, url })
+    if (url) add({ provider, url })
+  }
+  return links
+}
+
+const DELIVERY_NAMES: [RegExp, string][] = [
+  [/(^|\.)ubereats\.com$/, 'Uber Eats'],
+  [/(^|\.)doordash\.com$/, 'DoorDash'],
+  [/(^|\.)grubhub\.com$/, 'Grubhub'],
+  [/(^|\.)seamless\.com$/, 'Seamless'],
+  [/(^|\.)postmates\.com$/, 'Postmates'],
+  [/(^|\.)deliveroo\.[a-z.]+$/, 'Deliveroo'],
+  [/(^|\.)just-eat\.[a-z.]+$/, 'Just Eat'],
+]
+
+export interface DeliveryLink {
+  name: string
+  url: string
+}
+
+/** Where to order delivery from the place, one link per service. */
+export function deliveryLinks(actions: PlaceAction[] | undefined): DeliveryLink[] {
+  const links: DeliveryLink[] = []
+  for (const action of actions ?? []) {
+    if (action.kind !== 'delivery') continue
+    let host: string
+    try {
+      host = new URL(action.url).hostname.toLowerCase()
+    } catch {
+      continue
+    }
+    const name = DELIVERY_NAMES.find(([pattern]) => pattern.test(host))?.[1] ?? host.replace(/^www\./, '')
+    if (!links.some(l => l.name === name)) links.push({ name, url: action.url })
   }
   return links
 }

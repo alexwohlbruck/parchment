@@ -2726,7 +2726,10 @@
         "venue": "Su web",
         "opentable": "OpenTable",
         "resy": "Resy",
-        "bookingCom": "Booking.com",
+        "bookingcom": "Booking.com",
+        "hotelscom": "Hotels.com",
+        "tock": "Tock",
+        "sevenrooms": "SevenRooms",
         "expedia": "Expedia",
         "googleHotels": "Google Hotels",
         "search": "Buscar en la web"
@@ -2739,14 +2742,22 @@
         "today": "Hoy",
         "tomorrow": "Mañana"
       },
-      "rooms": {
-        "freeCancel": "Cancelación gratis hasta el {date}",
-        "noRefund": "Sin reembolso",
-        "atHotel": "+{price} en el hotel",
-        "soldOut": "No quedan habitaciones para estas fechas",
-        "allRooms": "Ver todas las habitaciones",
-        "compare": "Comparar en"
-      }
+      "offers": {
+        "title": "Comparar precios",
+        "compare": "Comparar en",
+        "withTaxes": "{price} con impuestos y tasas",
+        "freeCancellation": "Cancelación gratis",
+        "freeCancellationOnly": "Solo cancelación gratis",
+        "none": "No hay precios para estas fechas",
+        "noneFree": "No hay cancelación gratis para estas fechas",
+        "allOptions": "Todas las opciones",
+        "bookHere": "Reservar aquí",
+        "official": "Sitio oficial",
+        "seePrice": "Ver precio",
+        "morePricesFrom": "Más precios desde {price}",
+        "morePrices": "{n} precios más"
+      },
+      "delivery": "Pedir a domicilio"
     },
     "details": {
       "address": "Dirección",
@@ -2969,7 +2980,10 @@
       "noneOption": "No está en {provider}",
       "noCandidates": "No hay fichas cerca",
       "saved": "Ficha actualizada",
-      "failed": "No se pudo actualizar la ficha"
+      "failed": "No se pudo actualizar la ficha",
+      "pasteUrl": "Pega el enlace de la página en {provider}",
+      "invalidUrl": "Eso no es la página de un local en {provider}",
+      "save": "Guardar"
     }
   },
   "settings": {
@@ -3578,7 +3592,8 @@
         "rideshareEstimate": "Viajes compartidos",
         "feedback": "Comentarios",
         "languageModel": "Agentes",
-        "hotelRates": "Precios de hotel"
+        "hotelRates": "Precios de hotel",
+        "hotelPrices": "Comparación de precios de hotel"
       },
       "descriptions": {
         "google-maps": "Servicios completos de mapas y ubicación",
@@ -3608,7 +3623,8 @@
         "esri": "World Imagery para el mapa satélite",
         "quackback": "Tableros de comentarios, votaciones y hoja de ruta para el formulario de comentarios",
         "openrouter": "El modelo de lenguaje detrás de Preguntar",
-        "liteapi": "Precios de habitaciones en tiempo real, reservadas en tu sitio de marca blanca"
+        "liteapi": "Precios de habitaciones en tiempo real, reservadas en tu sitio de marca blanca",
+        "serpapi": "El precio de cada vendedor de un hotel, de Google Hotels"
       },
       "scheme": {
         "endToEnd": {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { addNights, dayLabelKey, defaultPlan, guestMarket, tableTime, upcomingDays } from '@/lib/place/place-stay'
+import { addNights, dayLabelKey, defaultPlan, groupOffers, guestMarket, tableTime, upcomingDays } from '@/lib/place/place-stay'
+import type { StayOffer } from '@server/types/integration.types'
 
 const afternoon = new Date(2026, 10, 25, 15, 0)
 
@@ -54,5 +55,47 @@ describe('guestMarket', () => {
 
   it('falls back to US dollars without a region', () => {
     expect(guestMarket('en')).toEqual({ currency: 'USD', nationality: 'US' })
+  })
+})
+
+describe('groupOffers', () => {
+  const offer = (seller: string, featured: boolean, nightly: number, freeCancellation = false): StayOffer => ({
+    seller,
+    logo: null,
+    official: false,
+    featured,
+    bookHere: false,
+    nightly: { amount: nightly, currency: 'USD' },
+    total: null,
+    freeCancellation,
+    url: 'https://example.com',
+  })
+  const offers = [
+    offer('Official', true, 249),
+    offer('Expedia', true, 249, true),
+    offer('Super', false, 188),
+    offer('Booking', false, 200, true),
+    offer('Agoda', false, 210),
+    offer('Trip', false, 189),
+    offer('Hotels', false, 230, true),
+  ]
+  const names = (list: StayOffer[]) => list.map(o => o.seller)
+
+  it('puts featured sellers apart and folds all but three of the rest', () => {
+    const groups = groupOffers(offers, false, false)
+    expect(names(groups.featured)).toEqual(['Official', 'Expedia'])
+    expect(names(groups.others)).toEqual(['Super', 'Booking', 'Agoda'])
+    expect(groups.hidden).toBe(2)
+    expect(groups.hiddenFrom).toEqual({ amount: 189, currency: 'USD' })
+  })
+
+  it('shows everyone when expanded', () => {
+    expect(groupOffers(offers, false, true)).toMatchObject({ hidden: 0, hiddenFrom: null })
+  })
+
+  it('keeps only sellers that cancel free', () => {
+    const groups = groupOffers(offers, true, false)
+    expect(names(groups.featured)).toEqual(['Expedia'])
+    expect(names(groups.others)).toEqual(['Booking', 'Hotels'])
   })
 })

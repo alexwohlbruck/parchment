@@ -7,9 +7,13 @@ const PROVIDER_NAMES: Record<string, string> = {
   resy: 'Resy',
   yelp: 'Yelp',
   tripadvisor: 'Tripadvisor',
-  booking: 'Booking.com',
+  tock: 'Tock',
+  sevenrooms: 'SevenRooms',
+  bookingcom: 'Booking.com',
   expedia: 'Expedia',
+  hotelscom: 'Hotels.com',
   liteapi: 'LiteAPI',
+  google_hotels: 'Google Hotels',
 }
 
 /** Brand name for a listing provider key; unknown providers read as their capitalised key. */

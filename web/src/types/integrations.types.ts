@@ -42,6 +42,15 @@ export const schemaConfigs: Partial<Record<string, SchemaConfig>> = {
       },
     },
   },
+  serpapiSchema: {
+    fieldConfig: {
+      apiKey: {
+        label: 'API key',
+        description: 'From serpapi.com. Each price check is one search',
+        inputProps: { type: 'password', autocomplete: 'new-password' },
+      },
+    },
+  },
   liteapiSchema: {
     fieldConfig: {
       apiKey: {
@@ -178,6 +187,10 @@ export const configSchemas: Record<
     clientId: z.string().min(1, 'Client ID is required'),
     clientSecret: z.string().optional(),
     redirectUri: z.string().url('Please enter a valid URL').optional(),
+  }),
+
+  serpapiSchema: z.object({
+    apiKey: z.string().min(1, 'API key is required'),
   }),
 
   liteapiSchema: z.object({

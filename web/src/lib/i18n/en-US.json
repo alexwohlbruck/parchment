@@ -2821,7 +2821,10 @@
         "venue": "Their website",
         "opentable": "OpenTable",
         "resy": "Resy",
-        "bookingCom": "Booking.com",
+        "bookingcom": "Booking.com",
+        "hotelscom": "Hotels.com",
+        "tock": "Tock",
+        "sevenrooms": "SevenRooms",
         "expedia": "Expedia",
         "googleHotels": "Google Hotels",
         "search": "Search the web"
@@ -2834,14 +2837,22 @@
         "today": "Today",
         "tomorrow": "Tomorrow"
       },
-      "rooms": {
-        "freeCancel": "Free cancellation until {date}",
-        "noRefund": "Can't be refunded",
-        "atHotel": "+{price} at the hotel",
-        "soldOut": "No rooms left for these dates",
-        "allRooms": "See all rooms",
-        "compare": "Compare on"
-      }
+      "offers": {
+        "title": "Compare prices",
+        "compare": "Compare on",
+        "withTaxes": "{price} with taxes + fees",
+        "freeCancellation": "Free cancellation",
+        "freeCancellationOnly": "Free cancellation only",
+        "none": "No prices for these dates",
+        "noneFree": "No free cancellation for these dates",
+        "allOptions": "All options",
+        "bookHere": "Book here",
+        "official": "Official site",
+        "seePrice": "See price",
+        "morePricesFrom": "More prices from {price}",
+        "morePrices": "{n} more prices"
+      },
+      "delivery": "Order delivery"
     },
     "details": {
       "address": "Address",
@@ -3073,7 +3084,10 @@
       "noneOption": "Not on {provider}",
       "noCandidates": "No listings nearby",
       "saved": "Listing updated",
-      "failed": "Couldn't update the listing"
+      "failed": "Couldn't update the listing",
+      "pasteUrl": "Paste the {provider} page link",
+      "invalidUrl": "That isn't a venue page on {provider}",
+      "save": "Save"
     }
   },
   "settings": {
@@ -3744,7 +3758,8 @@
         "rideshareEstimate": "Rideshare",
         "feedback": "Feedback",
         "languageModel": "Agents",
-        "hotelRates": "Hotel prices"
+        "hotelRates": "Hotel prices",
+        "hotelPrices": "Hotel price comparison"
       },
       "descriptions": {
         "google-maps": "Comprehensive mapping and location services",
@@ -3775,7 +3790,8 @@
         "esri": "World Imagery for the satellite map",
         "quackback": "Feedback boards, voting and roadmap for the in-app feedback form",
         "openrouter": "The language model behind Ask",
-        "liteapi": "Live hotel room prices, booked on your white-label site"
+        "liteapi": "Live hotel room prices, booked on your white-label site",
+        "serpapi": "Every seller's price for a hotel, from Google Hotels"
       },
       "scheme": {
         "endToEnd": {

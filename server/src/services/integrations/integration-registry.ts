@@ -27,6 +27,7 @@ import { FirmsIntegration } from './firms-integration'
 import { EsriIntegration } from './esri-integration'
 import { QuackbackIntegration } from './quackback-integration'
 import { OpenRouterIntegration } from './openrouter-integration'
+import { LiteApiIntegration } from './liteapi-integration'
 
 /**
  * Registry for all integrations
@@ -69,6 +70,7 @@ export class IntegrationRegistry {
     this.registerIntegration(new EsriIntegration())
     this.registerIntegration(new QuackbackIntegration())
     this.registerIntegration(new OpenRouterIntegration())
+    this.registerIntegration(new LiteApiIntegration())
   }
 
   /**

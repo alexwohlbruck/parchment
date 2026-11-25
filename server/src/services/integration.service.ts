@@ -384,6 +384,19 @@ const availableIntegrations: IntegrationDefinition[] = [
     scope: [IntegrationScope.SYSTEM, IntegrationScope.USER],
   },
   {
+    id: IntegrationId.LITEAPI,
+    name: 'LiteAPI',
+    description: 'Live hotel room prices, booked on your LiteAPI white-label site',
+    color: '#5B3DF5',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(IntegrationId.LITEAPI)
+    },
+    paid: false,
+    cloud: true,
+    configSchema: 'liteapiSchema',
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
     id: IntegrationId.OPENSTREETMAP,
     name: 'OpenStreetMap',
     description:

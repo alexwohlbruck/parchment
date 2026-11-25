@@ -712,6 +712,53 @@ export interface RideshareEstimateCapability {
   ): Promise<RideshareEstimateResponse>
 }
 
+// ── Hotel rates ──────────────────────────────────────────────────────
+
+export interface StayRatesRequest {
+  /** The provider's id for the hotel, from the place's stored provider match. */
+  hotelId: string
+  /** YYYY-MM-DD */
+  checkin: string
+  /** YYYY-MM-DD */
+  checkout: string
+  adults: number
+  currency: string
+  /** ISO 3166-1 alpha-2 country the guest books from. */
+  guestNationality: string
+}
+
+export interface StayMoney {
+  amount: number
+  currency: string
+}
+
+export interface StayRoom {
+  offerId: string
+  name: string
+  /** Total for the whole stay, taxes the hotel collects up front included. */
+  total: StayMoney
+  /** Charged at the property on top of the total. */
+  payAtProperty: StayMoney | null
+  board: string | null
+  /** Free cancellation until this ISO instant, or null when the rate can't be refunded. */
+  freeCancellationUntil: string | null
+  /** Checkout for this exact offer. */
+  bookingUrl: string
+}
+
+export interface StayRates {
+  provider: string
+  hotelId: string
+  rooms: StayRoom[]
+  /** The hotel's page on the provider's booking site, prefilled with the dates and guests. */
+  bookingUrl: string | null
+}
+
+export interface HotelRatesCapability {
+  /** Live room rates for one of the provider's hotels. */
+  getStayRates(request: StayRatesRequest): Promise<StayRates>
+}
+
 // ── Capability container ─────────────────────────────────────────────
 
 export interface IntegrationCapabilities {
@@ -734,6 +781,7 @@ export interface IntegrationCapabilities {
   locationHistory?: LocationHistoryCapability
   transitRouting?: TransitRoutingCapability
   rideshareEstimate?: RideshareEstimateCapability
+  hotelRates?: HotelRatesCapability
   feedback?: FeedbackCapability
   languageModel?: LanguageModelCapability
 }

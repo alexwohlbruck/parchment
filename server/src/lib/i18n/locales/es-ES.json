@@ -196,7 +196,9 @@
     "feedback": {
       "unavailable": "Los comentarios no están disponibles en este servidor",
       "fetchFailed": "No se pudieron cargar los tableros de comentarios",
-      "submitFailed": "No se pudieron enviar los comentarios"
+      "submitFailed": "No se pudieron enviar los comentarios",
+      "tooManyScreenshots": "Adjunta hasta 4 capturas de pantalla",
+      "invalidScreenshot": "Las capturas deben ser imágenes JPEG, PNG o WebP de menos de 10 MB"
     },
     "ask": {
       "notConfigured": "Preguntar no está configurado en este servidor",

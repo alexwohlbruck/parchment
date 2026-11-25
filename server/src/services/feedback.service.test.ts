@@ -1,4 +1,21 @@
-import { describe, test, expect, beforeEach, mock } from 'bun:test'
+import { describe, test, expect, beforeEach, afterAll, mock } from 'bun:test'
+import { mkdtemp, readdir, rm } from 'fs/promises'
+import { tmpdir } from 'os'
+import { join } from 'path'
+import sharp from 'sharp'
+
+const root = await mkdtemp(join(tmpdir(), 'feedback-'))
+mock.module('../config/storage.config', () => ({
+  storage: { driver: 'local', localDir: root, publicUrl: 'https://cdn.test', s3: {} },
+}))
+afterAll(() => rm(root, { recursive: true, force: true }))
+
+const storedScreenshots = () => readdir(join(root, 'feedback')).catch(() => [])
+const screenshot = (width: number, height: number) =>
+  sharp({ create: { width, height, channels: 3, background: '#3366ff' } })
+    .png()
+    .toBuffer()
+    .then((buffer) => new Uint8Array(buffer))
 
 /** Stand-in for whichever integration provides the feedback capability. */
 const listBoards = mock((): Promise<any> => Promise.resolve([]))
@@ -15,14 +32,14 @@ mock.module('./integrations', () => ({
   },
 }))
 
-import {
+const {
   isFeedbackConfigured,
-  listBoards as serviceListBoards,
-  submitFeedback as serviceSubmitFeedback,
+  listBoards: serviceListBoards,
+  submitFeedback: serviceSubmitFeedback,
   feedbackErrorMessage,
   isFeedbackPortalLoginEnabled,
   createFeedbackPortalLogin,
-} from './feedback.service'
+} = await import('./feedback.service')
 
 const PROVIDER = { capabilities: { feedback: { listBoards, submitFeedback } } }
 
@@ -97,6 +114,56 @@ describe('feedback.service', () => {
       records = []
       expect(serviceListBoards()).rejects.toThrow('Feedback is not configured')
       expect(listBoards).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('screenshots', () => {
+    const input = {
+      boardId: 'board_1',
+      title: 'Title',
+      content: 'Body',
+      author: { email: 'ada@example.com' },
+    }
+
+    beforeEach(() => rm(join(root, 'feedback'), { recursive: true, force: true }))
+
+    test('embeds each stored screenshot after the text', async () => {
+      await serviceSubmitFeedback({
+        ...input,
+        screenshots: [await screenshot(40, 30), await screenshot(30, 40)],
+      })
+
+      const { content } = submitFeedback.mock.calls[0][0]
+      const urls: string[] = [...content.matchAll(/!\[Screenshot \d\]\((.+?)\)/g)].map((m) => m[1])
+      expect(content.startsWith('Body\n\n![Screenshot 1](https://cdn.test/feedback/')).toBe(true)
+      expect(urls).toHaveLength(2)
+      expect((await storedScreenshots()).sort()).toEqual(
+        urls.map((url) => url.split('/').pop()!).sort(),
+      )
+    })
+
+    test('shrinks large screenshots and re-encodes them as webp', async () => {
+      await serviceSubmitFeedback({ ...input, screenshots: [await screenshot(4000, 1000)] })
+
+      const [file] = await storedScreenshots()
+      const meta = await sharp(join(root, 'feedback', file)).metadata()
+      expect(meta).toMatchObject({ format: 'webp', width: 2048, height: 512 })
+    })
+
+    test('drops the screenshots when the post fails', async () => {
+      submitFeedback.mockImplementationOnce(() => Promise.reject(new Error('down')))
+      await expect(
+        serviceSubmitFeedback({ ...input, screenshots: [await screenshot(10, 10)] }),
+      ).rejects.toThrow('down')
+      expect(await storedScreenshots()).toEqual([])
+    })
+
+    test('stores nothing when feedback is not configured', async () => {
+      records = []
+      await expect(
+        serviceSubmitFeedback({ ...input, screenshots: [await screenshot(10, 10)] }),
+      ).rejects.toThrow('Feedback is not configured')
+      expect(await storedScreenshots()).toEqual([])
     })
   })
 

@@ -6,7 +6,7 @@ import { createS3Store } from './s3-store'
 import { createR2Store } from './r2-store'
 
 /** Key prefixes anyone may read through `/files`. Everything else stays private. */
-export const PUBLIC_PREFIXES = ['avatars/']
+export const PUBLIC_PREFIXES = ['avatars/', 'feedback/']
 
 function createBlobStore(): BlobStore {
   switch (config.driver) {

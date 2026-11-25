@@ -2,6 +2,7 @@
 
 ### Added
 
+* Admins can fix which Google or Foursquare listing a place shows, or mark that it has none, from the bottom of the place page.
 * The command palette lists the commands you use most at the top.
 * On a place, the command palette offers directions, call, website, share and edit, and **D** gets directions there.
 * Share your location with a friend for 1 hour, 4 hours, until tomorrow morning or until you turn it off. Your friends list shows how long is left.

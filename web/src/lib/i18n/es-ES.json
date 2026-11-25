@@ -349,6 +349,16 @@
           }
         }
       },
+      "updateUiTheme": {
+        "name": "Estilo de la aplicación",
+        "description": "Cambiar la aplicación entre Moderno y Pergamino",
+        "keywords": "tema aplicación interfaz moderno pergamino",
+        "arguments": {
+          "style": {
+            "name": "Estilo"
+          }
+        }
+      },
       "chooseMapEngine": {
         "name": "Elegir motor de mapas",
         "description": "Cambiar el motor de JavaScript utilizado para renderizar el mapa",
@@ -384,6 +394,16 @@
               "albers": "Albers",
               "lambertConformalConic": "Coniforme de Lambert"
             }
+          }
+        }
+      },
+      "mapStyle": {
+        "name": "Estilo del mapa",
+        "description": "Cambiar el aspecto del mapa",
+        "keywords": "tema mapa base charlotte pergamino cupertino mountain view",
+        "arguments": {
+          "style": {
+            "name": "Estilo"
           }
         }
       },
@@ -516,6 +536,33 @@
             "name": "Ahorro de batería"
           }
         }
+      },
+      "place": {
+        "directions": {
+          "name": "Cómo llegar",
+          "description": "Obtén indicaciones hasta este lugar"
+        },
+        "directionsFrom": {
+          "name": "Salir desde aquí",
+          "description": "Planifica una ruta que empieza aquí"
+        },
+        "call": {
+          "name": "Llamar",
+          "keywords": "teléfono marcar"
+        },
+        "website": {
+          "name": "Abrir sitio web",
+          "keywords": "enlace url"
+        },
+        "share": {
+          "name": "Compartir",
+          "description": "Envía un enlace a este lugar"
+        },
+        "edit": {
+          "name": "Sugerir un cambio",
+          "description": "Corrige los datos en OpenStreetMap",
+          "keywords": "osm editar"
+        }
       }
     },
     "toggleState": {
@@ -527,7 +574,8 @@
       "appearance": "Apariencia",
       "map": "Mapa",
       "tools": "Herramientas"
-    }
+    },
+    "suggested": "Frecuentes"
   },
   "hotkeys": {
     "search": "Buscar atajos"
@@ -640,9 +688,11 @@
       "rail": "Tren",
       "bus": "Autobús",
       "ferry": "Ferri",
-      "other": "Otros",
-      "serviceTime": "Hora de servicio",
-      "live": "En directo"
+      "other": "Otros"
+    },
+    "time": {
+      "title": "Hora",
+      "now": "Ahora"
     },
     "meta": {
       "title": "Información de la capa",
@@ -1655,7 +1705,6 @@
       "noLocationDescription": "Este amigo aún no ha compartido su ubicación contigo.",
       "locationSharing": "Compartir ubicación",
       "shareMyLocation": "Compartir mi ubicación",
-      "sharingEnabled": "Tu ubicación se comparte con este amigo",
       "sharingDisabled": "Tu ubicación está oculta de este amigo",
       "accuracy": "Precisión",
       "altitude": "Altitud",
@@ -1681,6 +1730,21 @@
       "verified": "Verificado",
       "keysTrusted": "Claves de confianza",
       "loadFailed": "No se pudo cargar este amigo"
+    },
+    "sharing": {
+      "title": "Compartir mi ubicación",
+      "duration": {
+        "1h": "Durante 1 hora",
+        "4h": "Durante 4 horas",
+        "tomorrow": "Hasta mañana",
+        "indefinite": "Hasta que lo desactives"
+      },
+      "minutesLeft": "Quedan {n} min",
+      "hoursLeft": "Quedan {n} h",
+      "until": "Hasta las {time}",
+      "untilTomorrow": "Hasta mañana a las {time}",
+      "untilTurnedOff": "Hasta que lo desactives",
+      "change": "Cambiar duración"
     }
   },
   "dashboard": {

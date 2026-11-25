@@ -14,12 +14,14 @@ import { useCommandStore } from '@/stores/command.store'
 import Span from '@/components/ui/typography/Span.vue'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 import { useHotkeyStore } from '@/stores/hotkey.store'
-import type { CommandCategory, Hotkey } from '@/types/command.types'
+import type { Command, CommandCategory, Hotkey } from '@/types/command.types'
 import { groupByCategory } from '@/lib/command/group-by-category'
+import { groupByContext } from '@/lib/command/group-by-context'
 import { appEventBus } from '@/lib/event-bus'
 
 type HotkeyEntry = {
   id: string
+  context?: string
   name: string
   description?: string
   keywords?: string
@@ -46,12 +48,13 @@ onUnmounted(() => {
   appEventBus.off('hotkeys:open', openHotkeysMenu)
 })
 
-const hotkeys = computed<HotkeyEntry[]>(() => [
-  ...commandStore.commands.flatMap(command =>
+function toEntries(commands: Command[]): HotkeyEntry[] {
+  return commands.flatMap(command =>
     command.hotkey
       ? [
           {
             id: command.id,
+            context: command.context,
             name: command.name,
             description: command.description,
             keywords: command.keywords,
@@ -60,7 +63,12 @@ const hotkeys = computed<HotkeyEntry[]>(() => [
           },
         ]
       : [],
-  ),
+  )
+}
+
+const hotkeys = computed<HotkeyEntry[]>(() => [
+  ...toEntries(commandStore.contextualCommands),
+  ...toEntries(commandStore.commands),
   ...hotkeyStore.ephemeralHotkeysList,
 ])
 
@@ -73,9 +81,21 @@ const searchResults = computed(() => {
     .map(result => result.obj)
 })
 
-const groups = computed(() =>
-  groupByCategory(searchResults.value, !!query.value),
-)
+const groups = computed(() => [
+  ...groupByContext(searchResults.value).map(group => ({
+    key: `context:${group.context}`,
+    heading: group.context,
+    items: group.items,
+  })),
+  ...groupByCategory(
+    searchResults.value.filter(entry => !entry.context),
+    !!query.value,
+  ).map(group => ({
+    key: group.category,
+    heading: t(`palette.categories.${group.category}`),
+    items: group.items,
+  })),
+])
 
 watch(open, value => {
   if (!value) query.value = ''
@@ -99,11 +119,11 @@ watch(open, value => {
 
         <section
           v-for="group in groups"
-          :key="group.category"
+          :key="group.key"
           class="flex flex-col gap-3"
         >
           <Span class="text-xs font-medium text-muted-foreground">
-            {{ t(`palette.categories.${group.category}`) }}
+            {{ group.heading }}
           </Span>
 
           <div

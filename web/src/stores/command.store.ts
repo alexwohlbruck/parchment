@@ -2,7 +2,7 @@ import { POI_STYLES } from '@/lib/map-style/build'
 import { defineStore, storeToRefs } from 'pinia'
 import { ASK_OPTION, BROWSE_OPTION_PREFIX, RECENT_ASK_PREFIX, buildSearchSuggestions } from '@/services/search-suggestions.service'
 import { recentSearchRoute } from '@/services/place/place-display'
-import { computed } from 'vue'
+import { computed, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
 import { Command, CommandArgumentOption } from '@/types/command.types'
 import type { Icon } from '@/types/app.types'
@@ -34,6 +34,7 @@ import {
   MapPinIcon,
   MountainSnowIcon,
   Move3dIcon,
+  PaintbrushIcon,
   PaletteIcon,
   PanelsTopLeftIcon,
   RouteIcon,
@@ -49,7 +50,7 @@ import {
   MessageCircleQuestionIcon,
   LeafIcon,
 } from 'lucide-vue-next'
-import { allColors, useThemeStore, allRadii } from '@/stores/theme.store'
+import { allColors, useThemeStore, allRadii, uiThemes, type UiTheme } from '@/stores/theme.store'
 import { useMapStore } from '@/stores/map.store'
 import { usePowerStore } from '@/stores/power.store'
 import { POWER_SAVERS } from '@/lib/power/power-saver'
@@ -64,6 +65,9 @@ import {
   ControlVisibility,
   ENGINE_PROJECTIONS,
   GridSnapMode,
+  MAP_STYLE_IDS,
+  MAP_STYLE_NAMES,
+  type MapStyleId,
   MapEngine,
   ShadowMode,
   UnitSystem,
@@ -100,8 +104,10 @@ export enum CommandName {
   TOGGLE_THEME = 'toggleTheme',
   UPDATE_THEME_COLOR = 'updateThemeColor',
   UPDATE_THEME_RADIUS = 'updateThemeRadius',
+  UPDATE_UI_THEME = 'updateUiTheme',
   CHOOSE_MAP_ENGINE = 'chooseMapEngine',
   MAP_PROJECTION = 'mapProjection',
+  MAP_STYLE = 'mapStyle',
   TOGGLE_CAMERA_POSITION = 'toggleCameraPosition',
   OPEN_HOTKEYS_MENU = 'openHotkeysMenu',
   UPDATE_LANGUAGE = 'updateLanguage',
@@ -178,7 +184,7 @@ const GRID_SNAP_LABELS: Record<GridSnapMode, string> = {
 
 export const useCommandStore = defineStore('command', () => {
   const router = useRouter()
-  const { setAccentColor, setRadius, toggleDark } = useThemeStore()
+  const { setAccentColor, setRadius, setUiTheme, toggleDark } = useThemeStore()
   const power = usePowerStore()
   const authService = useAuthService()
   const mapService = useMapService()
@@ -224,7 +230,7 @@ export const useCommandStore = defineStore('command', () => {
     return !command.engine || command.engine.includes(settings.value.engine)
   }
 
-  function getCommand(id: CommandName) {
+  function getCommand(id: string) {
     const command = commands.value.find(c => c.id === id)!
 
     if (commandIsAvailable(command)) {
@@ -234,7 +240,7 @@ export const useCommandStore = defineStore('command', () => {
     return null
   }
 
-  function useCommand(id: CommandName) {
+  function useCommand(id: string) {
     return computed(() => getCommand(id))
   }
 
@@ -473,6 +479,28 @@ export const useCommandStore = defineStore('command', () => {
         ],
       },
       {
+        id: CommandName.UPDATE_UI_THEME,
+        category: 'appearance',
+        name: t('palette.commands.updateUiTheme.name'),
+        description: t('palette.commands.updateUiTheme.description'),
+        keywords: t('palette.commands.updateUiTheme.keywords'),
+        icon: PaintbrushIcon,
+        action: (theme: UiTheme) => setUiTheme(theme),
+        arguments: [
+          {
+            id: 'style',
+            name: t('palette.commands.updateUiTheme.arguments.style.name'),
+            type: 'string',
+            getItems() {
+              return uiThemes.map(theme => ({
+                value: theme,
+                name: t(`settings.appearance.appTheme.uiTheme.values.${theme}`),
+              }))
+            },
+          },
+        ],
+      },
+      {
         id: CommandName.CHOOSE_MAP_ENGINE,
         category: 'map',
         name: t('palette.commands.chooseMapEngine.name'),
@@ -535,6 +563,29 @@ export const useCommandStore = defineStore('command', () => {
                   ),
                 }),
               )
+            },
+          },
+        ],
+      },
+      {
+        id: CommandName.MAP_STYLE,
+        category: 'map',
+        name: t('palette.commands.mapStyle.name'),
+        description: t('palette.commands.mapStyle.description'),
+        keywords: t('palette.commands.mapStyle.keywords'),
+        icon: MapIcon,
+        engine: [MapEngine.MAPLIBRE],
+        action: (style: MapStyleId) => mapStore.setMapStyle(style),
+        arguments: [
+          {
+            id: 'style',
+            name: t('palette.commands.mapStyle.arguments.style.name'),
+            type: 'string',
+            getItems() {
+              return MAP_STYLE_IDS.map(style => ({
+                value: style,
+                name: MAP_STYLE_NAMES[style],
+              }))
             },
           },
         ],
@@ -810,11 +861,29 @@ export const useCommandStore = defineStore('command', () => {
     ]
   })
 
+  const contextualOwners = shallowRef(new Map<symbol, Command[]>())
+  const contextualCommands = computed(() =>
+    [...contextualOwners.value.values()].flat(),
+  )
+
+  function setContextualCommands(owner: symbol, list: Command[]) {
+    contextualOwners.value = new Map(contextualOwners.value).set(owner, list)
+  }
+
+  function clearContextualCommands(owner: symbol) {
+    const next = new Map(contextualOwners.value)
+    next.delete(owner)
+    contextualOwners.value = next
+  }
+
   return {
     commandIsAvailable,
     getCommand,
     useCommand,
     getCommandArgumentOptions,
     commands,
+    contextualCommands,
+    setContextualCommands,
+    clearContextualCommands,
   }
 })

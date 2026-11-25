@@ -353,6 +353,16 @@
           }
         }
       },
+      "updateUiTheme": {
+        "name": "App style",
+        "description": "Switch the app between Modern and Parchment",
+        "keywords": "app theme ui interface look modern parchment chart",
+        "arguments": {
+          "style": {
+            "name": "Style"
+          }
+        }
+      },
       "chooseMapEngine": {
         "name": "Choose map engine",
         "description": "Changes how the map looks and what it can show",
@@ -388,6 +398,16 @@
               "albers": "Albers",
               "lambertConformalConic": "Lambert Conformal Conic"
             }
+          }
+        }
+      },
+      "mapStyle": {
+        "name": "Map style",
+        "description": "Change how the map looks",
+        "keywords": "map theme basemap look charlotte parchment chart cupertino mountain view",
+        "arguments": {
+          "style": {
+            "name": "Style"
           }
         }
       },
@@ -522,6 +542,33 @@
             "name": "Battery saver"
           }
         }
+      },
+      "place": {
+        "directions": {
+          "name": "Directions here",
+          "description": "Get directions to this place"
+        },
+        "directionsFrom": {
+          "name": "Directions from here",
+          "description": "Plan a route that starts here"
+        },
+        "call": {
+          "name": "Call",
+          "keywords": "phone dial"
+        },
+        "website": {
+          "name": "Open website",
+          "keywords": "link url"
+        },
+        "share": {
+          "name": "Share",
+          "description": "Send a link to this place"
+        },
+        "edit": {
+          "name": "Suggest an edit",
+          "description": "Fix details on OpenStreetMap",
+          "keywords": "osm change"
+        }
       }
     },
     "noResults": "No matching commands",
@@ -534,7 +581,8 @@
       "appearance": "Appearance",
       "map": "Map",
       "tools": "Tools"
-    }
+    },
+    "suggested": "Frequent"
   },
   "hotkeys": {
     "search": "Search shortcuts"
@@ -648,9 +696,11 @@
       "rail": "Rail",
       "bus": "Bus",
       "ferry": "Ferry",
-      "other": "Other",
-      "serviceTime": "Service time",
-      "live": "Live"
+      "other": "Other"
+    },
+    "time": {
+      "title": "Time",
+      "now": "Now"
     },
     "meta": {
       "title": "Layer info",
@@ -1735,7 +1785,6 @@
       "noLocationDescription": "This friend hasn't shared their location with you yet.",
       "locationSharing": "Location sharing",
       "shareMyLocation": "Share my location",
-      "sharingEnabled": "Your location is shared with this friend",
       "sharingDisabled": "Your location is hidden from this friend",
       "accuracy": "Accuracy",
       "altitude": "Altitude",
@@ -1763,6 +1812,21 @@
       "verified": "Verified",
       "keysTrusted": "Keys trusted",
       "loadFailed": "Couldn't load this friend"
+    },
+    "sharing": {
+      "title": "Share my location",
+      "duration": {
+        "1h": "For 1 hour",
+        "4h": "For 4 hours",
+        "tomorrow": "Until tomorrow",
+        "indefinite": "Until you turn it off"
+      },
+      "minutesLeft": "{n} min left",
+      "hoursLeft": "{n} hr left",
+      "until": "Until {time}",
+      "untilTomorrow": "Until tomorrow, {time}",
+      "untilTurnedOff": "Until you turn it off",
+      "change": "Change how long"
     }
   },
   "dashboard": {

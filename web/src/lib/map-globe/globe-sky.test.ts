@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CustomRenderMethodInput, Map } from 'maplibre-gl'
 import { GlobeSky } from './globe-sky'
 import { moonPosition } from './moon'
+import { globeSunDirection } from '@/lib/daynight/daynight'
 
 function context() {
   const calls = {
@@ -193,6 +194,21 @@ describe('GlobeSky', () => {
     complete = true
     sky.render(gl, input(1))
     expect(calls.drawArrays).toHaveBeenCalledOnce()
+    sky.onRemove(host, gl)
+  })
+
+  it('places the sun and moon for the time it is given rather than the clock', () => {
+    const { gl, calls } = context()
+    const host = { ...map(), triggerRepaint: vi.fn() } as unknown as Map
+    vi.stubGlobal('DOMMatrix', {
+      fromFloat32Array: () => ({ inverse: () => ({ toFloat32Array: () => new Float32Array(16) }) }),
+    })
+    const chosen = new Date('2026-06-21T03:00:00Z')
+    const sky = new GlobeSky(() => true, () => false, () => chosen)
+    sky.onAdd(host, gl)
+    sky.render(gl, input(1))
+    expect(calls.uniform3fv).toHaveBeenCalledWith('u_sun', globeSunDirection(chosen))
+    expect(calls.uniform3fv).toHaveBeenCalledWith('u_moon', moonPosition(chosen))
     sky.onRemove(host, gl)
   })
 })

@@ -6,6 +6,27 @@
 
 ### Fixed
 
+## [0.27.1] - 2026-11-25
+
+### Added
+
+* The command palette lists the commands you use most at the top.
+* On a place, the command palette offers directions, call, website, share and edit, and **D** gets directions there.
+* Share your location with a friend for 1 hour, 4 hours, until tomorrow morning or until you turn it off. Your friends list shows how long is left.
+* Switch the app style or the map style from the command palette.
+* Named buildings show their names when you zoom in, like the halls on a school or college campus.
+* Day & Night can show daylight and darkness at any time in the coming week, using the same time control as transit.
+
+### Changed
+
+* The layers time control now sits in its own section and appears whenever transit or Day & Night is on.
+
+### Fixed
+
+* Building roofs keep the same shading when you turn map layers on or off.
+* Sharing a place copies its link when the browser can't open a share sheet.
+* Uploaded profile photos show up instead of a blank square.
+
 ## [0.27.0] - 2026-11-24
 
 ### Added

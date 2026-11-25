@@ -114,7 +114,8 @@
     },
     "friends": {
       "invalidHandle": "Invalid handle format. Use alias@domain",
-      "remoteLocationUnsupported": "Location sharing isn't available with friends on other servers yet"
+      "remoteLocationUnsupported": "Location sharing isn't available with friends on other servers yet",
+      "shareExpiryInPast": "Pick a time in the future for sharing to end"
     },
     "sharing": {
       "alreadyShared": "Already shared with this person",

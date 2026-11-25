@@ -1,5 +1,6 @@
 import { Globe2Icon } from 'lucide-vue-next'
 import type { Component, VNode } from 'vue'
+import type { LocationShareState } from '@/lib/friends/share-duration'
 import { ZodObject } from 'zod'
 
 export type Icon = typeof Globe2Icon
@@ -17,7 +18,7 @@ export type AppEvents = {
   'palette:open': void
   'palette:focus': void
   'hotkeys:open': void
-  'location-config:changed': { friendHandle: string; enabled: boolean }
+  'location-config:changed': { friendHandle: string } & LocationShareState
 }
 
 export interface BaseDialogOptions {

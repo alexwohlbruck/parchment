@@ -5,7 +5,10 @@ import { useI18n } from 'vue-i18n'
 import { useFriendsStore } from '@/stores/friends.store'
 import { useIdentityStore } from '@/stores/identity.store'
 import { useLocationService } from '@/services/location.service'
-import { useE2eeLocationBroadcast } from '@/composables/friends/useE2eeLocationBroadcast'
+import { useLocationShare } from '@/composables/friends/useLocationShare'
+import { useLocationClock } from '@/composables/friends/useLocationClock'
+import { isShareActive } from '@server/lib/location-share'
+import type { LocationShareState, ShareDuration } from '@/lib/friends/share-duration'
 import { useFriendLocations } from '@/composables/friends/useFriendLocations'
 import { useRemoveFriend } from '@/composables/friends/useRemoveFriend'
 import { useSyncFriendKeys } from '@/composables/friends/useSyncFriendKeys'
@@ -23,7 +26,8 @@ const friendsStore = useFriendsStore()
 const { removeFriend } = useRemoveFriend()
 const identityStore = useIdentityStore()
 const locationService = useLocationService()
-const locationBroadcast = useE2eeLocationBroadcast()
+const locationShare = useLocationShare()
+const now = useLocationClock()
 const friendLocations = useFriendLocations()
 
 const { friends, isLoading } = storeToRefs(friendsStore)
@@ -34,14 +38,9 @@ const emit = defineEmits<{
   setupIdentity: []
 }>()
 
-interface LocationConfig {
-  friendHandle: string
-  enabled: boolean
-}
-
-const locationConfigs = reactive<Record<string, LocationConfig>>({})
+const locationConfigs = reactive<Record<string, LocationShareState>>({})
 const locationLoading = ref(true)
-const locationSaving = ref<string | null>(null)
+const locationSaving = locationShare.savingHandle
 
 const isEmpty = computed(() => friends.value.length === 0 && !isLoading.value)
 
@@ -65,8 +64,8 @@ async function loadLocationConfigs() {
         c => c.friendHandle === friend.friendHandle,
       )
       locationConfigs[friend.friendHandle] = {
-        friendHandle: friend.friendHandle,
         enabled: existing?.enabled ?? false,
+        expiresAt: existing?.expiresAt ?? null,
       }
     }
   } catch (error) {
@@ -79,29 +78,19 @@ async function loadLocationConfigs() {
 
 const { syncKeys } = useSyncFriendKeys()
 
-async function handleToggleLocation(friendHandle: string, enabled: boolean) {
-  locationSaving.value = friendHandle
+async function handleShare(friendHandle: string, duration: ShareDuration) {
   try {
-    // Initialize config if it doesn't exist
-    const config = locationConfigs[friendHandle] ?? {
-      friendHandle,
-      enabled: false,
-    }
-
-    if (enabled) {
-      await locationService.setE2eeConfig(friendHandle, { enabled: true })
-    } else {
-      await locationService.disableE2eeSharing(friendHandle)
-    }
-
-    locationConfigs[friendHandle] = { ...config, enabled }
-
-    // Notify the broadcast service to refresh its config and broadcast if needed
-    await locationBroadcast.refreshAndBroadcast()
+    await locationShare.share(friendHandle, duration)
   } catch (error) {
-    console.error('Failed to toggle sharing:', error)
-  } finally {
-    locationSaving.value = null
+    console.error('Failed to share location:', error)
+  }
+}
+
+async function handleStopSharing(friendHandle: string) {
+  try {
+    await locationShare.stopSharing(friendHandle)
+  } catch (error) {
+    console.error('Failed to stop sharing:', error)
   }
 }
 
@@ -113,15 +102,15 @@ function getFriendLocation(friendHandle: string) {
   return friendLocations.getLocationForFriend(friendHandle)
 }
 
-const hasAnyLocationSharing = computed(() => {
-  return Object.values(locationConfigs).some(c => c.enabled)
-})
+const hasAnyLocationSharing = computed(() =>
+  Object.values(locationConfigs).some(c => isShareActive(c, now.value)),
+)
 
-// Listen for location config changes from other components (e.g., FriendDetail)
-function handleLocationConfigChanged({ friendHandle, enabled }: { friendHandle: string; enabled: boolean }) {
-  if (locationConfigs[friendHandle]) {
-    locationConfigs[friendHandle].enabled = enabled
-  }
+function handleLocationConfigChanged({
+  friendHandle,
+  ...state
+}: { friendHandle: string } & LocationShareState) {
+  locationConfigs[friendHandle] = state
 }
 
 onMounted(() => {
@@ -192,7 +181,8 @@ onUnmounted(() => {
           :location-config="getLocationConfig(friend.friendHandle)"
           :location-saving="locationSaving === friend.friendHandle"
           @remove="removeFriend"
-          @toggle-location="handleToggleLocation"
+          @share="handleShare"
+          @stop-sharing="handleStopSharing"
           @sync-keys="syncKeys"
         />
       </div>

@@ -17,6 +17,15 @@ import { useRemoveFriend } from '@/composables/friends/useRemoveFriend'
 import { useSyncFriendKeys } from '@/composables/friends/useSyncFriendKeys'
 import { useAppService } from '@/services/app.service'
 import { useLocationService } from '@/services/location.service'
+import { useLocationShare } from '@/composables/friends/useLocationShare'
+import { isShareActive } from '@server/lib/location-share'
+import {
+  formatShareStatus,
+  type LocationShareState,
+  type ShareDuration,
+} from '@/lib/friends/share-duration'
+import { formatClock } from '@/lib/directions/trip-display'
+import ShareDurationMenu from '@/components/friends/ShareDurationMenu.vue'
 import { AppRoute } from '@/router'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -37,6 +46,7 @@ import {
   ArrowRightIcon,
   ShieldAlertIcon,
   ShieldCheckIcon,
+  ChevronDownIcon,
 } from 'lucide-vue-next'
 import CopyButton from '@/components/CopyButton.vue'
 import {
@@ -54,7 +64,6 @@ import {
 import UserHandle from '@/components/identity/UserHandle.vue'
 import { useMapService } from '@/services/map/map.service'
 import { useDirectionsService } from '@/services/directions.service'
-import { appEventBus } from '@/lib/event-bus'
 import { useUnits } from '@/composables/useUnits'
 import { formatTimeAgo as sharedTimeAgo } from '@/lib/time-format'
 
@@ -72,6 +81,7 @@ const appService = useAppService()
 const { removeFriend } = useRemoveFriend()
 const locationService = useLocationService()
 const locationBroadcast = useE2eeLocationBroadcast()
+const locationShare = useLocationShare()
 const mapService = useMapService()
 const directionsService = useDirectionsService()
 const { formatSpeed, formatElevation } = useUnits()
@@ -79,16 +89,11 @@ const { formatSpeed, formatElevation } = useUnits()
 const { friends } = storeToRefs(friendsStore)
 const friendLocations = useFriendLocations()
 
-// Local state for location config
-interface LocationConfig {
-  friendHandle: string
-  enabled: boolean
-}
-const locationConfig = ref<LocationConfig | null>(null)
+const locationConfig = ref<LocationShareState | null>(null)
 
 const isLoading = ref(true)
 const { isSyncing, syncKeys } = useSyncFriendKeys()
-const isSavingConfig = ref(false)
+const isSavingConfig = computed(() => locationShare.savingHandle.value !== null)
 
 // Get the handle from props (Vue Router automatically decodes URL params)
 const friendHandle = computed(() => props.handle)
@@ -145,6 +150,16 @@ const lastSeenAgo = computed(() => {
     ? formatTimeAgo(friendLocation.value.location.timestamp)
     : ''
 })
+
+const isSharing = computed(
+  () => !!locationConfig.value && isShareActive(locationConfig.value, now.value),
+)
+
+const sharingStatus = computed(() =>
+  isSharing.value
+    ? formatShareStatus(locationConfig.value?.expiresAt ?? null, t, formatClock, now.value)
+    : t('friends.detail.sharingDisabled'),
+)
 
 const { signingPublicKey } = storeToRefs(identityStore)
 
@@ -217,49 +232,28 @@ async function loadLocationConfig() {
   try {
     const configs = await locationService.getE2eeConfigs()
     const config = configs.find(c => c.friendHandle === friendHandle.value)
-    if (config) {
-      locationConfig.value = {
-        friendHandle: config.friendHandle,
-        enabled: config.enabled,
-      }
-    } else {
-      locationConfig.value = {
-        friendHandle: friendHandle.value,
-        enabled: false,
-      }
+    locationConfig.value = {
+      enabled: config?.enabled ?? false,
+      expiresAt: config?.expiresAt ?? null,
     }
   } catch (error) {
     console.error('Failed to load location config:', error)
   }
 }
 
-// Toggle location sharing
-async function toggleLocationSharing() {
-  if (!friend.value || !locationConfig.value) return
-
-  isSavingConfig.value = true
+async function saveSharing(save: (handle: string) => Promise<LocationShareState>) {
+  if (!friend.value) return
   try {
-    const newEnabled = !locationConfig.value.enabled
-    if (newEnabled) {
-      await locationService.setE2eeConfig(friend.value.friendHandle, { enabled: true })
-    } else {
-      await locationService.disableE2eeSharing(friend.value.friendHandle)
-    }
-    locationConfig.value.enabled = newEnabled
-    await locationBroadcast.refreshAndBroadcast()
-
-    // Notify other components of the config change
-    appEventBus.emit('location-config:changed', {
-      friendHandle: friend.value.friendHandle,
-      enabled: newEnabled,
-    })
+    locationConfig.value = await save(friend.value.friendHandle)
   } catch (error) {
-    console.error('Failed to toggle sharing:', error)
+    console.error('Failed to change sharing:', error)
     appService.toast.error(t('friends.detail.syncFailed'), { cause: error })
-  } finally {
-    isSavingConfig.value = false
   }
 }
+
+const shareFor = (duration: ShareDuration) =>
+  saveSharing(handle => locationShare.share(handle, duration))
+const stopSharing = () => saveSharing(locationShare.stopSharing)
 
 // Center map on friend's location
 function centerMapOnFriend() {
@@ -465,29 +459,46 @@ watch([isLoading, friend], ([loading, f]) => {
 
     <!-- Location Sharing -->
     <div class="flex items-center justify-between gap-3 py-3">
-      <div class="flex items-center gap-2.5">
+      <div class="flex items-center gap-2.5 min-w-0">
         <MapPinIcon
-          class="size-4"
-          :class="locationConfig?.enabled ? 'text-primary' : 'text-muted-foreground'"
+          class="size-4 shrink-0"
+          :class="isSharing ? 'text-primary' : 'text-muted-foreground'"
         />
-        <div>
+        <div class="min-w-0">
           <p class="text-sm font-medium">{{ t('friends.detail.shareMyLocation') }}</p>
-          <p class="text-xs text-muted-foreground">
-            {{
-              isOnOtherServer && !locationConfig?.enabled
-                ? t('friends.remoteLocationUnavailable')
-                : locationConfig?.enabled
-                  ? t('friends.detail.sharingEnabled')
-                  : t('friends.detail.sharingDisabled')
-            }}
+          <p v-if="isOnOtherServer && !isSharing" class="text-xs text-muted-foreground">
+            {{ t('friends.remoteLocationUnavailable') }}
           </p>
+          <ShareDurationMenu v-else-if="isSharing" :disabled="isSavingConfig" @select="shareFor">
+            <button
+              type="button"
+              class="flex items-center gap-0.5 text-xs text-muted-foreground tabular-nums hover:text-foreground transition-colors text-left"
+              :aria-label="t('friends.sharing.change')"
+            >
+              {{ sharingStatus }}
+              <ChevronDownIcon class="size-3 shrink-0" />
+            </button>
+          </ShareDurationMenu>
+          <p v-else class="text-xs text-muted-foreground">{{ sharingStatus }}</p>
         </div>
       </div>
       <Switch
-        :model-value="locationConfig?.enabled ?? false"
-        :disabled="isSavingConfig || (isOnOtherServer && !locationConfig?.enabled)"
-        @update:model-value="toggleLocationSharing"
+        v-if="isSharing"
+        :model-value="true"
+        :disabled="isSavingConfig"
+        @update:model-value="stopSharing"
       />
+      <ShareDurationMenu
+        v-else
+        :disabled="isSavingConfig || isOnOtherServer"
+        @select="shareFor"
+      >
+        <Switch
+          :model-value="false"
+          :disabled="isSavingConfig || isOnOtherServer"
+          class="data-[state=open]:bg-input"
+        />
+      </ShareDurationMenu>
     </div>
 
     <Separator />

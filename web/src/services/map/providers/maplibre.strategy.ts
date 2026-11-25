@@ -3,6 +3,7 @@ import { CLOUDS_ATTRIBUTION } from '@/lib/map-globe/clouds'
 import { attachPoiElevation } from '@/services/map/poi-elevation.service'
 import { attachBridgeLabels } from '@/services/map/bridge-labels.service'
 import { GlobeSky } from '@/lib/map-globe/globe-sky'
+import { mapTime } from '@/services/map/map-time.service'
 import { MILKY_WAY_ATTRIBUTION } from '@/lib/map-globe/celestial'
 import { attachGolfPins } from '@/services/map/golf-pins.service'
 import { attachIndoor } from '@/services/map/indoor.service'
@@ -579,7 +580,7 @@ export class MaplibreStrategy extends MapStrategy {
       this.elevateLines()
     })
     this.mapInstance.on('style.load', () => {
-      this.mapInstance.addLayer(new GlobeSky(() => this.currentBasemap !== 'standard', () => this.currentBasemap === 'standard' && themeEngraved(this.options.mapStyle)))
+      this.mapInstance.addLayer(new GlobeSky(() => this.currentBasemap !== 'standard', () => this.currentBasemap === 'standard' && themeEngraved(this.options.mapStyle), mapTime))
       // The old decks' labels are not this style's to leave out.
       this.bridgeLabelKey = null
       this.groundPaint.clear()

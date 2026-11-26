@@ -403,7 +403,10 @@ if [[ ! "$reply" =~ ^[yY]$ ]]; then
 fi
 
 # Commit and push to dev
-git commit -m "Release $NEW_VERSION" $VERSION_FILES
+if ! git commit -m "Release $NEW_VERSION" $VERSION_FILES; then
+    echo "Error: the release commit failed. Nothing was pushed; the version files are still staged."
+    exit 1
+fi
 echo "Committed release changes."
 
 git push origin dev

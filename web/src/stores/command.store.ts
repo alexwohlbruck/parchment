@@ -1,6 +1,6 @@
 import { POI_STYLES } from '@/lib/map-style/build'
 import { defineStore, storeToRefs } from 'pinia'
-import { ASK_OPTION, BROWSE_OPTION_PREFIX, RECENT_ASK_PREFIX, buildSearchSuggestions } from '@/services/search-suggestions.service'
+import { ASK_OPTION, FULL_SEARCH_OPTION, BROWSE_OPTION_PREFIX, RECENT_ASK_PREFIX, buildSearchSuggestions } from '@/services/search-suggestions.service'
 import { recentSearchRoute } from '@/services/place/place-display'
 import { computed, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
@@ -89,7 +89,7 @@ import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { getBookmarkPlaceId } from '@/lib/place/place-route'
 import { frequentChipMeta } from '@/lib/frequents'
 import { COMMON_CATEGORIES } from '@/lib/place/common-categories'
-import { createSearchResultsRoute } from '@/lib/search/search-result'
+import { createBrandResultsRoute, createSearchResultsRoute } from '@/lib/search/search-result'
 import { appEventBus } from '@/lib/event-bus'
 
 import { AppRoute } from '@/router'
@@ -303,7 +303,7 @@ export const useCommandStore = defineStore('command', () => {
             return
           }
 
-          if (itemId === 'search-more-results') {
+          if (itemId === FULL_SEARCH_OPTION) {
             const { currentSearchQuery } = useCommandService()
             router.push({
               name: AppRoute.SEARCH_RESULTS,
@@ -337,13 +337,7 @@ export const useCommandStore = defineStore('command', () => {
             const payload = JSON.parse(
               decodeURIComponent(itemId.slice('brand:'.length)),
             )
-            await router.push({
-              name: AppRoute.SEARCH_RESULTS,
-              query: {
-                brandKey: payload.key,
-                ...(payload.name ? { brandName: payload.name } : {}),
-              },
-            })
+            await router.push(createBrandResultsRoute(payload.key, payload.name))
           } else if (itemId.startsWith('transit-stop:')) {
             // A GTFS-only stop. Barrelman already skipped stops portolan
             // matched to OSM, but the client-side index is re-checked here —

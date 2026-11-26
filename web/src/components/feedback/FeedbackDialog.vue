@@ -16,6 +16,7 @@ import {
   submitFeedback,
 } from '@/services/feedback.service'
 import { useFeedback } from '@/composables/integrations/useFeedback'
+import FeedbackScreenshots from './FeedbackScreenshots.vue'
 
 const props = defineProps<{
   open?: boolean
@@ -44,6 +45,8 @@ const openingPortal = ref(false)
 const boardId = ref<string>('')
 const title = ref('')
 const content = ref('')
+const screenshots = ref<File[]>([])
+const screenshotPicker = ref<InstanceType<typeof FeedbackScreenshots>>()
 const submitting = ref(false)
 const error = ref<string | null>(null)
 
@@ -57,6 +60,7 @@ const canSubmit = computed(
 function reset() {
   title.value = ''
   content.value = ''
+  screenshots.value = []
   error.value = null
 }
 
@@ -96,6 +100,13 @@ async function openPortal(postUrl?: string) {
   }
 }
 
+function onPaste(event: ClipboardEvent) {
+  const files = Array.from(event.clipboardData?.files ?? [])
+  if (!files.some(file => file.type.startsWith('image/'))) return
+  event.preventDefault()
+  screenshotPicker.value?.add(files)
+}
+
 async function handleSubmit() {
   if (!canSubmit.value || submitting.value) return
 
@@ -107,6 +118,7 @@ async function handleSubmit() {
       boardId: boardId.value,
       title: title.value.trim(),
       content: content.value.trim(),
+      screenshots: screenshots.value,
     })
 
     isOpen.value = false
@@ -139,7 +151,11 @@ async function handleSubmit() {
     :description="t('feedback.description')"
   >
     <template #content>
-      <form class="flex flex-col gap-4" @submit.prevent="handleSubmit">
+      <form
+        class="flex flex-col gap-4"
+        @submit.prevent="handleSubmit"
+        @paste="onPaste"
+      >
         <div v-if="loadingBoards" class="flex justify-center py-6">
           <Spinner />
         </div>
@@ -190,10 +206,15 @@ async function handleSubmit() {
               id="feedback-content"
               v-model="content"
               :placeholder="t('feedback.contentPlaceholder')"
-              maxlength="10000"
+              maxlength="9000"
               rows="5"
             />
           </div>
+
+          <FeedbackScreenshots
+            ref="screenshotPicker"
+            v-model="screenshots"
+          />
         </template>
 
         <Button

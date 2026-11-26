@@ -25,11 +25,18 @@ export async function createFeedbackPortalLogin(
   return data
 }
 
-export async function submitFeedback(input: {
+export async function submitFeedback({
+  screenshots,
+  ...fields
+}: {
   boardId: string
   title: string
   content: string
+  screenshots: File[]
 }): Promise<SubmittedFeedback> {
-  const { data } = await api.post<SubmittedFeedback>('/feedback', input)
+  const form = new FormData()
+  for (const [key, value] of Object.entries(fields)) form.set(key, value)
+  for (const file of screenshots) form.append('screenshots', file)
+  const { data } = await api.post<SubmittedFeedback>('/feedback', form)
   return data
 }

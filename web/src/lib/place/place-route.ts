@@ -166,6 +166,14 @@ export function getTransitStopRoute(
   }
 }
 
+/** Where a place from search results opens: a GTFS-only stop has no OSM object, so it opens at its coordinates. */
+export function getResultPlaceRoute(place: Place, name: string): RouteLocationRaw {
+  const center = place.geometry?.value?.center
+  return place.transitStop
+    ? getTransitStopRoute(name, center?.lat ?? 0, center?.lng ?? 0)
+    : getPlaceRoute(place.id)
+}
+
 /**
  * Build a place-id string for a bookmark, suitable for `getPlaceRoute`.
  * Prefers the OSM id, then coords, then the first external id — mirroring how

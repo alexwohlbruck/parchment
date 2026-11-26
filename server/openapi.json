@@ -7744,6 +7744,7 @@
           "Feedback"
         ],
         "summary": "Submit feedback",
+        "description": "Accepts JSON, or multipart form data to attach up to 4 screenshots (JPEG, PNG or WebP, 10MB each, judged by their contents). Screenshots are stored as public WebP files and embedded in the post.",
         "requestBody": {
           "required": true,
           "content": {
@@ -7761,8 +7762,18 @@
                     "type": "string"
                   },
                   "content": {
-                    "maxLength": 10000,
+                    "maxLength": 9000,
                     "type": "string"
+                  },
+                  "screenshots": {
+                    "elysiaMeta": "Files",
+                    "default": "Files",
+                    "type": "array",
+                    "items": {
+                      "default": "Files",
+                      "type": "string",
+                      "format": "binary"
+                    }
                   }
                 },
                 "required": [
@@ -7785,8 +7796,18 @@
                     "type": "string"
                   },
                   "content": {
-                    "maxLength": 10000,
+                    "maxLength": 9000,
                     "type": "string"
+                  },
+                  "screenshots": {
+                    "elysiaMeta": "Files",
+                    "default": "Files",
+                    "type": "array",
+                    "items": {
+                      "default": "Files",
+                      "type": "string",
+                      "format": "binary"
+                    }
                   }
                 },
                 "required": [
@@ -7809,8 +7830,18 @@
                     "type": "string"
                   },
                   "content": {
-                    "maxLength": 10000,
+                    "maxLength": 9000,
                     "type": "string"
+                  },
+                  "screenshots": {
+                    "elysiaMeta": "Files",
+                    "default": "Files",
+                    "type": "array",
+                    "items": {
+                      "default": "Files",
+                      "type": "string",
+                      "format": "binary"
+                    }
                   }
                 },
                 "required": [
@@ -17720,7 +17751,7 @@
           "Search"
         ],
         "summary": "Search for places",
-        "description": "Place matches are ranked by text relevance decayed with distance from lat/lng, so nearby matches lead and a distant match surfaces only when nothing closer matches. Exact-name cities and towns are listed first.\n\nWith `autocomplete=true` the response also carries `intent`: `lookup` for a name or address, `browse` for a category with filters category search can apply exactly (`category`, `attributes`, `tags` and `openNow`, e.g. \"cafes with outdoor seating open now\"), or `ask` for a query that needs judgement, such as \"quiet cafe for a date\" or a question.",
+        "description": "Place matches are ranked by text relevance decayed with distance from lat/lng, so nearby matches lead and a distant match surfaces only when nothing closer matches. Exact-name cities and towns are listed first.\n\nA full search (`autocomplete=false`) carries `match` when the query clearly means one result: a typed coordinate, the category it names (a category scoring 0.8 or more), a brand named exactly what was typed, the nearest address with the typed house number and street, or a top-ranked place or transit line whose name holds every typed word and that no other place nearby shares. Clients open it directly instead of listing results.\n\nEvery response also carries `intent`: `lookup` for a name or address, `browse` for a category with filters category search can apply exactly (`category`, `attributes`, `tags` and `openNow`, e.g. \"cafes with outdoor seating open now\"), or `ask` for a query that needs judgement, such as \"quiet cafe for a date\" or a question.",
         "responses": {
           "200": {}
         }

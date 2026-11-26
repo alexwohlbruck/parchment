@@ -1,2 +1,6 @@
 #!/bin/sh
-cd "$(dirname -- "$0")/.." && npx lint-staged
+# Runs the web tests that import a staged web source file, so a commit is held up only by what it touches.
+cd "$(dirname -- "$0")/.." || exit 1
+git diff --cached --name-only --diff-filter=ACMR -z -- web/src \
+  | sed -z 's#^web/##' \
+  | (cd web && xargs -0 -r bunx vitest related --run --passWithNoTests)

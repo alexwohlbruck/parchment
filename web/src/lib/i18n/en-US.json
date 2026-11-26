@@ -218,7 +218,6 @@
         "groups": {
           "frequents": "Frequents",
           "suggestedCategories": "Categories",
-          "fullSearch": "Search",
           "recents": "Recents",
           "brands": "Brands",
           "categories": "Categories",
@@ -2715,7 +2714,13 @@
     "submittedDescription": "We'll let you know when there's an update.",
     "viewPost": "View",
     "submitFailed": "Couldn't submit your feedback. Please try again.",
-    "loadFailed": "Couldn't load the feedback boards."
+    "loadFailed": "Couldn't load the feedback boards.",
+    "addScreenshot": "Add screenshot",
+    "removeScreenshot": "Remove screenshot",
+    "screenshotAlt": "Screenshot {n}",
+    "screenshotType": "Screenshots must be PNG, JPEG, or WebP",
+    "screenshotTooLarge": "Screenshots must be under 10MB",
+    "screenshotLimit": "You can attach up to 4 screenshots"
   },
   "profileMenu": {
     "shortcuts": "Shortcuts",
@@ -2761,6 +2766,10 @@
       "activeVehicles": "{count} {type} active",
       "selectVehicle": "Select a {type}",
       "closestVehicle": "Closest",
+      "followedRun": "To {destination}",
+      "followedRunUnknown": "This {type}",
+      "stopFollowing": "Stop following",
+      "followRun": "Follow this run",
       "everyNMin": "Every {n} min",
       "stops": "Stops",
       "alerts": {

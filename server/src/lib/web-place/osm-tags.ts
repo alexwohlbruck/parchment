@@ -1,6 +1,5 @@
 import type { SiteBusiness } from './schema-org'
 import { isOsmHours, presetTags } from './preset-schema'
-import { sameName } from './site-page'
 
 /** schema.org business types and the OSM tags that say the same thing. */
 export const CATEGORY_TAGS: Record<string, Record<string, string>> = {
@@ -88,7 +87,6 @@ export function categoryTags(business: SiteBusiness): Record<string, string> | u
 export function businessTags(business: SiteBusiness, website: string): Record<string, string> {
   const category = categoryTags(business)
   const tags: Record<string, string> = { ...business.tags, ...category, name: business.name, website }
-  if (tags.operator && sameName(tags.operator, business.name)) delete tags.operator
   Object.assign(tags, addressTags(business.address))
   if (business.phone) tags.phone = business.phone
   if (business.email) tags.email = business.email

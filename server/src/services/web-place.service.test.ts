@@ -127,11 +127,10 @@ describe('siteName', () => {
 
 test('tags a business with the preset a model picked and the fields it checked', () => {
   const place = webPlace(
-    { name: 'Pianoland', types: [], preset: 'shop/musical_instrument', tags: { wheelchair: 'yes', operator: 'Pianoland Movers & Storage' }, address: { street: '2527 65th St' } },
+    { name: 'Pianoland', types: [], preset: 'shop/musical_instrument', tags: { wheelchair: 'yes' }, address: { street: '2527 65th St' } },
     'https://pianoland.example/',
     { lat: 40.6095, lng: -73.9735 },
   )
   expect(place.unmapped?.presetId).toBe('shop/musical_instrument')
   expect(place.unmapped?.tags).toMatchObject({ shop: 'musical_instrument', wheelchair: 'yes' })
-  expect(place.unmapped?.tags.operator).toBeUndefined()
 })

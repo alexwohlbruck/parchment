@@ -44,7 +44,7 @@ const MAX_REDIRECTS = 4
 const MAX_CONTACT_PAGES = 2
 /** Reasoning models spend most of these thinking before they answer. */
 const SITE_TOKENS = 1000
-const READ_TOKENS = 1500
+const READ_TOKENS = 3000
 const FIELD_TOKENS = 4000
 
 export class WebPlaceError extends Error {}
@@ -60,8 +60,12 @@ export function getWebPlace(id: string): Promise<Place | null> {
   return webPlaces.get(id, async () => null)
 }
 
+/** A stage of a lookup, as it starts or learns more, so a caller can show the work. */
+export type WebPlaceStage = 'site' | 'read' | 'classify' | 'fields' | 'locate' | 'map'
+
 interface Options {
   near: LatLng
+  progress?: (stage: WebPlaceStage, detail?: string) => void
   /** The business's own site, when the caller already knows it. */
   website?: string
   model?: LanguageModelCapability
@@ -98,6 +102,7 @@ export async function findPlaceOnWeb(query: string, options: Options): Promise<W
   }
   business = { ...business, name: siteName(site.names, business.name, name) }
 
+  options.progress?.('locate', addressLine(business.address) ?? business.name)
   const center = (await geocodeAddress(business)) ?? business.geo
   if (!center) return { status: 'not-found', reason: "Couldn't place its address on the map." }
   const km = distance([options.near.lng, options.near.lat], [center.lng, center.lat], { units: 'kilometers' })
@@ -105,6 +110,7 @@ export async function findPlaceOnWeb(query: string, options: Options): Promise<W
     return { status: 'not-found', reason: `The ${business.name} on ${hostOf(url)} is ${Math.round(km)} km away.` }
   }
 
+  options.progress?.('map', business.name)
   const mapped = await mappedNamesake(business.name, center, options)
   if (mapped) return { status: 'mapped', place: mapped }
 
@@ -116,9 +122,10 @@ export async function findPlaceOnWeb(query: string, options: Options): Promise<W
 const SITE_BRIEF =
   "Find the business's own official website. Reply with only its URL, or NONE if it has no site of its own or you can't confirm the business exists. Never a directory, map, review, booking, delivery or social media page."
 
-async function findOfficialSite(query: string, { model, near, signal }: Options) {
+async function findOfficialSite(query: string, { model, near, signal, progress }: Options) {
   if (!model) throw new WebPlaceError('Web search is not available here. Pass the business website instead.')
   const area = query.includes(',') ? undefined : await areaName(near)
+  progress?.('site', area ? `${query}, ${area}` : query)
   const { message, citations = [] } = await model.complete({
     messages: [
       { role: 'system', content: SITE_BRIEF },
@@ -161,6 +168,7 @@ export function siteName(names: string[], read: string, typed: string): string {
 
 /** The site's own description of the business: its JSON-LD, else what the model reads off its pages. */
 async function readSite(website: string, name: string, options: Options) {
+  options.progress?.('read', hostOf(website) ?? website)
   const home = await fetchPage(website, options.signal)
   if (!home) return null
   const pages = [home]
@@ -174,6 +182,7 @@ async function readSite(website: string, name: string, options: Options) {
   }
   const text = pagesText(pages)
   if (!business || !hasCategory(business)) {
+    options.progress?.('classify', business ? 'Its structured data doesn’t say what kind of place it is' : 'It has no structured data')
     const read = await readWithModel(text, options)
     business = business && read ? { ...business, preset: read.preset } : (business ?? read ?? undefined)
   }
@@ -326,12 +335,26 @@ Null unless the pages say it outright. Never answer from what is typical for thi
 ${lines.join('\n')}`
 }
 
+function fieldsSummary(preset: string, tags: Record<string, string>, rejected: { key: string; reason: string }[]): string {
+  const kept = Object.entries(tags).map(([key, value]) => `${key}=${value}`)
+  const dropped = rejected.map(({ key, reason }) => `${key} (${reason})`)
+  return [
+    preset,
+    kept.length ? `kept ${kept.join(', ')}` : 'nothing stated on the site',
+    dropped.length && `dropped ${dropped.join(', ')}`,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
+
 /** Fills the preset's other fields from the pages, keeping only what the schema allows and the pages quote. */
-async function readFields(business: SiteBusiness, text: string, { model, signal }: Options): Promise<SiteBusiness> {
+async function readFields(business: SiteBusiness, text: string, { model, signal, progress }: Options): Promise<SiteBusiness> {
   const category = categoryTags(business)
   const preset = business.preset ?? (category && matchTags(category, 'point')?.preset.id)
   const specs = preset ? presetFieldSpecs(preset) : []
   if (!model || !preset || !specs.length) return business
+  const presetName = getPresetById(preset)?.name ?? preset
+  progress?.('fields', `${presetName}: ${specs.length} fields`)
   try {
     const messages: ChatMessage[] = [
       { role: 'system', content: fieldsBrief(preset, specs) },
@@ -349,7 +372,12 @@ async function readFields(business: SiteBusiness, text: string, { model, signal 
       Object.assign(claims, await ask())
     }
     const { tags, rejected } = checkClaims(claims as Record<string, Claim | null>, specs, text)
+    if (tags.operator && sameName(tags.operator, business.name)) {
+      delete tags.operator
+      rejected.push({ key: 'operator', reason: 'just its own name' })
+    }
     if (rejected.length) logger.debug({ preset, rejected }, '[web-place] dropped fields the schema or pages do not bear out')
+    progress?.('fields', fieldsSummary(presetName, tags, rejected))
     return { ...business, tags }
   } catch (error) {
     if (!signal?.aborted) logError('Failed to read a business’s fields', error)

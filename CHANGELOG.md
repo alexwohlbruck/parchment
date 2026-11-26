@@ -4,6 +4,7 @@
 
 * Ask now has a shortcut in the home screen's navigation on phones.
 * Attach up to 4 screenshots when you send feedback, or paste one straight into the form.
+* Tap a departure to follow that train or bus along its line, with the time it reaches every stop.
 
 ### Changed
 

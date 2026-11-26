@@ -378,3 +378,70 @@ describe('generation counter guards', () => {
     expect(store.vehicles.size).toBe(0)
   })
 })
+
+describe('following a run', () => {
+  const route = () => ({
+    feedId: '5',
+    routeId: '2',
+    routeShortName: '2',
+    routeLongName: '7 Avenue Express',
+    routeColor: null,
+    routeTextColor: null,
+    routeType: 1,
+    agencyName: null,
+    stops: [
+      { ...makeStop('247N', 'Flatbush Av', 40.63, -73.94, 0), parentStation: '247' },
+      { ...makeStop('237N', 'Grand Army Plaza', 40.67, -73.97, 5000), parentStation: '237' },
+      { ...makeStop('201N', 'Wakefield', 40.9, -73.85, 40000), parentStation: '201' },
+    ],
+    coordinates: null,
+    relatedRouteIds: [],
+  })
+
+  async function follow(stops: Array<{ stopId: string; parentStation?: string; departureTime: string }>) {
+    const { api } = await import('@/lib/api')
+    vi.mocked(api.get).mockResolvedValueOnce({ data: { stops } })
+    const store = useRouteDetailStore()
+    ;(store as any).activeRoute = route()
+    store.selectTrip('099350_2..S18R')
+    await vi.waitFor(() => expect(store.tripStopTimes.length).toBeGreaterThan(0))
+    return { store, api }
+  }
+
+  test('loads the run by its feed trip id', async () => {
+    const { store, api } = await follow([{ stopId: '237S', parentStation: '237', departureTime: '2026-11-25T23:00:00Z' }])
+    expect(api.get).toHaveBeenCalledWith('/transit/trip-stops', {
+      params: { feedId: '5', tripId: '099350_2..S18R' },
+    })
+    expect(store.selectedTripId).toBe('099350_2..S18R')
+    expect(store.stopTimeMap.get('237')).toBe('2026-11-25T23:00:00Z')
+  })
+
+  test('turns the timeline to face the way the run is going', async () => {
+    const { store } = await follow([
+      { stopId: '237S', parentStation: '237', departureTime: '2026-11-25T23:00:00Z' },
+      { stopId: '247S', parentStation: '247', departureTime: '2026-11-25T23:10:00Z' },
+    ])
+    expect(store.activeDirection).toBe('To Flatbush Av')
+    expect(store.displayStops[0].stopName).toBe('Wakefield')
+  })
+
+  test('adopts the vehicle running it', () => {
+    const store = useRouteDetailStore()
+    ;(store as any).activeRoute = route()
+    ;(store as any).vehicles = new Map([
+      ['train-1', makeVehicle('train-1', 40.7, -73.9, { feedId: '5', tripId: '5_099350_2..S18R' })],
+    ])
+    store.selectTrip('099350_2..S18R')
+    expect(store.selectedVehicleId).toBe('train-1')
+  })
+
+  test('clearing the run clears its vehicle', () => {
+    const store = useRouteDetailStore()
+    ;(store as any).activeRoute = route()
+    store.selectTrip('099350_2..S18R')
+    store.selectTrip(null)
+    expect(store.selectedTripId).toBeNull()
+    expect(store.selectedVehicleId).toBeNull()
+  })
+})

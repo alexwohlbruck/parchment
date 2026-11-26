@@ -67,6 +67,8 @@ export function attribute(tag: string, name: string): string | undefined {
 }
 
 const TAGLINE = /\s+[|–—·:]\s+|\s+-\s+/
+/** A country or company form a site appends to its name, "La Cabra USA" or "Joe's Pizza LLC", that the place itself isn't called. */
+const ENTITY_SUFFIX = /,?\s+(?:USA|US|UK|NYC|Inc\.?|LLC|L\.L\.C\.|Ltd\.?|Co\.?|Corp\.?|GmbH|ApS|AB|AS|BV|SA|S\.A\.|Pty)$/
 
 /**
  * What the site calls itself, most deliberate first: its declared site name, its logo's
@@ -86,7 +88,7 @@ export function siteNames(html: string): string[] {
   ]
   const names = sources
     .flatMap((text) => text?.split(TAGLINE) ?? [])
-    .map((name) => name.replace(/\s+/g, ' ').trim())
+    .map((name) => name.replace(/\s+/g, ' ').trim().replace(ENTITY_SUFFIX, ''))
     .filter((name) => name && name.length <= 60)
   return [...new Set(names)]
 }
@@ -118,22 +120,27 @@ function decodeEntities(text: string): string {
 }
 
 const CONTACT = /contact|location|visit|find-?us|hours|directions|about/i
+/** Pages that list addresses, ahead of an about page that may only tell a story. */
+const ADDRESS_PAGE = /location|visit|find-?us|hours|directions|contact/i
 
 /** Same-site pages likely to carry the address and hours, best first. */
 export function contactLinks(html: string, base: string): string[] {
   const host = hostOf(base)
-  const links = new Set<string>()
+  const links = new Map<string, number>()
   for (const [, href, label] of html.matchAll(/<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
-    if (!CONTACT.test(href) && !CONTACT.test(label.replace(/<[^>]+>/g, ''))) continue
+    const words = `${href} ${label.replace(/<[^>]+>/g, '')}`
+    if (!CONTACT.test(words)) continue
     try {
       const url = new URL(href, base)
       if (/^https?:$/.test(url.protocol) && hostOf(url.href) === host) {
         url.hash = ''
-        if (url.href !== new URL(base).href) links.add(url.href)
+        if (url.href !== new URL(base).href) {
+          links.set(url.href, Math.min(links.get(url.href) ?? 1, ADDRESS_PAGE.test(words) ? 0 : 1))
+        }
       }
     } catch {}
   }
-  return [...links]
+  return [...links].sort((a, b) => a[1] - b[1]).map(([url]) => url)
 }
 
 /** Lower case, accents and punctuation gone, "&" read as "and". */

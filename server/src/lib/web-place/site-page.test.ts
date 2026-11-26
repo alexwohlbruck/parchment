@@ -73,6 +73,11 @@ describe('typedName', () => {
 })
 
 describe('siteNames', () => {
+  test('drops a country or company form from the name', () => {
+    expect(siteNames('<meta property="og:site_name" content="La Cabra USA"><title>La Cabra</title>')).toEqual(['La Cabra'])
+    expect(siteNames("<title>Joe's Pizza LLC</title>")).toEqual(["Joe's Pizza"])
+  })
+
   test('reads only the name out of a logo’s alt text', () => {
     expect(siteNames('<img src="a" alt="Cafe Wands logo (ornament-stacked)">')).toEqual(['Cafe Wands'])
     expect(siteNames('<img class="logo" src="a" alt="Logo of Moss Café">')).toEqual(['Moss Café'])
@@ -88,7 +93,7 @@ describe('siteNames', () => {
       'Since 1989',
       'Used Pianos for Sale',
       'IDEAL CONDITION!',
-      'Piano Land NYC',
+      'Piano Land',
     ])
   })
 

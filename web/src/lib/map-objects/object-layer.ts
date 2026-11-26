@@ -31,6 +31,7 @@
  * Objects are read from the same vector source their flat form is drawn from,
  * so the two cannot disagree about what exists.
  */
+import { Births } from './births'
 import { sourceFeatures } from '@/lib/map/source-features'
 import { ghostBlend } from '@/lib/map/ghost-blend'
 import { MercatorCoordinate, type OcclusionFrame } from 'maplibre-gl'
@@ -119,8 +120,6 @@ const GROW_RIPPLE_SECONDS = 0.25
 const LONG_AGO = -1e6
 /** Cells per mercator unit a plant's place is keyed to, about half a metre: two to the 26th, so x and y pack exactly into one number. */
 const KEY_CELLS = 2 ** 26
-/** Seconds a plant may be missing from a gather, as between tiles, and still not grow in again. */
-const BIRTH_MEMORY_SECONDS = 4
 
 /** How far grown an instance is, 0-1, eased out: \`u_now\` and \`a_born\` are seconds on the layer's clock. */
 const GROWTH_GLSL = `
@@ -534,8 +533,9 @@ export type Placed = {
   gy: number
   /** Metres the deck it stands on is over the ground. */
   raised?: number
-  /** Where a plant that grows in stands, so it keeps its entrance from one gather to the next. */
+  /** Where a plant that grows in stands, and its source's record of births, so it keeps its entrance from one gather to the next. */
   key?: number
+  births?: Births
   /** When it was placed, on the layer's clock; long ago for anything that does not grow in. */
   born?: number
 }
@@ -620,9 +620,8 @@ export class ObjectLayer {
   private retired: Array<Record<string, WebGLBuffer>> = []
   private retiredArrays: WebGLVertexArrayObject[] = []
   private placed: Placed[] = []
-  /** When each plant was placed and last seen, by where it stands; see \`birth\`. */
-  private births = new Map<number, { born: number; seen: number }>()
-  private prunedAt = 0
+  /** Each growing source's record of when its plants first appeared; see \`birth\`. */
+  private births = new Map<ObjectSourceSpec, Births>()
   private epoch = performance.now()
   /** When the last plant growing in is done, on the layer's clock; until then every frame is drawn. */
   private growingUntil = 0
@@ -945,7 +944,13 @@ export class ObjectLayer {
       !bounds ||
       (lng >= bounds.getWest() - pad && lng <= bounds.getEast() + pad && lat >= bounds.getSouth() - pad && lat <= bounds.getNorth() + pad)
     for (const spec of this.specs) {
-      if (zoom < spec.minzoom) continue
+      const births = spec.grows ? this.birthsOf(spec) : undefined
+      if (zoom < spec.minzoom) {
+        // Out of its range every plant has gone, so each grows in again on the way back.
+        births?.clear()
+        continue
+      }
+      births?.begin(this.clock())
       spec.prepare?.(this.map, spec)
       if (spec.prepareSteps) yield* spec.prepareSteps()
       const features = sourceFeatures(this.map, spec.source, spec.sourceLayer)
@@ -1027,7 +1032,10 @@ export class ObjectLayer {
           placed.gx += run * Math.cos(instance.heading)
           placed.gy += run * Math.sin(instance.heading)
         }
-        if (spec.grows) placed.key = Math.round(placed.x * KEY_CELLS) * KEY_CELLS + Math.round(placed.y * KEY_CELLS)
+        if (births) {
+          placed.key = Math.round(placed.x * KEY_CELLS) * KEY_CELLS + Math.round(placed.y * KEY_CELLS)
+          placed.births = births
+        }
         placedNow.push(placed)
       }
     }
@@ -1042,7 +1050,7 @@ export class ObjectLayer {
 
   /**
    * Give each plant placed for the first time a moment to grow in from, rippling out from the
-   * middle of the view; one seen recently keeps its own, so a new tile or a pan does not replay it.
+   * middle of the view; one still standing keeps its own, so a new tile or a pan does not replay it. See \`Births\`.
    */
   private *birth(placed: Placed[]): Generator<void> {
     const now = this.clock()
@@ -1053,25 +1061,20 @@ export class ObjectLayer {
     for (let i = 0; i < placed.length; i++) {
       if (i % (STEP * 2) === STEP * 2 - 1) yield
       const p = placed[i]
-      if (p.key === undefined) continue
-      const known = this.births.get(p.key)
-      if (known) {
-        p.born = known.born
-        known.seen = now
-        continue
-      }
-      const away = Math.min(Math.hypot(p.x - cx, p.y - cy) / reach, 1)
-      p.born = still ? LONG_AGO : now + away * GROW_RIPPLE_SECONDS + (p.instance.tint ?? 0) * 0.08
-      this.births.set(p.key, { born: p.born, seen: now })
-      this.growingUntil = Math.max(this.growingUntil, p.born + GROW_SECONDS)
+      if (p.key === undefined || !p.births) continue
+      const { born, isNew } = p.births.of(p.key, () => {
+        const away = Math.min(Math.hypot(p.x - cx, p.y - cy) / reach, 1)
+        return still ? LONG_AGO : now + away * GROW_RIPPLE_SECONDS + (p.instance.tint ?? 0) * 0.08
+      })
+      p.born = born
+      if (isNew) this.growingUntil = Math.max(this.growingUntil, born + GROW_SECONDS)
     }
-    if (now - this.prunedAt < BIRTH_MEMORY_SECONDS) return
-    this.prunedAt = now
-    let n = 0
-    for (const [key, birth] of this.births) {
-      if (++n % (STEP * 4) === 0) yield
-      if (now - birth.seen > BIRTH_MEMORY_SECONDS) this.births.delete(key)
-    }
+  }
+
+  private birthsOf(spec: ObjectSourceSpec): Births {
+    let births = this.births.get(spec)
+    if (!births) this.births.set(spec, (births = new Births()))
+    return births
   }
 
   /**

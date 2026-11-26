@@ -145,3 +145,36 @@ export function sameName(a: string, b: string): boolean {
   if (!x || !y) return false
   return x === y || ` ${x} `.includes(` ${y} `) || ` ${y} `.includes(` ${x} `)
 }
+
+/**
+ * True when the typed name is the site's name, allowing one misspelled word:
+ * "bookie lab bakery" for "Boogie Lab Bakery & Bistro".
+ */
+export function typedName(typed: string, name: string): boolean {
+  if (sameName(typed, name)) return true
+  const [want, have] = [normalizeName(typed).split(' '), normalizeName(name).split(' ')]
+  if (!want[0] || !have[0]) return false
+  for (let start = 0; start + want.length <= have.length; start++) {
+    const typos = want.flatMap((word, index) => (word === have[start + index] ? [] : [[word, have[start + index]]]))
+    if (typos.length === 1 && closeSpelling(typos[0][0], typos[0][1])) return true
+  }
+  return false
+}
+
+function closeSpelling(a: string, b: string): boolean {
+  return Math.min(a.length, b.length) >= 5 && !/\d/.test(a + b) && editDistance(a, b) === 1
+}
+
+/** Edits between two words, a swapped pair of letters counting as one. */
+function editDistance(a: string, b: string): number {
+  const d = Array.from({ length: a.length + 1 }, (_, i) =>
+    Array.from({ length: b.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)),
+  )
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1))
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1)
+    }
+  }
+  return d[a.length][b.length]
+}

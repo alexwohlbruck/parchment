@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { contactLinks, isListingSite, pageText, sameName, siteNames } from './site-page'
+import { contactLinks, isListingSite, pageText, sameName, siteNames, typedName } from './site-page'
 
 describe('isListingSite', () => {
   test.each([
@@ -55,6 +55,20 @@ describe('sameName', () => {
     ['', 'Anything', false],
   ])('%s / %s', (a, b, same) => {
     expect(sameName(a, b)).toBe(same)
+  })
+})
+
+describe('typedName', () => {
+  test.each([
+    ['bookie lab bakery', 'Boogie Lab Bakery & Bistro', true],
+    ['boogie lab', 'Boogie Lab Bakery & Bistro', true],
+    ['pianolnad', 'Pianoland', true],
+    ['bookie lob bakery', 'Boogie Lab Bakery & Bistro', false],
+    ['cafe 12', 'Cafe 13', false],
+    ['joes pizza', 'Moes Pizza', false],
+    ['sushi palace', 'Pizza Palace', false],
+  ])('%s / %s', (typed, name, same) => {
+    expect(typedName(typed, name)).toBe(same)
   })
 })
 

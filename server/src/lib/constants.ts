@@ -53,7 +53,7 @@ export const SOURCE_PRIORITIES = {
   [SOURCE.FOURSQUARE]: 40,
   [SOURCE.TRIPADVISOR]: 40,
   [SOURCE.OPENTABLE]: 30,
-  [SOURCE.WEB]: 20,
+  [SOURCE.WEB]: 60, // The business's own site outranks listings about it
 } as const
 
 // TODO: Make these constants defined per-capability

@@ -61,7 +61,7 @@ function metaContent(html: string, key: RegExp): string | undefined {
   return undefined
 }
 
-function attribute(tag: string, name: string): string | undefined {
+export function attribute(tag: string, name: string): string | undefined {
   const match = tag.match(new RegExp(`(?:^|\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, 'i'))
   return match ? (match[1] ?? match[2]) : undefined
 }
@@ -76,7 +76,7 @@ export function siteNames(html: string): string[] {
   const logos = [...html.matchAll(/<img\b[^>]*>/gi)]
     .map(([tag]) => tag)
     .filter((tag) => /logo/i.test(tag))
-    .map((tag) => decodeEntities(attribute(tag, 'alt') ?? '').replace(/\s+logo$/i, ''))
+    .map((tag) => logoName(decodeEntities(attribute(tag, 'alt') ?? '')))
   const sources = [
     metaContent(html, /^og:site_name$/i),
     ...logos,
@@ -89,6 +89,15 @@ export function siteNames(html: string): string[] {
     .map((name) => name.replace(/\s+/g, ' ').trim())
     .filter((name) => name && name.length <= 60)
   return [...new Set(names)]
+}
+
+/** "Cafe Wands logo (ornament-stacked)" and "Logo of Cafe Wands" as "Cafe Wands". */
+function logoName(alt: string): string {
+  return alt
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/^(?:the\s+)?logo\s+(?:of|for)\s+/i, '')
+    .replace(/\s+(?:brand\s+)?logo\b.*$/i, '')
+    .trim()
 }
 
 export function pageTitle(html: string): string | undefined {

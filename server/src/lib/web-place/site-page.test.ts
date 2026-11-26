@@ -73,6 +73,11 @@ describe('typedName', () => {
 })
 
 describe('siteNames', () => {
+  test('reads only the name out of a logo’s alt text', () => {
+    expect(siteNames('<img src="a" alt="Cafe Wands logo (ornament-stacked)">')).toEqual(['Cafe Wands'])
+    expect(siteNames('<img class="logo" src="a" alt="Logo of Moss Café">')).toEqual(['Moss Café'])
+  })
+
   test('puts the declared site name and logo before the title, splitting off taglines', () => {
     const html = `<title>Used Pianos for Sale | IDEAL CONDITION! | Piano Land NYC</title>
       <meta property="og:site_name" content="Pianoland | Since 1989" />

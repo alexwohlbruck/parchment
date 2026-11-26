@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, watch, onMounted, nextTick } from 'vue'
+import RemoveRecentButton from '@/components/recents/RemoveRecentButton.vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onClickOutside, useMagicKeys, useDebounceFn } from '@vueuse/core'
 import { useAbortController } from '@/composables/useAbortController'
@@ -45,7 +46,7 @@ import { TransitionSlide } from '@morev/vue-transitions'
 import { useSettingsIndex } from '@/composables/settings/useSettingsIndex'
 import { useSettingsScrollTarget } from '@/composables/settings/useSettingsScrollTarget'
 import { Spinner } from '@/components/ui/spinner'
-import { ASK_OPTION } from '@/services/search-suggestions.service'
+import { ASK_OPTION, FULL_SEARCH_OPTION } from '@/services/search-suggestions.service'
 import { useAskStore } from '@/stores/ask.store'
 import { isAskOffered } from '@/lib/ask/ask-access'
 import { groupByCategory } from '@/lib/command/group-by-category'
@@ -202,7 +203,6 @@ const SEARCH_GROUP_ORDER = [
   'ask',
   'frequents',
   'suggestedCategories',
-  'fullSearch',
   'recents',
   'brands',
   'categories',
@@ -369,6 +369,27 @@ function onTab(event: KeyboardEvent) {
   onArgumentSelected(ASK_OPTION)
 }
 
+// Enter runs the full search until a row is picked with the arrow keys, so it
+// never waits on suggestions or lands on whichever row happened to load first.
+const rowPicked = ref(false)
+const enterSearches = computed(() => isSearch.value && !!query.value.trim() && !rowPicked.value)
+
+function onKeydownCapture(event: KeyboardEvent) {
+  if (!enterSearches.value || event.target !== input.value?.inputElement) return
+  if (event.key === 'Enter' && !event.isComposing) {
+    event.preventDefault()
+    event.stopPropagation()
+    onArgumentSelected(FULL_SEARCH_OPTION)
+  } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    rowPicked.value = true
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      event.stopPropagation()
+      commandPalette.value?.highlightFirstItem()
+    }
+  }
+}
+
 function onBackspace() {
   if (query.value === '') {
     resetCommand()
@@ -454,14 +475,6 @@ watch(activeArgument, async newArg => {
   }
 })
 
-// The highlight otherwise stays on whichever row had it, so a query that turns
-// into an Ask question would still run a plain search on Enter.
-watch(argumentOptions, async () => {
-  if (!query.value.trim()) return
-  await nextTick()
-  commandPalette.value?.highlightFirstItem()
-})
-
 // Create a debounced function for loading search options.
 // nextSignal() cancels the previous in-flight autocomplete request before issuing a new one.
 //
@@ -479,6 +492,7 @@ const debouncedLoadOptions = useDebounceFn(async () => {
 
 // Watch query and handle search
 watch(query, newQuery => {
+  rowPicked.value = false
   // First update the search query in the command service immediately
   updateSearchQuery(newQuery)
 
@@ -536,7 +550,7 @@ const filterFunction = computed(() => {
 </script>
 
 <template>
-  <div ref="container">
+  <div ref="container" @keydown.capture="onKeydownCapture">
     <Command
       class="border bg-background/85 backdrop-blur-xl backdrop-saturate-150"
       ref="commandPalette"
@@ -550,6 +564,7 @@ const filterFunction = computed(() => {
         @focus="inputFocused($event)"
         @keydown.backspace="onBackspace()"
         @keydown.tab="onTab"
+        :enterkeyhint="isSearch ? 'search' : undefined"
       >
         <template v-slot:prefix>
           <component :is="icon" class="size-4! shrink-0 opacity-50" />
@@ -655,6 +670,7 @@ const filterFunction = computed(() => {
         <CommandList
           v-if="activeArgument && (!isSearch || query.length || (groupedArgumentOptions && groupedArgumentOptions.length > 0))"
           :style="listStyle"
+          :class="{ '[&_[data-highlighted]:not(:hover)]:bg-transparent': enterSearches }"
         >
           <div v-if="loadingOptions" class="py-6 text-center">
             <Spinner size="icon" class="mx-auto opacity-50" />
@@ -781,6 +797,12 @@ const filterFunction = computed(() => {
                     {{ argumentOption.description }}
                   </span>
                 </div>
+                <RemoveRecentButton
+                  v-if="argumentOption.recentId"
+                  :identity="argumentOption.recentId"
+                  class="-my-1 -mr-1"
+                  @removed="argumentOptions = argumentOptions.filter(o => o.recentId !== argumentOption.recentId)"
+                />
               </CommandItem>
             </CommandGroup>
           </template>

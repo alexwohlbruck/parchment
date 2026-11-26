@@ -24,6 +24,7 @@ export const BASEMAP_CONTINENT_LABELS = 'Continent labels'
 export const GLOBE_CONTINENT_LABELS = 'Globe continent labels'
 const BASEMAP_OCEAN_LABELS = 'Ocean labels'
 const BASEMAP_GLACIER = 'Glacier'
+const BASEMAP_WATER = 'Water'
 
 /** Zoom where the globe hands the land and its names back to the basemap. */
 const HANDOFF = 6
@@ -53,7 +54,9 @@ export function globeSources(origin: string) {
 
 type Palette = {
   biome: Record<string, string>
-  /** Deepening ocean, from 200 m down. The basemap's own water is the shelf. */
+  /** The water above 200 m, which leads into `depth`; the theme's own water takes over as the depths fade. */
+  shelf: string
+  /** Deepening ocean, from 200 m down. */
   depth: [number, string][]
   relief: number
   /** The basemap's ice, where its own colour reads as water from orbit. */
@@ -81,6 +84,7 @@ const PALETTE: Record<FlavorId, Palette> = {
       boreal: 'hsl(140, 26%, 77%)',
       rainforest: 'hsl(120, 40%, 72%)',
     },
+    shelf: 'hsl(206, 74%, 63%)',
     depth: [
       [200, 'hsl(207, 78%, 58%)'],
       [1000, 'hsl(208, 74%, 55%)'],
@@ -111,6 +115,7 @@ const PALETTE: Record<FlavorId, Palette> = {
       boreal: 'hsl(170, 16%, 22%)',
       rainforest: 'hsl(145, 24%, 20%)',
     },
+    shelf: 'hsl(216, 36%, 16.5%)',
     depth: [
       [200, 'hsl(217, 38%, 13%)'],
       [1000, 'hsl(218, 40%, 12%)'],
@@ -283,12 +288,13 @@ export function withGlobeLayers(layers: any[], flavor: FlavorId, theme?: Partial
     .filter(l => l.id !== BASEMAP_CONTINENT_LABELS)
     .map(l => {
       if (l.id === BASEMAP_OCEAN_LABELS) return { ...l, minzoom: Math.max(l.minzoom ?? 0, HANDOFF) }
+      if (l.id === BASEMAP_WATER) return { ...l, paint: { ...l.paint, 'fill-color': ['interpolate', ['linear'], ['zoom'], HANDOFF + 1, p.shelf, HANDOFF + 4, l.paint['fill-color']] } }
       if (l.id === BASEMAP_GLACIER && p.ice) return { ...l, paint: { ...l.paint, 'fill-color': ['step', ['zoom'], p.ice, HANDOFF, l.paint['fill-color']] } }
       return l
     })
   const afterBackground = out.findIndex(l => l.type === 'background') + 1
   out.splice(afterBackground, 0, biomeLayer(p))
-  const afterWater = out.findIndex(l => l.id === 'Water') + 1
+  const afterWater = out.findIndex(l => l.id === BASEMAP_WATER) + 1
   out.splice(afterWater, 0, depthLayer(p), reliefLayer(p), lineLayer(p))
   // Above the country names, so a continent wins the space while the whole globe is in view.
   const labelsAt = out.findIndex(l => l.id === 'Country labels') + 1

@@ -5,7 +5,7 @@ import { useAskStore } from '@/stores/ask.store'
 import { useAskHistoryService } from '@/services/ask/ask-history.service'
 import { useRoutesStore } from '@/stores/library/routes.store'
 import { useCanvasesStore } from '@/stores/library/canvases.store'
-import type { AskAccess, AskEvent, AskPoint, AskWhere } from '@/types/ask.types'
+import type { AskAccess, AskEvent, AskPoint, AskSkill, AskWhere } from '@/types/ask.types'
 
 let controller: AbortController | null = null
 
@@ -51,11 +51,16 @@ export function useAskService() {
   async function ask(
     question: string,
     where: AskWhere,
-    { followUp = false, placeId, point }: { followUp?: boolean; placeId?: string; point?: AskPoint } = {},
+    {
+      followUp = false,
+      placeId,
+      point,
+      skill,
+    }: { followUp?: boolean; placeId?: string; point?: AskPoint; skill?: AskSkill } = {},
   ) {
     cancel()
     const history = followUp ? askStore.history : []
-    askStore.start(question, { followUp })
+    askStore.start(question, { followUp, skill })
     controller = new AbortController()
     const { signal } = controller
 
@@ -74,6 +79,7 @@ export function useAskService() {
           history,
           placeId,
           point,
+          skill,
           ...where,
         }),
         signal,

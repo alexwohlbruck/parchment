@@ -3825,6 +3825,7 @@
         "ferry"
       ],
       "paint": {
+        "line-opacity": 0.5,
         "line-emissive-strength": [
           "interpolate",
           [
@@ -3903,6 +3904,7 @@
         "ferry_auto"
       ],
       "paint": {
+        "line-opacity": 0.5,
         "line-emissive-strength": [
           "interpolate",
           [

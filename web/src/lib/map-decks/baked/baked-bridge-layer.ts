@@ -77,6 +77,8 @@ export class BakedBridgeLayer {
   private program!: WebGLProgram
   private colors: Float32Array
   private parts = new Map<string, Part>()
+  /** The parts by the grid cells their stands cover, so a point looks only at the ones near it; rebuilt when a part comes, goes or moves. */
+  private partGrid: { cells: Map<number, Array<[string, Part]>>; anywhere: Array<[string, Part]> } | null = null
   private wanted = new Set<string>()
   /** The wanted meshes inside the view itself rather than its margin: the decks cover once these are drawn. */
   private inView = new Set<string>()
@@ -305,6 +307,7 @@ export class BakedBridgeLayer {
     part.shadow.delete(this.gl)
     this.bytes -= part.bytes
     this.parts.delete(id)
+    this.partGrid = null
   }
   private sync() {
     if (!this.map || !this.sources.profiles) return
@@ -573,6 +576,7 @@ export class BakedBridgeLayer {
       if (part) {
         Object.assign(part.data, geometry)
         part.bounds = standBounds(geometry.stands)
+        this.partGrid = null
       }
       for (const entry of [this.pending.get(id), this.decoded.get(id)]) if (entry) Object.assign(entry.data, geometry)
       changed ||= this.wanted.has(id)
@@ -835,11 +839,32 @@ export class BakedBridgeLayer {
     this.travelled = metres
     if (this.route) this.map?.triggerRepaint()
   }
+  /** The parts whose stands may hold a point. */
+  private partsNear([x, y]: Point): Array<[string, Part]> {
+    if (!this.partGrid) {
+      const cells = new Map<number, Array<[string, Part]>>()
+      const anywhere: Array<[string, Part]> = []
+      for (const entry of this.parts) {
+        const b = entry[1].bounds
+        if (!b) { anywhere.push(entry); continue }
+        for (let cx = Math.floor(b.minX / PART_CELL); cx <= Math.floor(b.maxX / PART_CELL); cx++)
+          for (let cy = Math.floor(b.minY / PART_CELL); cy <= Math.floor(b.maxY / PART_CELL); cy++) {
+            const key = cx * PART_ROW + cy
+            const list = cells.get(key)
+            if (list) list.push(entry)
+            else cells.set(key, [entry])
+          }
+      }
+      this.partGrid = { cells, anywhere }
+    }
+    const near = this.partGrid.cells.get(Math.floor(x / PART_CELL) * PART_ROW + Math.floor(y / PART_CELL)) ?? NONE
+    return this.partGrid.anywhere.length ? [...near, ...this.partGrid.anywhere] : near
+  }
   surfaceAt(lng: number, lat: number): number | null {
     if (!this.covered) return null
     const point = mercator([lng, lat])
     let best: Stand | null = null
-    for (const [id, part] of this.parts) {
+    for (const [id, part] of this.partsNear(point)) {
       if (!this.wanted.has(id) || (part.bounds && !holds(part.bounds, point))) continue
       const hit = standing(part.data.stands, point)
       if (hit && (!best || hit.z > best.z)) best = hit
@@ -860,7 +885,7 @@ export class BakedBridgeLayer {
     if (!this.covered) return null
     const point = mercator([lng, lat])
     let best: Stand | null = null
-    for (const [id, part] of this.parts) {
+    for (const [id, part] of this.partsNear(point)) {
       if (!this.wanted.has(id) || (part.bounds && !holds(part.bounds, point))) continue
       const hit = standing(part.data.stands, point, along)
       if (!hit) continue
@@ -886,6 +911,7 @@ export class BakedBridgeLayer {
         const shadow = new MeshShadow()
         shadow.set(gl, buffers.position, data.ranges.paintFrom, data.origin, buffers.indices, buffers.lift, buffers.bias)
         this.parts.set(id, { data: { origin: data.origin, ranges: data.ranges, stands: data.stands, under: data.under, tracks: data.tracks }, buffers, shadow, bytes, bounds: standBounds(data.stands), extent: extentOf(data.position, data.origin) })
+        this.partGrid = null
         this.bytes += bytes
       }
       this.updateCover()
@@ -996,6 +1022,11 @@ export function extentOf(position: ArrayLike<number>, origin: Point): Bounds {
 }
 
 /** The bounds of every surface a mesh's decks stand on, or null where one has none and so cannot be skipped. */
+/** Mercator units per cell of the parts' grid, about 300 m; `PART_ROW` cells to a row, more than the world holds. */
+const PART_CELL = 2 ** -17
+const PART_ROW = 2 ** 18
+const NONE: Array<[string, Part]> = []
+
 function standBounds(stands: BakedMesh['stands']): Bounds | null {
   if (!stands.length || stands.some(s => !s.surface.bounds)) return stands.length ? null : { minX: 1, minY: 1, maxX: 0, maxY: 0 }
   const all = stands.map(s => s.surface.bounds!)

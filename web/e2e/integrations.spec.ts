@@ -69,31 +69,4 @@ test.describe('Integrations', () => {
     const content = page.locator('h5, [class*="card"], [class*="integration"], .text-muted-foreground').first()
     await expect(content).toBeVisible({ timeout: 10000 })
   })
-
-  test('can remove integration when configured', async ({ page }) => {
-    await gotoApp(page, '/settings/integrations')
-    await page.waitForTimeout(3000)
-    await page.keyboard.press('Escape')
-    await page.waitForTimeout(300)
-    await page.locator('[data-slot="dialog-overlay"]').waitFor({ state: 'hidden', timeout: 2000 }).catch(() => {})
-    const deleteButton = page.locator('button').filter({ has: page.locator('[class*="trash"], svg') }).first()
-    const hasDelete = await deleteButton.isVisible({ timeout: 5000 }).catch(() => false)
-    if (!hasDelete) {
-      test.skip(true, 'No configured integration to remove')
-      return
-    }
-    await deleteButton.click({ timeout: 10000 })
-    await page.waitForTimeout(800)
-    const confirmButton = page.locator('button:has-text("Delete"), button:has-text("Remove"), button:has-text("Confirm")').first()
-    const hasConfirm = await confirmButton.isVisible({ timeout: 5000 }).catch(() => false)
-    if (hasConfirm) {
-      await confirmButton.click()
-      await page.waitForTimeout(1500)
-    }
-    // After removal we may stay on integrations or be redirected (e.g. home)
-    const url = page.url()
-    const onIntegrations = /\/settings\/integrations/.test(url)
-    const onAppRoot = /^https?:\/\/[^/]+\/?$/.test(url) || url.endsWith('/')
-    expect(onIntegrations || onAppRoot).toBe(true)
-  })
 })

@@ -5,13 +5,13 @@
 import { describe, test, expect, mock, beforeEach } from 'bun:test'
 import { authMockModule, setAuthUser, resetAuth, TEST_USER } from '../test/auth-mock'
 import { createTestApp, req } from '../test/app'
+import { UnreadableImageError } from '../lib/webp'
 
 const PICTURE = 'https://cdn.test/avatars/u/abc.webp'
 const setAvatar = mock(async (_userId: string, _image: Uint8Array) => PICTURE)
 const removeAvatar = mock(async (_userId: string) => undefined)
 
-class UnreadableImageError extends Error {}
-mock.module('../services/avatar.service', () => ({ setAvatar, removeAvatar, UnreadableImageError }))
+mock.module('../services/avatar.service', () => ({ setAvatar, removeAvatar }))
 mock.module('../middleware/auth.middleware', () => authMockModule())
 
 const avatar = (await import('./avatar.controller')).default

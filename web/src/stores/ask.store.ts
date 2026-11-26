@@ -1,6 +1,7 @@
 import { computed, ref, shallowRef } from 'vue'
 import { defineStore } from 'pinia'
-import type { AskAccess, AskEvent, AskExchange, AskThread, AskTripPlan, AskTurn } from '@/types/ask.types'
+import { turnQuestion } from '@/lib/ask/ask-skills'
+import type { AskAccess, AskEvent, AskExchange, AskSkill, AskThread, AskTripPlan, AskTurn } from '@/types/ask.types'
 
 export const useAskStore = defineStore('ask', () => {
   const access = ref<AskAccess | null>(null)
@@ -19,7 +20,7 @@ export const useAskStore = defineStore('ask', () => {
     exchanges.value
       .filter(exchange => exchange.status === 'done')
       .flatMap(exchange => [
-        { role: 'user' as const, content: exchange.question },
+        { role: 'user' as const, content: turnQuestion(exchange) },
         {
           role: 'assistant' as const,
           content: [
@@ -36,9 +37,10 @@ export const useAskStore = defineStore('ask', () => {
     exchanges.value = [...exchanges.value.slice(0, -1), change(last)]
   }
 
-  function start(question: string, { followUp }: { followUp: boolean }) {
+  function start(question: string, { followUp, skill }: { followUp: boolean; skill?: AskSkill }) {
     const exchange: AskExchange = {
       question,
+      ...(skill && { skill }),
       steps: [],
       text: '',
       places: [],
@@ -73,6 +75,12 @@ export const useAskStore = defineStore('ask', () => {
           }
         })
         break
+      case 'draft':
+        updateCurrent(exchange => {
+          const { [event.id]: _, ...drafts } = exchange.drafts ?? {}
+          return { ...exchange, drafts: event.place ? { ...drafts, [event.id]: event.place } : drafts }
+        })
+        break
       case 'canvas':
         updateCurrent(exchange => ({ ...exchange, canvas: { id: event.id, name: event.name } }))
         break
@@ -93,6 +101,7 @@ export const useAskStore = defineStore('ask', () => {
           ...exchange,
           text: event.text,
           places: event.places,
+          drafts: undefined,
           browse: event.browse,
           followUps: event.followUps,
           sources: event.sources,
@@ -103,7 +112,9 @@ export const useAskStore = defineStore('ask', () => {
         break
       case 'done':
         updateCurrent(exchange =>
-          exchange.status === 'running' ? { ...exchange, status: 'done', finishedAt: Date.now() } : exchange,
+          exchange.status === 'running'
+            ? { ...exchange, status: 'done', drafts: undefined, finishedAt: Date.now() }
+            : exchange,
         )
         break
     }
@@ -115,7 +126,7 @@ export const useAskStore = defineStore('ask', () => {
   }
 
   function fail(message: string) {
-    updateCurrent(exchange => ({ ...exchange, status: 'error', error: message, finishedAt: Date.now() }))
+    updateCurrent(exchange => ({ ...exchange, status: 'error', error: message, drafts: undefined, finishedAt: Date.now() }))
   }
 
   function reset() {

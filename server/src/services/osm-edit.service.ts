@@ -3,8 +3,7 @@ import { eq, and, isNull, desc } from 'drizzle-orm'
 import { db } from '../db'
 import { osmEdits, type OsmEdit } from '../schema/osm-edits.schema'
 import { getOsmConfig } from '../config/osm.config'
-import { getConfiguredIntegrations } from './integration.service'
-import { IntegrationId } from '../types/integration.types'
+import { osmAccountToken } from './osm-account.service'
 import { clientOrigin } from '../config/origins.config'
 import { generateId } from '../util'
 import { logError } from '../lib/logger'
@@ -28,11 +27,7 @@ export class OsmEditError extends Error {
 }
 
 async function getOsmAccessToken(userId: string): Promise<string> {
-  const integrations = await getConfiguredIntegrations(userId)
-  const osm = integrations.find(
-    (i) => i.integrationId === IntegrationId.OPENSTREETMAP_ACCOUNT,
-  )
-  const token = (osm?.config as any)?.accessToken
+  const token = await osmAccountToken(userId)
   if (!token) {
     throw new OsmEditError(
       'not_connected',

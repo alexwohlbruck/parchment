@@ -330,6 +330,14 @@ export function createSearchResultsRoute(options: {
   }
 }
 
+/** Every location of a brand. The name keeps its casing for name-only brands, whose tag values are case-sensitive. */
+export function createBrandResultsRoute(brandKey: string, brandName?: string) {
+  return {
+    name: AppRoute.SEARCH_RESULTS,
+    query: { brandKey, ...(brandName ? { brandName } : {}) },
+  }
+}
+
 // ── Per-type adapters ─────────────────────────────────────────────────────────
 
 /** Shared source field added to all sourced fields when converting from a search result. */

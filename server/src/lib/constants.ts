@@ -22,6 +22,8 @@ export const SOURCE = {
   GEOAPIFY: 'geoapify',
   TRANSITLAND: 'transitland',
   OVERTURE: 'overture',
+  /** A business's own website, for places OSM doesn't have yet. */
+  WEB: 'web',
 } as const
 // TODO: Fix types for source and integration ids
 export type Source = (typeof SOURCE)[keyof typeof SOURCE]
@@ -51,6 +53,7 @@ export const SOURCE_PRIORITIES = {
   [SOURCE.FOURSQUARE]: 40,
   [SOURCE.TRIPADVISOR]: 40,
   [SOURCE.OPENTABLE]: 30,
+  [SOURCE.WEB]: 60, // The business's own site outranks listings about it
 } as const
 
 // TODO: Make these constants defined per-capability

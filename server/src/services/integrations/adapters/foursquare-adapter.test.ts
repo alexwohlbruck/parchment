@@ -40,6 +40,23 @@ const fullPlace: FoursquarePlace = {
 }
 
 describe('FoursquareAdapter', () => {
+  it('keeps reservation and delivery links from place_actions', () => {
+    const place = adapter.adaptPlace({
+      ...fullPlace,
+      place_actions: [
+        { action: 'reservation', url: 'https://resy.com/cities/new-york-ny/venues/carbone', provider_id: '6901247fa060031bf568af26' },
+        { action: 'delivery', url: 'https://www.ubereats.com/store/carbone/abc' },
+        { action: 'pickup', url: 'https://example.com/pickup' },
+        { action: 'reservation', url: 'javascript:alert(1)' },
+      ],
+    })
+    expect(place.placeActions?.value).toEqual([
+      { kind: 'reservation', url: 'https://resy.com/cities/new-york-ny/venues/carbone' },
+      { kind: 'delivery', url: 'https://www.ubereats.com/store/carbone/abc' },
+    ])
+    expect(adapter.adaptPlace({ ...fullPlace, place_actions: [] }).placeActions).toBeUndefined()
+  })
+
   it('maps identity, geometry and external id', () => {
     const place = adapter.adaptPlace(fullPlace)
     expect(place.id).toBe(`${SOURCE.FOURSQUARE}/abc123`)
@@ -223,5 +240,15 @@ describe('FoursquareAdapter attributes → OSM tags', () => {
       { day: 0, open: '18:00', close: '21:00' },
     ])
     expect(place.openingHours?.value.isPermanentlyClosed).toBe(true)
+  })
+
+  it('ignores the catch-all category for venues that move around', () => {
+    const place = adapter.adaptPlace({
+      fsq_place_id: 'p',
+      name: 'Pianoland',
+      categories: [{ fsq_category_id: '4f2a23984b9023bd5841ed2c', name: 'Moving Target' }],
+    })
+    expect(place.placeType.value).toBe('')
+    expect(Object.values(place.amenities ?? {}).map(({ value }) => value)).not.toContain('Moving Target')
   })
 })

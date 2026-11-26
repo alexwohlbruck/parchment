@@ -60,3 +60,9 @@ describe('styles', () => {
     expect(style.sources[GLOBE_RELIEF_SOURCE]).toBeUndefined()
   })
 })
+
+test.each(['light', 'dark'] as const)('%s water starts the depth ramp on the globe and returns to the theme colour up close', flavor => {
+  const water = (buildLayers({ flavor }) as any[]).find(l => l.id === 'Water').paint['fill-color']
+  expect(water).toEqual(['interpolate', ['linear'], ['zoom'], 7, expect.any(String), 10, expect.any(String)])
+  expect(water[4]).not.toBe(water[6])
+})

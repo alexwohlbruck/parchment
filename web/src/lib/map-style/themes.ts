@@ -559,6 +559,7 @@ const CHART: MapTheme = {
         boreal: 'hsl(76, 16%, 72%)',
         rainforest: 'hsl(76, 24%, 66%)',
       },
+      shelf: 'hsl(188, 26%, 74%)',
       depth: [
         [200, 'hsl(188, 26%, 70%)'],
         [1000, 'hsl(190, 27%, 67%)'],
@@ -589,6 +590,7 @@ const CHART: MapTheme = {
         boreal: 'hsl(85, 14%, 18%)',
         rainforest: 'hsl(82, 20%, 16%)',
       },
+      shelf: 'hsl(200, 30%, 14%)',
       depth: [
         [200, 'hsl(200, 32%, 11.5%)'],
         [1000, 'hsl(201, 33%, 11%)'],

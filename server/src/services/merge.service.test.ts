@@ -19,11 +19,11 @@
  * These are pure functions, so no mocking is involved.
  */
 
+import { normalizeText } from '../lib/address-text'
 import { describe, test, expect } from 'bun:test'
 import {
   getSourcePriority,
   extractCommonsFilename,
-  normalizeText,
   calculateTextSimilarity,
   extractNumbers,
   calculateAddressSimilarity,

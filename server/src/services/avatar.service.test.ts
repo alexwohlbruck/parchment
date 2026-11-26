@@ -20,9 +20,8 @@ mock.module('./user.service', () => ({
   },
 }))
 
-const { setAvatar, removeAvatar, migrateLegacyAvatars, UnreadableImageError } = await import(
-  './avatar.service'
-)
+const { setAvatar, removeAvatar, migrateLegacyAvatars } = await import('./avatar.service')
+const { UnreadableImageError } = await import('../lib/webp')
 const { blobStore } = await import('./storage/storage.service')
 
 const image = (width: number, height: number, background = '#3366ff') =>

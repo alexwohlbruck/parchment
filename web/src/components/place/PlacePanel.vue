@@ -23,6 +23,7 @@ import PlaceHeader from './header/PlaceHeader.vue'
 import PlaceGallery from './gallery/PlaceGallery.vue'
 import PlaceActions from './header/PlaceActions.vue'
 import PlaceSources from './sources/PlaceSources.vue'
+import PlaceListings from './listings/PlaceListings.vue'
 import DetailsList from './details/DetailsList.vue'
 import ReviewsSection from './reviews/ReviewsSection.vue'
 import PlaceWidgets from './widgets/PlaceWidgets.vue'
@@ -31,12 +32,15 @@ import NearbyCategories from './details/NearbyCategories.vue'
 import PlaceCollections from './details/PlaceCollections.vue'
 import BrandSeeAllChip from './details/BrandSeeAllChip.vue'
 import PlaceDisplayChips from './details/PlaceDisplayChips.vue'
+import UnmappedPlaceCard from './details/UnmappedPlaceCard.vue'
+import PlaceBooking from './booking/PlaceBooking.vue'
 import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
 import SheetPageHost from '@/components/sheet/SheetPageHost.vue'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useConnectivity } from '@/composables/useConnectivity'
 import {
   ArrowDownToDotIcon,
+  CalendarCheckIcon,
   GlobeIcon,
   MapPinOffIcon,
   PencilIcon,
@@ -54,6 +58,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useI18n } from 'vue-i18n'
 import { providePlaceTabs } from '@/composables/place/usePlaceTabs'
 import { useSheetPeek } from '@/composables/sheet/useSheetPeek'
+import { usePlaceBooking } from '@/composables/place/usePlaceBooking'
 
 const props = defineProps<{
   place: Partial<Place> | null
@@ -274,6 +279,7 @@ function handleDirectionsFromClick() {
 }
 
 const { openExternalLink } = useExternalLink()
+const { links: bookingLinks } = usePlaceBooking(() => props.place)
 const optionalText = (key: string) => (te(key) ? t(key) : undefined)
 
 const placeCommands = computed(() => {
@@ -297,6 +303,7 @@ const placeCommands = computed(() => {
 
   const phone = place.contactInfo?.phone?.value
   const website = placeWebsites(place)[0]
+  const booking = bookingLinks.value[0]
 
   return [
     ...(coordinates.value
@@ -310,6 +317,9 @@ const placeCommands = computed(() => {
       : []),
     ...(website
       ? [command('website', GlobeIcon, () => openExternalLink(website), { description: website })]
+      : []),
+    ...(booking
+      ? [command('book', CalendarCheckIcon, () => openExternalLink(booking.url))]
       : []),
     command('share', ShareIcon, sharePlace),
     ...(place.externalIds?.osm ? [command('edit', PencilIcon, editPlace)] : []),
@@ -368,6 +378,8 @@ function handleBrandLogoError() {
           </div>
 
           <PlaceDisplayChips :place="place" />
+
+          <UnmappedPlaceCard v-if="place.unmapped && !place.externalIds?.osm" :place="place" />
 
           <OfflineDataNotice v-if="offline" :text="t('offlineMaps.notice.place')" />
 
@@ -447,6 +459,7 @@ function handleBrandLogoError() {
                 force-mount
                 class="mt-3 space-y-3 data-[state=inactive]:hidden"
               >
+                <PlaceBooking :place="place" />
                 <DetailsList :place="place" />
                 <PlaceVisitHistoryWidget :place="place" />
                 <PlaceWidgets :place="place" />
@@ -471,6 +484,7 @@ function handleBrandLogoError() {
 
             <!-- Attribution stays outside the tabs so it's always visible. -->
             <PlaceSources :place="place" />
+            <PlaceListings :place="place" />
           </template>
         </div>
       </template>

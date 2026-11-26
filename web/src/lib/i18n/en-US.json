@@ -218,7 +218,6 @@
         "groups": {
           "frequents": "Frequents",
           "suggestedCategories": "Categories",
-          "fullSearch": "Search",
           "recents": "Recents",
           "brands": "Brands",
           "categories": "Categories",
@@ -563,6 +562,10 @@
         "share": {
           "name": "Share",
           "description": "Send a link to this place"
+        },
+        "book": {
+          "name": "Make a reservation",
+          "keywords": "book table room hotel reserve booking opentable resy expedia"
         },
         "edit": {
           "name": "Suggest an edit",
@@ -2711,7 +2714,13 @@
     "submittedDescription": "We'll let you know when there's an update.",
     "viewPost": "View",
     "submitFailed": "Couldn't submit your feedback. Please try again.",
-    "loadFailed": "Couldn't load the feedback boards."
+    "loadFailed": "Couldn't load the feedback boards.",
+    "addScreenshot": "Add screenshot",
+    "removeScreenshot": "Remove screenshot",
+    "screenshotAlt": "Screenshot {n}",
+    "screenshotType": "Screenshots must be PNG, JPEG, or WebP",
+    "screenshotTooLarge": "Screenshots must be under 10MB",
+    "screenshotLimit": "You can attach up to 4 screenshots"
   },
   "profileMenu": {
     "shortcuts": "Shortcuts",
@@ -2757,6 +2766,10 @@
       "activeVehicles": "{count} {type} active",
       "selectVehicle": "Select a {type}",
       "closestVehicle": "Closest",
+      "followedRun": "To {destination}",
+      "followedRunUnknown": "This {type}",
+      "stopFollowing": "Stop following",
+      "followRun": "Follow this run",
       "everyNMin": "Every {n} min",
       "stops": "Stops",
       "alerts": {
@@ -2801,6 +2814,64 @@
     "header": {
       "showMore": "Show more",
       "showLess": "Show less"
+    },
+    "booking": {
+      "title": {
+        "table": "Book a table",
+        "stay": "Book a room",
+        "ahead": "Book ahead"
+      },
+      "policy": {
+        "yes": "Takes reservations",
+        "recommended": "Reservations recommended",
+        "required": "Reservations required"
+      },
+      "providers": {
+        "venue": "Their website",
+        "opentable": "OpenTable",
+        "resy": "Resy",
+        "bookingcom": "Booking.com",
+        "hotelscom": "Hotels.com",
+        "tock": "Tock",
+        "sevenrooms": "SevenRooms",
+        "expedia": "Expedia",
+        "googleHotels": "Google Hotels",
+        "search": "Search the web"
+      },
+      "party": "{n} person | {n} people",
+      "guests": "{n} guest | {n} guests",
+      "nights": "{n} night | {n} nights",
+      "day": {
+        "tonight": "Tonight",
+        "today": "Today",
+        "tomorrow": "Tomorrow"
+      },
+      "offers": {
+        "title": "Compare prices",
+        "subtitle": "Per night with taxes + fees",
+        "freeCancellation": "Free cancellation",
+        "freeCancellationOnly": "Free cancellation only",
+        "noneFree": "No free cancellation for these dates",
+        "allOptions": "All options",
+        "official": "Official site",
+        "seePrice": "See price",
+        "morePricesFrom": "More prices from {price}",
+        "morePrices": "{n} more prices",
+        "moreOnGoogleHotels": "More on Google Hotels",
+        "inApp": "Book in app"
+      },
+      "delivery": "Order delivery",
+      "searchOn": "Search {site}",
+      "searchWeb": "Search the web",
+      "seeTimes": "See times for {party} {when}",
+      "seeRooms": "See rooms for {guests}, {nights}",
+      "notLinked": "No booking page found yet",
+      "when": {
+        "tonight": "tonight",
+        "today": "today",
+        "tomorrow": "tomorrow",
+        "date": "on {date}"
+      }
     },
     "details": {
       "address": "Address",
@@ -3021,6 +3092,34 @@
     "list": {
       "empty": "No places found",
       "emptyDescription": "Try a different search or area"
+    },
+    "unmapped": {
+      "title": "Not on the map yet",
+      "opensSoonTitle": "Opening soon, not on the map yet",
+      "description": "Found on {site}. Add it so others can find it too.",
+      "replacesDescription": "Found on {site}. The map still shows {former} at this address. Update it so others can find this place.",
+      "add": "Add to map",
+      "update": "Update map",
+      "note": "Tell mappers",
+      "autoNote": "If no one adds it by tomorrow, Parchment leaves mappers a note from your OpenStreetMap account.",
+      "findOnWeb": "Find “{query}” on the web",
+      "findOnWebHint": "For places that aren't on the map yet"
+    },
+    "listings": {
+      "title": "Business listings",
+      "none": "No listing yet",
+      "notListed": "Not listed there",
+      "change": "Change",
+      "pickerTitle": "{provider} listing",
+      "pickerDescription": "Pick the listing for this place. Everyone sees your choice.",
+      "search": "Search {provider}",
+      "noneOption": "Not on {provider}",
+      "noCandidates": "No listings nearby",
+      "saved": "Listing updated",
+      "failed": "Couldn't update the listing",
+      "pasteUrl": "Paste the {provider} page link",
+      "invalidUrl": "That isn't a venue page on {provider}",
+      "save": "Save"
     }
   },
   "settings": {
@@ -3690,7 +3789,9 @@
         "transitRouting": "Transit Routing",
         "rideshareEstimate": "Rideshare",
         "feedback": "Feedback",
-        "languageModel": "Agents"
+        "languageModel": "Agents",
+        "hotelRates": "Hotel prices",
+        "hotelPrices": "Hotel price comparison"
       },
       "descriptions": {
         "google-maps": "Comprehensive mapping and location services",
@@ -3720,7 +3821,9 @@
         "firms": "Active wildfire detections from satellite (VIIRS/MODIS)",
         "esri": "World Imagery for the satellite map",
         "quackback": "Feedback boards, voting and roadmap for the in-app feedback form",
-        "openrouter": "The language model behind Ask"
+        "openrouter": "The language model behind Ask",
+        "liteapi": "Live hotel room prices, booked on your white-label site",
+        "serpapi": "Every seller's price for a hotel, from Google Hotels"
       },
       "scheme": {
         "endToEnd": {
@@ -4446,6 +4549,9 @@
   },
   "ask": {
     "title": "Ask",
+    "skills": {
+      "findOnWeb": "Find on the web"
+    },
     "starting": "Reading your question",
     "searches": "1 search | {count} searches",
     "followUp": "Ask a follow-up",
@@ -4548,5 +4654,8 @@
     "remove": "Remove photo",
     "unreadable": "Couldn't open that image",
     "saveFailed": "Couldn't update your photo"
+  },
+  "recents": {
+    "remove": "Remove from recents"
   }
 }

@@ -28,6 +28,7 @@ import { isAskOffered } from '@/lib/ask/ask-access'
 import { useAskPreferencesStore } from '@/stores/preferences/ask-preferences.store'
 
 export const ASK_OPTION = 'ask'
+export const FULL_SEARCH_OPTION = 'full-search'
 export const RECENT_ASK_PREFIX = 'recent-ask:'
 export const BROWSE_OPTION_PREFIX = 'browse:'
 
@@ -159,6 +160,7 @@ export async function buildSearchSuggestions(
     ]
       .sort((a, b) => b.at - a.at)
       .slice(0, 8)
+      .map(r => ({ ...r, option: { ...r.option, recentId: r.identity } }))
 
   // ── Empty query → frequents, common categories, recents. ──
   if (!q) {
@@ -263,18 +265,6 @@ export async function buildSearchSuggestions(
       },
     ]
   }
-
-  const fullSearchItem = searchText.trim()
-    ? [
-        {
-          value: 'search-more-results',
-          name: searchText,
-          iconName: 'Search',
-          iconColor: getCategoryColor('default', isDark.value),
-          group: 'fullSearch',
-        },
-      ]
-    : []
 
   try {
     // Get map center for location-aware search
@@ -419,13 +409,12 @@ export async function buildSearchSuggestions(
     return [
       ...browseItem(intent),
       ...(await askItem(intent)),
-      ...fullSearchItem,
       ...recentItems,
       ...results,
     ]
   } catch (error) {
     console.error('Error loading search suggestions:', error)
     // Still surface recents even when the server search fails.
-    return [...(await askItem(LOOKUP_INTENT)), ...fullSearchItem, ...recentItems]
+    return [...(await askItem(LOOKUP_INTENT)), ...recentItems]
   }
 }

@@ -58,6 +58,8 @@ export type CommandArgument = {
 export type CommandArgumentOption = PaletteItem & {
   value: string | number
   group?: string
+  /** Set on a recent, so its row can offer to forget it. */
+  recentId?: string
   /** Themed icon colour (ThemeColor) — used by tile-layout groups like Frequents. */
   color?: ThemeColor
   /** When true, the option is shown but gated behind a premium subscription. */

@@ -19,6 +19,7 @@
  * from Barrelman the same way the parking and the trees do; see
  * `detail-layers.ts`.
  */
+import { NO_ZOOM_FADE } from './layer-entrance'
 import type { FlavorId } from './build'
 import { DETAIL_SOURCE } from './detail-layers'
 
@@ -525,6 +526,7 @@ export function cyclingWaysLayers(
         source: CYCLING_WAYS_SOURCE,
         'source-layer': CYCLING_WAYS_TILES,
         minzoom: 12,
+        metadata: NO_ZOOM_FADE,
         filter: [
           'all',
           ['match', ['get', 'infra_type'], TINTED_INFRA, true, false],

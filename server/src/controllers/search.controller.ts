@@ -66,7 +66,8 @@ const searchRouter = new Elysia({ prefix: '/search' })
         summary: 'Search for places',
         description:
           'Place matches are ranked by text relevance decayed with distance from lat/lng, so nearby matches lead and a distant match surfaces only when nothing closer matches. Exact-name cities and towns are listed first.\n\n' +
-          'With `autocomplete=true` the response also carries `intent`: `lookup` for a name or address, `browse` for a category with filters category search can apply exactly (`category`, `attributes`, `tags` and `openNow`, e.g. "cafes with outdoor seating open now"), or `ask` for a query that needs judgement, such as "quiet cafe for a date" or a question.',
+          'A full search (`autocomplete=false`) carries `match` when the query clearly means one result: a typed coordinate, the category it names (a category scoring 0.8 or more), a brand named exactly what was typed, the nearest address with the typed house number and street, or a top-ranked place or transit line whose name holds every typed word and that no other place nearby shares. Clients open it directly instead of listing results.\n\n' +
+          'Every response also carries `intent`: `lookup` for a name or address, `browse` for a category with filters category search can apply exactly (`category`, `attributes`, `tags` and `openNow`, e.g. "cafes with outdoor seating open now"), or `ask` for a query that needs judgement, such as "quiet cafe for a date" or a question.',
       },
     },
   )

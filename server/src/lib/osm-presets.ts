@@ -512,21 +512,27 @@ export function getPresetFields(
     const translations = loadTranslations(language)
     const fieldTranslations = translations.presets?.fields || {}
 
-    const resolveFieldRefs = (fieldIds: string[]): string[] => {
-      return fieldIds.flatMap((fieldId) => {
-        if (fieldId.startsWith('{') && fieldId.endsWith('}')) {
-          const refId = fieldId.slice(1, -1)
-          const refPreset = loadPresets()[refId]
-          return refPreset ? refPreset.fields || [] : []
-        }
-        return [fieldId]
+    // "{other}" pulls in that preset's own list, fields from fields and moreFields from moreFields.
+    const resolveFieldRefs = (
+      fieldIds: string[],
+      list: 'fields' | 'moreFields',
+      seen = new Set<string>(),
+    ): string[] =>
+      fieldIds.flatMap((fieldId) => {
+        const refId = fieldId.match(/^\{(.+)\}$/)?.[1]
+        if (!refId) return [fieldId]
+        if (seen.has(refId)) return []
+        seen.add(refId)
+        const refPreset = loadPresets()[refId]
+        return refPreset ? resolveFieldRefs(refPreset[list] || [], list, seen) : []
       })
-    }
 
-    const primaryIds = new Set(resolveFieldRefs(preset.fields || []))
+    const primaryIds = new Set(resolveFieldRefs(preset.fields || [], 'fields'))
     const allFieldIds = [
-      ...primaryIds,
-      ...resolveFieldRefs(preset.moreFields || []),
+      ...new Set([
+        ...primaryIds,
+        ...resolveFieldRefs(preset.moreFields || [], 'moreFields'),
+      ]),
     ]
 
     return allFieldIds
@@ -592,6 +598,10 @@ export function getPresetFields(
       })
       .filter((field): field is FieldDefinition => field !== null)
   })
+}
+
+export function listPresets(): PresetDefinition[] {
+  return Object.values(loadPresets())
 }
 
 export function getPresetById(id: string): PresetDefinition | null {

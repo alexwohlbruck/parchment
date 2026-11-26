@@ -48,13 +48,47 @@ export function pageText(html: string): string {
 
 /** Script-rendered sites often state their address only here. */
 function metaDescription(html: string): string | undefined {
+  return metaContent(html, /^(?:og:)?description$/i)
+}
+
+function metaContent(html: string, key: RegExp): string | undefined {
   for (const [tag] of html.matchAll(/<meta\b[^>]*>/gi)) {
-    if (!/(?:name|property)\s*=\s*["'](?:og:)?description["']/i.test(tag)) continue
-    const content = tag.match(/content\s*=\s*"([^"]*)"|content\s*=\s*'([^']*)'/i)
-    const text = decodeEntities(content?.[1] ?? content?.[2] ?? '').trim()
+    const named = tag.match(/(?:name|property)\s*=\s*["']([^"']+)["']/i)?.[1]
+    if (!named || !key.test(named)) continue
+    const text = decodeEntities(attribute(tag, 'content') ?? '').trim()
     if (text) return text
   }
   return undefined
+}
+
+function attribute(tag: string, name: string): string | undefined {
+  const match = tag.match(new RegExp(`(?:^|\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, 'i'))
+  return match ? (match[1] ?? match[2]) : undefined
+}
+
+const TAGLINE = /\s+[|–—·:]\s+|\s+-\s+/
+
+/**
+ * What the site calls itself, most deliberate first: its declared site name, its logo's
+ * alt text, then the title. Taglines after a separator come apart into their own candidates.
+ */
+export function siteNames(html: string): string[] {
+  const logos = [...html.matchAll(/<img\b[^>]*>/gi)]
+    .map(([tag]) => tag)
+    .filter((tag) => /logo/i.test(tag))
+    .map((tag) => decodeEntities(attribute(tag, 'alt') ?? '').replace(/\s+logo$/i, ''))
+  const sources = [
+    metaContent(html, /^og:site_name$/i),
+    ...logos,
+    metaContent(html, /^application-name$/i),
+    pageTitle(html),
+    metaContent(html, /^og:title$/i),
+  ]
+  const names = sources
+    .flatMap((text) => text?.split(TAGLINE) ?? [])
+    .map((name) => name.replace(/\s+/g, ' ').trim())
+    .filter((name) => name && name.length <= 60)
+  return [...new Set(names)]
 }
 
 export function pageTitle(html: string): string | undefined {

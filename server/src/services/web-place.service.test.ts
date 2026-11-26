@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { Place } from '../types/place.types'
-import { addressPoint, parseModelBusiness, webPlace } from './web-place.service'
+import { addressPoint, parseModelBusiness, siteName, webPlace } from './web-place.service'
 
 describe('parseModelBusiness', () => {
   test('reads the JSON a model wraps in prose or fences', () => {
@@ -96,5 +96,16 @@ describe('addressPoint', () => {
   test('trusts the site’s own coordinates over a match far from them', () => {
     const far = { ...business, geo: { lat: 40.7, lng: -73.9 } }
     expect(addressPoint([hit('2527 65th Street', 40.6093, -73.9735)], far)).toBeUndefined()
+  })
+})
+
+describe('siteName', () => {
+  test('uses the site’s spelling over what was typed', () => {
+    expect(siteName(['Pianoland', 'Used Pianos for Sale'], 'PIANOLAND INC', 'pianoland')).toBe('Pianoland')
+    expect(siteName(['Boogie Lab', 'Bakery and Bistro'], 'Boogie Lab Bakery', 'boogie lab')).toBe('Boogie Lab')
+  })
+
+  test('keeps the name read off the site when nothing else matches', () => {
+    expect(siteName(['Welcome', 'Home'], 'Moss Café', 'moss cafe')).toBe('Moss Café')
   })
 })

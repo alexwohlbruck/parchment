@@ -13,7 +13,7 @@ import {
   hostOf,
   isListingSite,
   pageText,
-  pageTitle,
+  siteNames,
   sameName,
 } from '../lib/web-place/site-page'
 import { OverpassAdapter } from './integrations/adapters/overpass-adapter'
@@ -76,14 +76,16 @@ export async function findPlaceOnWeb(query: string, options: Options): Promise<W
   const name = query.split(',')[0].trim()
   const site = await readSite(website, name, options)
   if (!site) return { status: 'not-found', reason: `${hostOf(website)} doesn't give an address.` }
-  const { business, url } = site
+  const { url } = site
+  let { business } = site
   if (isListingSite(url)) {
     return { status: 'not-found', reason: 'Only listing sites mention it, not a site of its own.' }
   }
   if (business.closed) return { status: 'not-found', reason: 'Its site says it has closed.' }
-  if (!sameName(business.name, name) && !sameName(site.title ?? '', name)) {
+  if (!sameName(business.name, name) && !site.names.some((candidate) => sameName(candidate, name))) {
     return { status: 'not-found', reason: `${hostOf(url)} looks like a different business (${business.name}).` }
   }
+  business = { ...business, name: siteName(site.names, business.name, name) }
 
   const center = (await geocodeAddress(business)) ?? business.geo
   if (!center) return { status: 'not-found', reason: "Couldn't place its address on the map." }
@@ -124,12 +126,13 @@ async function findOfficialSite(query: string, { model, near, signal }: Options)
   return { website, corroboratedBy }
 }
 
-/** "Brooklyn, NY" for a point, so a bare business name finds the local one. */
+/** "Brooklyn, NY", or a postcode where nearby addresses name no town, so a bare business name finds the local one. */
 async function areaName({ lat, lng }: LatLng): Promise<string | undefined> {
   try {
-    const address = (await reverseGeocode(lat, lng)).results[0]?.address?.value
-    const parts = [address?.locality, address?.region].filter(Boolean)
-    return parts.length ? parts.join(', ') : undefined
+    const addresses = (await reverseGeocode(lat, lng)).results.map((place) => place.address?.value)
+    const town = addresses.find((address) => address?.locality)
+    if (town) return [town.locality, town.region].filter(Boolean).join(', ')
+    return addresses.find((address) => address?.postalCode)?.postalCode
   } catch {
     return undefined
   }
@@ -140,11 +143,15 @@ interface Page {
   html: string
 }
 
+/** The name as the site presents it, over the spelling a search was typed with. */
+export function siteName(names: string[], read: string, typed: string): string {
+  return names.find((candidate) => sameName(candidate, read) || sameName(candidate, typed)) ?? read
+}
+
 /** The site's own description of the business: its JSON-LD, else what the model reads off its pages. */
 async function readSite(website: string, name: string, options: Options) {
   const home = await fetchPage(website, options.signal)
   if (!home) return null
-  const title = pageTitle(home.html)
   const pages = [home]
   let business = pickBusiness(readSiteBusinesses(home.html), name, options.near)
   for (const link of contactLinks(home.html, home.url).slice(0, MAX_CONTACT_PAGES)) {
@@ -158,7 +165,7 @@ async function readSite(website: string, name: string, options: Options) {
     const read = await readWithModel(pages, options)
     business = business && read ? { ...business, types: [...read.types, ...business.types] } : (business ?? read ?? undefined)
   }
-  return business ? { business, url: home.url, title } : null
+  return business ? { business, url: home.url, names: siteNames(home.html) } : null
 }
 
 function pickBusiness(found: SiteBusiness[], name: string, near: LatLng): SiteBusiness | undefined {
@@ -259,7 +266,8 @@ async function geocodeAddress(business: SiteBusiness): Promise<LatLng | undefine
   if (!line) return undefined
   try {
     const { lat, lng } = business.geo ?? {}
-    return addressPoint((await forwardGeocode(line, lat, lng)).results, business)
+    const { results } = await forwardGeocode(line, lat, lng)
+    return addressPoint(results, business) ?? (business.geo ? undefined : results[0]?.geometry.value.center)
   } catch {
     return undefined
   }

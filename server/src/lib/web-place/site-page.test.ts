@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { contactLinks, isListingSite, pageText, sameName } from './site-page'
+import { contactLinks, isListingSite, pageText, sameName, siteNames } from './site-page'
 
 describe('isListingSite', () => {
   test.each([
@@ -55,5 +55,26 @@ describe('sameName', () => {
     ['', 'Anything', false],
   ])('%s / %s', (a, b, same) => {
     expect(sameName(a, b)).toBe(same)
+  })
+})
+
+describe('siteNames', () => {
+  test('puts the declared site name and logo before the title, splitting off taglines', () => {
+    const html = `<title>Used Pianos for Sale | IDEAL CONDITION! | Piano Land NYC</title>
+      <meta property="og:site_name" content="Pianoland | Since 1989" />
+      <a href="/"><img src="/images/pianoland-logo.svg" alt="Pianoland logo" /></a>
+      <img src="/hero.jpg" alt="A grand piano" />`
+    expect(siteNames(html)).toEqual([
+      'Pianoland',
+      'Since 1989',
+      'Used Pianos for Sale',
+      'IDEAL CONDITION!',
+      'Piano Land NYC',
+    ])
+  })
+
+  test('reads entities and ignores look-alike attributes', () => {
+    const html = `<meta property="og:site_name" data-content="Wrong" content="Bread &amp; Salt">`
+    expect(siteNames(html)).toEqual(['Bread & Salt'])
   })
 })

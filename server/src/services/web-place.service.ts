@@ -25,6 +25,7 @@ import {
   pageText,
   siteNames,
   sameName,
+  typedName,
 } from '../lib/web-place/site-page'
 import { OverpassAdapter } from './integrations/adapters/overpass-adapter'
 import { forwardGeocode, reverseGeocode } from './geocoding.service'
@@ -97,7 +98,7 @@ export async function findPlaceOnWeb(query: string, options: Options): Promise<W
     return { status: 'not-found', reason: 'Only listing sites mention it, not a site of its own.' }
   }
   if (business.closed) return { status: 'not-found', reason: 'Its site says it has closed.' }
-  if (!sameName(business.name, name) && !site.names.some((candidate) => sameName(candidate, name))) {
+  if (!typedName(name, business.name) && !site.names.some((candidate) => typedName(name, candidate))) {
     return { status: 'not-found', reason: `${hostOf(url)} looks like a different business (${business.name}).` }
   }
   business = { ...business, name: siteName(site.names, business.name, name) }
@@ -161,9 +162,13 @@ interface Page {
   html: string
 }
 
-/** The name as the site presents it, over the spelling a search was typed with. */
+/** The site's fullest spelling of its name, over the spelling a search was typed with. */
 export function siteName(names: string[], read: string, typed: string): string {
-  return names.find((candidate) => sameName(candidate, read) || sameName(candidate, typed)) ?? read
+  const named = names.find((candidate) => sameName(candidate, read) || typedName(typed, candidate))
+  if (!named) return read
+  return names
+    .filter((candidate) => sameName(candidate, named))
+    .reduce((longest, candidate) => (candidate.length > longest.length ? candidate : longest))
 }
 
 /** The site's own description of the business: its JSON-LD, else what the model reads off its pages. */
@@ -191,7 +196,7 @@ async function readSite(website: string, name: string, options: Options) {
 }
 
 function pickBusiness(found: SiteBusiness[], name: string, near: LatLng): SiteBusiness | undefined {
-  const named = found.filter((business) => sameName(business.name, name))
+  const named = found.filter((business) => typedName(name, business.name))
   const pool = named.length ? named : found
   const km = (business: SiteBusiness) =>
     business.geo

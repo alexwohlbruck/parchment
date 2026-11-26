@@ -117,7 +117,11 @@ describe('addressPoint', () => {
 describe('siteName', () => {
   test('uses the site’s spelling over what was typed', () => {
     expect(siteName(['Pianoland', 'Used Pianos for Sale'], 'PIANOLAND INC', 'pianoland')).toBe('Pianoland')
-    expect(siteName(['Boogie Lab', 'Bakery and Bistro'], 'Boogie Lab Bakery', 'boogie lab')).toBe('Boogie Lab')
+  })
+
+  test('prefers the fullest form of the name, even from a misspelled search', () => {
+    const names = ['Boogie Lab', 'Bakery and Bistro in New York, NY', 'Boogie Lab Bakery & Bistro', 'Sourdough in Washington Heights']
+    expect(siteName(names, 'Boogie Lab', 'bookie lab bakery')).toBe('Boogie Lab Bakery & Bistro')
   })
 
   test('keeps the name read off the site when nothing else matches', () => {

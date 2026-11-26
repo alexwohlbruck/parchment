@@ -17191,6 +17191,255 @@
         }
       }
     },
+    "/places/listings/": {
+      "get": {
+        "parameters": [
+          {
+            "description": "Source of the place, e.g. `osm`",
+            "examples": [
+              "osm"
+            ],
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "source",
+            "required": true
+          },
+          {
+            "description": "Id in that source, e.g. `node/6493733562`",
+            "examples": [
+              "node/6493733562"
+            ],
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "operationId": "getPlacesListings",
+        "tags": [
+          "Places"
+        ],
+        "summary": "Get the business listings a place is matched to",
+        "description": "One entry per provider the place can be matched at: the matched listing (null for none), whether a person confirmed it, and whether candidates can be searched.",
+        "responses": {
+          "200": {}
+        }
+      },
+      "put": {
+        "parameters": [],
+        "operationId": "putPlacesListings",
+        "tags": [
+          "Places"
+        ],
+        "summary": "Correct the listing a place is matched to",
+        "description": "Sets the listing for one provider, or `providerPlaceId: null` for none. Stored as a confirmed match that automatic matching never replaces. OSM places only.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "description": "Source of the place, e.g. `osm`",
+                    "examples": [
+                      "osm"
+                    ],
+                    "type": "string"
+                  },
+                  "id": {
+                    "description": "Id in that source, e.g. `node/6493733562`",
+                    "examples": [
+                      "node/6493733562"
+                    ],
+                    "type": "string"
+                  },
+                  "provider": {
+                    "pattern": "^[a-z][a-z0-9_-]{1,31}$",
+                    "description": "Provider of the listing, e.g. `google`, `foursquare`",
+                    "type": "string"
+                  },
+                  "providerPlaceId": {
+                    "nullable": true,
+                    "anyOf": [
+                      {
+                        "minLength": 1,
+                        "maxLength": 255,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "source",
+                  "id",
+                  "provider",
+                  "providerPlaceId"
+                ]
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "description": "Source of the place, e.g. `osm`",
+                    "examples": [
+                      "osm"
+                    ],
+                    "type": "string"
+                  },
+                  "id": {
+                    "description": "Id in that source, e.g. `node/6493733562`",
+                    "examples": [
+                      "node/6493733562"
+                    ],
+                    "type": "string"
+                  },
+                  "provider": {
+                    "pattern": "^[a-z][a-z0-9_-]{1,31}$",
+                    "description": "Provider of the listing, e.g. `google`, `foursquare`",
+                    "type": "string"
+                  },
+                  "providerPlaceId": {
+                    "nullable": true,
+                    "anyOf": [
+                      {
+                        "minLength": 1,
+                        "maxLength": 255,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "source",
+                  "id",
+                  "provider",
+                  "providerPlaceId"
+                ]
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "description": "Source of the place, e.g. `osm`",
+                    "examples": [
+                      "osm"
+                    ],
+                    "type": "string"
+                  },
+                  "id": {
+                    "description": "Id in that source, e.g. `node/6493733562`",
+                    "examples": [
+                      "node/6493733562"
+                    ],
+                    "type": "string"
+                  },
+                  "provider": {
+                    "pattern": "^[a-z][a-z0-9_-]{1,31}$",
+                    "description": "Provider of the listing, e.g. `google`, `foursquare`",
+                    "type": "string"
+                  },
+                  "providerPlaceId": {
+                    "nullable": true,
+                    "anyOf": [
+                      {
+                        "minLength": 1,
+                        "maxLength": 255,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "source",
+                  "id",
+                  "provider",
+                  "providerPlaceId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/places/listings/candidates": {
+      "get": {
+        "parameters": [
+          {
+            "description": "Source of the place, e.g. `osm`",
+            "examples": [
+              "osm"
+            ],
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "source",
+            "required": true
+          },
+          {
+            "description": "Id in that source, e.g. `node/6493733562`",
+            "examples": [
+              "node/6493733562"
+            ],
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "id",
+            "required": true
+          },
+          {
+            "description": "Provider of the listing, e.g. `google`, `foursquare`",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]{1,31}$"
+            },
+            "in": "query",
+            "name": "provider",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "q",
+            "required": false
+          }
+        ],
+        "operationId": "getPlacesListingsCandidates",
+        "tags": [
+          "Places"
+        ],
+        "summary": "Search nearby listings at one provider",
+        "description": "Listings within 500 m of the place, nearest first. `q` defaults to the place name.",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
     "/proxy/esri/{service}/{z}/{y}/{x}": {
       "get": {
         "operationId": "getProxyEsriByServiceByZByYByX",

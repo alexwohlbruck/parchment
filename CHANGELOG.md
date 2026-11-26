@@ -23,6 +23,7 @@
 
 ### Changed
 
+* Unsaved recovery words are now a small reminder above your account instead of a popup, and dismissing it hides it for 4 months on every device.
 * Photos, hours and ratings from business listings load faster when you reopen a place, and the place keeps the same listing each time.
 * Press Enter in search to see all results right away, without waiting for suggestions. When a search clearly means one place or address, it opens straight away, and Back shows the full results.
 * Searching for a kind of place or a chain, like "coffee" or "Starbucks", opens that browse straight away, and a question opens Ask.

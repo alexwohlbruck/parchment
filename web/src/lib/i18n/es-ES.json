@@ -3121,6 +3121,10 @@
           "start": "Ya las guardé",
           "showAgain": "Mostrar mis palabras otra vez",
           "savedToast": "Palabras de recuperación guardadas"
+        },
+        "hint": {
+          "title": "Guarda tus palabras",
+          "later": "Recordármelo más tarde"
         }
       },
       "transferDevice": {

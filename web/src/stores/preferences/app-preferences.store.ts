@@ -81,7 +81,7 @@ const MAP: Validators<SyncedMapSettings> = {
   satelliteImagery: isStringArray,
 }
 
-/** Settings that follow the account: theme, map, a few app-wide choices, and whether the recovery words are saved. */
+/** Settings that follow the account: theme, map, a few app-wide choices, and whether the recovery words are saved or their reminder snoozed. */
 export const useAppPreferencesStore = defineStore('appPreferences', () => {
   const themeStore = useThemeStore()
   const mapStore = useMapStore()
@@ -96,11 +96,15 @@ export const useAppPreferencesStore = defineStore('appPreferences', () => {
       map: () => pickKnown(MAP, mapStore.ownSettings),
       general: () => pickKnown(GENERAL, appStore),
       layerAppearances: () => layerAppearanceStore.chosen,
-      // Sent only once words are confirmed, so loading never writes over another device's.
-      security: () =>
-        identityStore.recoveryWordsSavedFor
-          ? { recoveryWordsSavedFor: identityStore.recoveryWordsSavedFor }
-          : undefined,
+      // Sent only once set here, so loading never writes over another device's.
+      security: () => {
+        const { recoveryWordsSavedFor, recoveryWordsRemindAfter } = identityStore
+        if (!recoveryWordsSavedFor && !recoveryWordsRemindAfter) return undefined
+        return {
+          ...(recoveryWordsSavedFor && { recoveryWordsSavedFor }),
+          ...(recoveryWordsRemindAfter && { recoveryWordsRemindAfter }),
+        }
+      },
     },
     saveAppPreferences,
   )
@@ -119,8 +123,9 @@ export const useAppPreferencesStore = defineStore('appPreferences', () => {
       Object.assign(themeStore, pickValid(THEME, values.theme))
       Object.assign(appStore, pickValid(GENERAL, values.general))
       adoptMap(values.map)
-      const savedFor = values.security?.recoveryWordsSavedFor
-      identityStore.recoveryWordsSavedFor = typeof savedFor === 'string' ? savedFor : null
+      const { recoveryWordsSavedFor, recoveryWordsRemindAfter } = values.security ?? {}
+      identityStore.recoveryWordsSavedFor = typeof recoveryWordsSavedFor === 'string' ? recoveryWordsSavedFor : null
+      identityStore.recoveryWordsRemindAfter = typeof recoveryWordsRemindAfter === 'string' ? recoveryWordsRemindAfter : null
       if (values.layerAppearances) {
         layerAppearanceStore
           .adopt(values.layerAppearances, mapStore.getMapStrategy())

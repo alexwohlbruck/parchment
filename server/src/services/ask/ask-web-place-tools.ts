@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { summarizePlace } from '../../lib/ask/place-summary'
 import { findPlaceOnWeb, WebPlaceError, type WebPlaceStage } from '../web-place.service'
+import type { PlaceDraft } from '../../types/place.types'
 import { mentionsAddress } from '../../lib/web-place/address-match'
 import {
   AskToolError,
@@ -31,7 +32,16 @@ function stageSteps(context: AskContext) {
     context.emit({ type: 'step', ...open, ...(detail && { detail }), status })
     open = null
   }
+  let shown = 'null'
   return {
+    run,
+    /** Sends the place as read so far, skipping a repeat of the last one. */
+    draft(place: PlaceDraft | null) {
+      const json = JSON.stringify(place)
+      if (json === shown) return
+      shown = json
+      context.emit({ type: 'draft', id: run, place })
+    },
     report(stage: WebPlaceStage, detail?: string) {
       const id = `${run}:${stage}`
       if (open?.id !== id) close('done')
@@ -84,20 +94,24 @@ const findPlaceOnWebTool: AskTool<{ query: string; near?: PointArg; website?: st
           website,
           address,
           progress: steps.report,
+          draft: steps.draft,
           model: context.model,
           language: context.language,
           signal: context.signal,
         }),
     ).catch((error) => {
+      steps.draft(null)
       steps.close('failed')
       throw error instanceof WebPlaceError ? new AskToolError(error.message) : error
     })
     if (lookup.status === 'not-found') {
+      steps.draft(null)
       steps.close('failed', lookup.reason)
       return lookup
     }
     steps.close('done')
     const { place } = lookup
+    steps.draft(place)
     context.seen.set(place.id, place)
     const summary = summarizePlace(place, { now: context.now, origin, units: context.units })
     return lookup.status === 'mapped'

@@ -75,6 +75,12 @@ export const useAskStore = defineStore('ask', () => {
           }
         })
         break
+      case 'draft':
+        updateCurrent(exchange => {
+          const { [event.id]: _, ...drafts } = exchange.drafts ?? {}
+          return { ...exchange, drafts: event.place ? { ...drafts, [event.id]: event.place } : drafts }
+        })
+        break
       case 'canvas':
         updateCurrent(exchange => ({ ...exchange, canvas: { id: event.id, name: event.name } }))
         break
@@ -95,6 +101,7 @@ export const useAskStore = defineStore('ask', () => {
           ...exchange,
           text: event.text,
           places: event.places,
+          drafts: undefined,
           browse: event.browse,
           followUps: event.followUps,
           sources: event.sources,
@@ -105,7 +112,9 @@ export const useAskStore = defineStore('ask', () => {
         break
       case 'done':
         updateCurrent(exchange =>
-          exchange.status === 'running' ? { ...exchange, status: 'done', finishedAt: Date.now() } : exchange,
+          exchange.status === 'running'
+            ? { ...exchange, status: 'done', drafts: undefined, finishedAt: Date.now() }
+            : exchange,
         )
         break
     }
@@ -117,7 +126,7 @@ export const useAskStore = defineStore('ask', () => {
   }
 
   function fail(message: string) {
-    updateCurrent(exchange => ({ ...exchange, status: 'error', error: message, finishedAt: Date.now() }))
+    updateCurrent(exchange => ({ ...exchange, status: 'error', error: message, drafts: undefined, finishedAt: Date.now() }))
   }
 
   function reset() {

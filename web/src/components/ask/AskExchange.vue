@@ -48,6 +48,11 @@ const SKILLS = {
 
 const skill = computed(() => (props.exchange.skill ? SKILLS[props.exchange.skill] : null))
 
+/** What a lookup has read so far, shown until the answer cites the places themselves. */
+const drafts = computed(() =>
+  props.exchange.places.length ? [] : (Object.values(props.exchange.drafts ?? {}) as Place[]),
+)
+
 const browseRoute = computed(() => {
   const intent = props.exchange.browse
   if (!intent?.category) return null
@@ -144,6 +149,18 @@ const browseRoute = computed(() => {
           {{ reason }}
         </p>
         <AskReviewQuotes v-if="reviews?.length" :place="place" :reviews="reviews" />
+      </li>
+    </ol>
+
+    <ol v-if="drafts.length" class="flex flex-col gap-2">
+      <li
+        v-for="place in drafts"
+        :key="place.id"
+        :class="ITEM_ROW_SURFACES.row"
+        @mouseenter="emit('place-hover', place.id)"
+        @mouseleave="emit('place-leave')"
+      >
+        <PlaceCard :place="place" variant="plain" size="sm" density="rich" :navigate="false" />
       </li>
     </ol>
 

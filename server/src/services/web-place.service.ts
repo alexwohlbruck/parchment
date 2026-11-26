@@ -39,7 +39,7 @@ import { forwardGeocode, reverseGeocode } from './geocoding.service'
 import { lookupPlacesByNameAndLocation } from './place.service'
 import type { Language } from '../lib/i18n/i18n.types'
 import type { ChatMessage, LanguageModelCapability } from '../types/language-model.types'
-import type { Place, WebPlaceLookup } from '../types/place.types'
+import type { Place, PlaceDraft, WebPlaceLookup } from '../types/place.types'
 import type { LatLng } from '../types/ask.types'
 
 /** How far from where the user is looking a namesake still counts as the place they mean. */
@@ -81,6 +81,8 @@ export type WebPlaceStage = 'site' | 'read' | 'classify' | 'images' | 'fields' |
 interface Options {
   near: LatLng
   progress?: (stage: WebPlaceStage, detail?: string) => void
+  /** The place as read so far, without a location until the address is placed; null when that site fell through. */
+  draft?: (place: PlaceDraft | null) => void
   /** The business's own site, when the caller already knows it. */
   website?: string
   /** A street address the user gave, which stands in for one the site doesn't state. */
@@ -103,6 +105,7 @@ export async function findPlaceOnWeb(query: string, options: Options): Promise<W
   for (const website of located.websites) {
     const lookup = await lookUpSite(website, query, located.corroboratedBy, options)
     if (lookup.status !== 'not-found') return lookup
+    options.draft?.(null)
     first ??= lookup
   }
   return first!
@@ -120,7 +123,15 @@ async function lookUpSite(
 
   // "Frenchette, New York" names the business before the comma.
   const name = query.split(',')[0].trim()
-  const site = await readSite(website, query, options)
+  const isNamed = (business: SiteBusiness, names: string[]) =>
+    typedName(name, business.name) || names.some((candidate) => typedName(name, candidate))
+  const draft = (business: SiteBusiness, url: string, center?: LatLng) =>
+    options.draft?.(draftPlace(business, url, center, options))
+  const site = await readSite(website, query, options, (business, url, names) => {
+    if (!isListingSite(url) && !business.closed && isNamed(business, names)) {
+      draft({ ...business, name: siteName(names, business.name, name) }, url)
+    }
+  })
   if (!site) return { status: 'not-found', reason: `${hostOf(website)} doesn't list an address.` }
   const { url } = site
   let { business } = site
@@ -128,7 +139,7 @@ async function lookUpSite(
     return { status: 'not-found', reason: 'Only review and delivery sites list it.' }
   }
   if (business.closed) return { status: 'not-found', reason: 'Its website says it has closed.' }
-  if (!typedName(name, business.name) && !site.names.some((candidate) => typedName(name, candidate))) {
+  if (!isNamed(business, site.names)) {
     return { status: 'not-found', reason: `${hostOf(url)} is for a different place, ${business.name}.` }
   }
   business = { ...business, name: siteName(site.names, business.name, name) }
@@ -137,6 +148,7 @@ async function lookUpSite(
     return { status: 'not-found', reason: `${hostOf(url)} doesn't list a street address.` }
   }
 
+  draft(business, url)
   const from = business.addressFrom && ADDRESS_FROM[business.addressFrom]
   options.progress?.('locate', [addressLine(business.address), from].filter(Boolean).join(' · '))
   const geocoded = await geocodeAddress(business, options.near)
@@ -147,14 +159,19 @@ async function lookUpSite(
   if (km > MAX_DISTANCE_KM) {
     return { status: 'not-found', reason: `${business.name} is ${Math.round(km)} km away.` }
   }
+  draft(business, url, center)
 
   options.progress?.('map', business.name)
   const mapped = await mappedNamesake(business.name, center, options)
-  if (mapped) return { status: 'mapped', place: mapped }
+  if (mapped) {
+    options.draft?.(mapped)
+    return { status: 'mapped', place: mapped }
+  }
 
   const vacant = await vacantAddress(business, center)
   const place = webPlace(business, socialPage(url) ?? siteRoot(url), center, options.language, vacant)
   await webPlaces.get(place.externalIds[SOURCE.WEB], async () => place)
+  options.draft?.(place)
   return { status: 'found', place, corroboratedBy }
 }
 
@@ -256,12 +273,25 @@ function signCase(name: string): string {
 }
 
 /** The site's own description of the business: its JSON-LD, else what the model reads off its pages. */
-async function readSite(website: string, query: string, options: Options) {
+/** A place for the business as read so far, placed only once its address is. */
+function draftPlace(business: SiteBusiness, url: string, center: LatLng | undefined, options: Options): PlaceDraft {
+  const { geometry, ...place } = webPlace(business, socialPage(url) ?? siteRoot(url), center ?? options.near, options.language)
+  return center ? { ...place, geometry } : place
+}
+
+async function readSite(
+  website: string,
+  query: string,
+  options: Options,
+  seen: (business: SiteBusiness, url: string, names: string[]) => void = () => {},
+) {
   const social = socialPage(website)
   options.progress?.('read', social?.replace(/^https:\/\/www\./, '') ?? hostOf(website) ?? website)
   const home = await fetchPage(website, options.signal)
   if (!home) return null
   const pages = [home]
+  const names = siteNames(home.html)
+  const show = (found: SiteBusiness | undefined) => found && seen(found, home.url, names)
   let business = pickBusiness(readSiteBusinesses(home.html), query, options.near)
   // A social page's own links lead around the platform, not the business.
   const links = social ? [] : contactLinks(home.html, home.url)
@@ -273,11 +303,13 @@ async function readSite(website: string, query: string, options: Options) {
     business = pickBusiness(readSiteBusinesses(page.html), query, options.near) ?? business
   }
   const text = pagesText(pages)
+  show(business)
   if (!business || !hasCategory(business)) {
     options.progress?.('classify')
     const read = await readWithModel(text, query, options)
     business = business && read ? { ...business, preset: read.preset } : (business ?? read ?? undefined)
   }
+  show(business)
   if (business && !social && !options.address && !inArea(business, query)) {
     const branch = await readBranchPage(pages, query, options)
     if (branch?.address?.street) business = { ...branch, preset: branch.preset ?? business.preset }
@@ -286,8 +318,10 @@ async function readSite(website: string, query: string, options: Options) {
     const address = await readImageAddress(pages, options)
     if (address) business = { ...business, address, addressFrom: 'image' }
   }
+  show(business)
   if (business) business = await readFields(business, text, options)
-  return business ? { business, url: home.url, names: siteNames(home.html) } : null
+  show(business)
+  return business ? { business, url: home.url, names } : null
 }
 
 function pickBusiness(found: SiteBusiness[], query: string, near: LatLng): SiteBusiness | undefined {

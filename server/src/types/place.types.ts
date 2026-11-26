@@ -439,6 +439,9 @@ export interface ContactInfo {
 }
 
 /** What looking a business up on its own website found. */
+/** A place still being read from the web, without a location until its address is placed. */
+export type PlaceDraft = Omit<Place, 'geometry'> & Partial<Pick<Place, 'geometry'>>
+
 export type WebPlaceLookup =
   | { status: 'found'; place: Place; corroboratedBy: string[] }
   | { status: 'mapped'; place: Place }

@@ -195,9 +195,13 @@ watch(
   },
 )
 
-const citedPlaces = computed(() =>
-  askStore.current?.places.map(({ place }) => place) ?? [],
-)
+/** The answer's places, or before it arrives, the ones a lookup has placed so far. */
+const citedPlaces = computed(() => {
+  const exchange = askStore.current
+  if (!exchange) return []
+  if (exchange.places.length) return exchange.places.map(({ place }) => place)
+  return Object.values(exchange.drafts ?? {}).filter((draft): draft is Place => !!draft.geometry)
+})
 
 const REACH_OPACITY = 0.12
 

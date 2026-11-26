@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useAskStore } from './ask.store'
+import type { PlaceDraft } from '@/types/place.types'
 
 describe('ask store', () => {
   beforeEach(() => setActivePinia(createPinia()))
@@ -43,6 +44,23 @@ describe('ask store', () => {
     store.apply({ type: 'route', id: 'r1', name: 'Manhattan loop', mode: 'cycling', distance: 52000, duration: 12000 })
     store.apply({ type: 'canvas', id: 'c1', name: 'Manhattan loop' })
     expect(store.current).toMatchObject({ route: { id: 'r1', name: 'Manhattan loop' }, canvas: { id: 'c1' } })
+  })
+
+  it('fills in a lookup\'s place as it reads, and lets the answer replace it', () => {
+    const store = useAskStore()
+    const draft = (name: string) => ({ id: 'web/1', name: { value: name } }) as unknown as PlaceDraft
+    store.start('homestretch bar', { followUp: false, skill: 'find-on-web' })
+    store.apply({ type: 'draft', id: 'run', place: draft('Homestretch') })
+    store.apply({ type: 'draft', id: 'run', place: draft('Homestretch Bar') })
+    expect(Object.values(store.current!.drafts!)).toEqual([draft('Homestretch Bar')])
+
+    store.apply({ type: 'draft', id: 'run', place: null })
+    expect(store.current!.drafts).toEqual({})
+
+    store.apply({ type: 'draft', id: 'run', place: draft('Homestretch Bar') })
+    store.apply({ type: 'answer', text: 'It is on Kings Highway.', places: [] })
+    store.apply({ type: 'done' })
+    expect(store.current!.drafts).toBeUndefined()
   })
 
   it('keeps earlier exchanges only for a follow-up', () => {

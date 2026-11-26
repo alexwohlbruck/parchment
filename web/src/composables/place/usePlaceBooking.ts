@@ -23,7 +23,7 @@ export function usePlaceBooking(
   const placeId = computed(() => listingPlaceId(toValue(place)?.externalIds))
   const actions = computed(() => toValue(place)?.placeActions?.value ?? undefined)
 
-  const { data: venues } = useBookingData(
+  const { data: venues, loading: venuesLoading } = useBookingData(
     () => ((isDiningPlace(tags.value) || isLodgingPlace(tags.value)) && placeId.value) || null,
     fetchBookingVenues,
   )
@@ -66,6 +66,8 @@ export function usePlaceBooking(
     kind,
     placeId,
     links,
+    /** Known booking pages are still loading, so `links` may be searches about to be replaced. */
+    loading: venuesLoading,
     delivery: computed(() => deliveryLinks(actions.value)),
     googleHotelsUrl: computed(() => googleHotelsSearchUrl(target.value)),
   }

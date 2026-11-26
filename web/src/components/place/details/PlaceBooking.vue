@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { BedDoubleIcon, CalendarCheckIcon, ExternalLinkIcon, SearchIcon, ShoppingBagIcon } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Chip } from '@/components/ui/chip'
+import { Skeleton } from '@/components/ui/skeleton'
 import PlaceSection from './PlaceSection.vue'
 import StayPrices from './StayPrices.vue'
 import type { Place } from '@/types/place.types'
@@ -26,7 +27,10 @@ const props = defineProps<{
 
 const { t, locale } = useI18n()
 const plan = ref(defaultPlan())
-const { policy, kind, placeId, links, delivery, googleHotelsUrl } = usePlaceBooking(() => props.place, plan)
+const { policy, kind, placeId, links, loading: venuesLoading, delivery, googleHotelsUrl } = usePlaceBooking(
+  () => props.place,
+  plan,
+)
 
 const isStay = computed(() => kind.value === 'stay')
 const icon = computed(() => (!kind.value ? ShoppingBagIcon : isStay.value ? BedDoubleIcon : CalendarCheckIcon))
@@ -42,8 +46,8 @@ const stayQuery = computed(() =>
       }
     : null,
 )
-const { data: offers, loading } = useBookingData(stayQuery, fetchStayOffers)
-const comparing = computed(() => !!offers.value || loading.value)
+const { data: offers, loading: offersLoading } = useBookingData(stayQuery, fetchStayOffers)
+const comparing = computed(() => !!offers.value || offersLoading.value)
 /** Sellers already have priced rows, so the links below would only repeat them. */
 const priced = computed(() => !!offers.value?.offers.length)
 
@@ -52,6 +56,15 @@ function linkLabel(link: { provider: string; name?: string; search?: boolean }) 
   const site = link.name ?? t(`place.booking.providers.${link.provider}`)
   return link.search ? t('place.booking.searchOn', { site }) : site
 }
+
+/** Searches sit quieter than a venue's own pages, and never beside them. */
+const searching = computed(() => links.value.some((link) => link.search))
+
+/** "Takes reservations" only repeats the title; a stronger policy is worth saying. */
+const subtitle = computed(() => {
+  if (comparing.value) return t('place.booking.offers.subtitle')
+  return policy.value && policy.value !== 'yes' && !isStay.value ? t(`place.booking.policy.${policy.value}`) : null
+})
 
 const title = computed(() => {
   if (comparing.value) return t('place.booking.offers.title')
@@ -78,7 +91,7 @@ const nightOptions = computed(() => STAY_NIGHTS.map((n) => ({ value: n, label: t
         <component :is="icon" class="size-4 shrink-0 text-muted-foreground" />
         <div class="flex flex-col min-w-0">
           <span class="font-medium text-sm">{{ title }}</span>
-          <span v-if="policy && !isStay" class="text-xs text-muted-foreground">{{ t(`place.booking.policy.${policy}`) }}</span>
+          <span v-if="subtitle" class="text-xs text-muted-foreground">{{ subtitle }}</span>
         </div>
       </div>
 
@@ -110,7 +123,7 @@ const nightOptions = computed(() => STAY_NIGHTS.map((n) => ({ value: n, label: t
         />
       </div>
 
-      <StayPrices v-if="comparing" :offers="offers" :loading="loading" class="pl-7" />
+      <StayPrices v-if="comparing" :offers="offers" :loading="offersLoading" :nights="plan.nights" class="pl-7" />
 
       <a
         v-if="priced"
@@ -123,7 +136,16 @@ const nightOptions = computed(() => STAY_NIGHTS.map((n) => ({ value: n, label: t
         <ExternalLinkIcon class="size-3" />
       </a>
 
-      <div v-else-if="links.length && !loading" class="flex flex-wrap items-center gap-2 pl-7">
+      <div v-else-if="venuesLoading && !comparing" class="flex gap-1.5 pl-7" data-testid="booking-links-skeleton">
+        <Skeleton class="h-8 w-24 rounded-md" />
+        <Skeleton class="h-8 w-20 rounded-md" />
+      </div>
+
+      <div
+        v-else-if="links.length && !offersLoading"
+        class="flex flex-wrap items-center"
+        :class="searching ? 'gap-x-1 pl-5' : 'gap-1.5 pl-7'"
+      >
         <Button
           v-for="link in links"
           :key="link.provider + (link.name ?? '')"
@@ -134,7 +156,7 @@ const nightOptions = computed(() => STAY_NIGHTS.map((n) => ({ value: n, label: t
           :variant="link.search ? 'ghost' : 'outline'"
           size="sm"
           class="gap-1.5"
-          :class="link.search && 'h-7 px-2 text-xs text-muted-foreground'"
+          :class="link.search && 'h-8 px-2 text-xs text-muted-foreground'"
           data-testid="booking-link"
         >
           <SearchIcon v-if="link.search" class="size-3.5" />
@@ -143,22 +165,24 @@ const nightOptions = computed(() => STAY_NIGHTS.map((n) => ({ value: n, label: t
         </Button>
       </div>
 
-      <div v-if="delivery.length" class="flex flex-wrap items-center gap-2 pl-7">
-        <span v-if="kind && links.length" class="w-full text-xs text-muted-foreground">{{ t('place.booking.delivery') }}</span>
-        <Button
-          v-for="link in delivery"
-          :key="link.name"
-          as="a"
-          :href="link.url"
-          target="_blank"
-          rel="noopener noreferrer"
-          variant="ghost"
-          size="sm"
-          class="h-7 gap-1.5 px-2 text-xs"
-        >
-          {{ link.name }}
-          <ExternalLinkIcon class="size-3.5 text-muted-foreground" />
-        </Button>
+      <div v-if="delivery.length" class="flex flex-col gap-0.5 pl-7">
+        <span v-if="kind && links.length" class="text-xs text-muted-foreground">{{ t('place.booking.delivery') }}</span>
+        <div class="-ml-2 flex flex-wrap items-center gap-x-1">
+          <Button
+            v-for="link in delivery"
+            :key="link.name"
+            as="a"
+            :href="link.url"
+            target="_blank"
+            rel="noopener noreferrer"
+            variant="ghost"
+            size="sm"
+            class="h-8 gap-1.5 px-2 text-xs"
+          >
+            {{ link.name }}
+            <ExternalLinkIcon class="size-3.5 text-muted-foreground" />
+          </Button>
+        </div>
       </div>
     </template>
   </PlaceSection>

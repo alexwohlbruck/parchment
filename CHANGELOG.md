@@ -13,6 +13,8 @@
 
 ### Fixed
 
+* Shadows of lampposts, benches, picnic tables and bins now start at their base, and small objects cast them at all.
+
 ## [0.27.1] - 2026-11-25
 
 ### Added

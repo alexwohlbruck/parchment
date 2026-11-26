@@ -34,14 +34,14 @@ export const SUN_SHADOW_GLSL = `
   uniform highp sampler2DShadow u_sunShadow;
   uniform float u_sunOn; // the frame's strength, 0 with no sun
   uniform float u_sunTexel;
-  uniform float u_sunBias; // depth per metre
+  uniform float u_sunBias; // depth of a texel
   float sunShade(vec4 p, float slope) {
     if (u_sunOn <= 0.0) return 0.0;
     vec3 c = p.xyz / p.w * 0.5 + 0.5;
     vec2 edge = abs(c.xy * 2.0 - 1.0);
     float reach = max(edge.x, edge.y);
     if (reach >= 1.0 || c.z > 1.0) return 0.0;
-    float z = c.z - (0.4 + 1.2 * min(slope, 4.0)) * u_sunBias;
+    float z = c.z - (0.5 + 1.0 * min(slope, 4.0)) * u_sunBias;
     float d = 0.75 * u_sunTexel;
     // Lod, not plain texture: callers sample inside a per-fragment branch.
     float lit = textureLod(u_sunShadow, vec3(c.xy + vec2(-d, -d), z), 0.0)
@@ -77,7 +77,7 @@ function emptySunTexture(gl: WebGL2RenderingContext): WebGLTexture {
 export function bindSun(gl: WebGL2RenderingContext, u: Record<string, WebGLUniformLocation | null>, frame: SunFrame | null) {
   gl.uniform1f(u.u_sunOn, frame ? frame.strength : 0)
   gl.uniform1f(u.u_sunTexel, frame ? 1 / frame.size : 0)
-  gl.uniform1f(u.u_sunBias, frame?.depthPerMetre ?? 0)
+  gl.uniform1f(u.u_sunBias, frame ? frame.depthPerMetre * frame.texelMetres : 0)
   gl.uniform1i(u.u_sunShadow, SUN_SHADOW_UNIT)
   gl.activeTexture(gl.TEXTURE0 + SUN_SHADOW_UNIT)
   gl.bindTexture(gl.TEXTURE_2D, frame ? frame.texture : emptySunTexture(gl))

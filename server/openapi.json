@@ -22429,7 +22429,7 @@
                         "security": {
                           "additionalProperties": true,
                           "maxProperties": 64,
-                          "description": "The signing key whose recovery words the user has confirmed they saved.",
+                          "description": "The signing key whose recovery words the user has confirmed they saved, and when to next remind them if not.",
                           "type": "object",
                           "properties": {}
                         }
@@ -22640,7 +22640,7 @@
                         "security": {
                           "additionalProperties": true,
                           "maxProperties": 64,
-                          "description": "The signing key whose recovery words the user has confirmed they saved.",
+                          "description": "The signing key whose recovery words the user has confirmed they saved, and when to next remind them if not.",
                           "type": "object",
                           "properties": {}
                         }
@@ -22851,7 +22851,7 @@
                         "security": {
                           "additionalProperties": true,
                           "maxProperties": 64,
-                          "description": "The signing key whose recovery words the user has confirmed they saved.",
+                          "description": "The signing key whose recovery words the user has confirmed they saved, and when to next remind them if not.",
                           "type": "object",
                           "properties": {}
                         }
@@ -23076,7 +23076,7 @@
                         "security": {
                           "additionalProperties": true,
                           "maxProperties": 64,
-                          "description": "The signing key whose recovery words the user has confirmed they saved.",
+                          "description": "The signing key whose recovery words the user has confirmed they saved, and when to next remind them if not.",
                           "type": "object",
                           "properties": {}
                         }
@@ -23287,7 +23287,7 @@
                         "security": {
                           "additionalProperties": true,
                           "maxProperties": 64,
-                          "description": "The signing key whose recovery words the user has confirmed they saved.",
+                          "description": "The signing key whose recovery words the user has confirmed they saved, and when to next remind them if not.",
                           "type": "object",
                           "properties": {}
                         }
@@ -23498,7 +23498,7 @@
                         "security": {
                           "additionalProperties": true,
                           "maxProperties": 64,
-                          "description": "The signing key whose recovery words the user has confirmed they saved.",
+                          "description": "The signing key whose recovery words the user has confirmed they saved, and when to next remind them if not.",
                           "type": "object",
                           "properties": {}
                         }
@@ -23738,7 +23738,7 @@
                       "security": {
                         "additionalProperties": true,
                         "maxProperties": 64,
-                        "description": "The signing key whose recovery words the user has confirmed they saved.",
+                        "description": "The signing key whose recovery words the user has confirmed they saved, and when to next remind them if not.",
                         "type": "object",
                         "properties": {}
                       }
@@ -23965,7 +23965,7 @@
                       "security": {
                         "additionalProperties": true,
                         "maxProperties": 64,
-                        "description": "The signing key whose recovery words the user has confirmed they saved.",
+                        "description": "The signing key whose recovery words the user has confirmed they saved, and when to next remind them if not.",
                         "type": "object",
                         "properties": {}
                       }
@@ -24192,7 +24192,7 @@
                       "security": {
                         "additionalProperties": true,
                         "maxProperties": 64,
-                        "description": "The signing key whose recovery words the user has confirmed they saved.",
+                        "description": "The signing key whose recovery words the user has confirmed they saved, and when to next remind them if not.",
                         "type": "object",
                         "properties": {}
                       }

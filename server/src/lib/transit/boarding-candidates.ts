@@ -5,6 +5,8 @@
  * or share the leg's next stop, so a rider on one that ends early can be told apart.
  */
 
+import { sameRun } from './same-run'
+
 export interface BoardDeparture {
   tripId: string
   route: {
@@ -156,11 +158,6 @@ export function latestDeparture(plannedMs: number, latestMs?: number): number {
   const usual = plannedMs + LATE_MINUTES * 60_000
   if (latestMs == null || Number.isNaN(latestMs)) return usual
   return Math.max(usual, Math.min(latestMs, plannedMs + MAX_LATE_MINUTES * 60_000))
-}
-
-/** A timetable run id (`{date}_{time}_{feed}_{trip}`) and a realtime vehicle's (`{feed}_{trip}`) name the same run. */
-export function sameRun(timetableTripId: string, vehicleTripId: string): boolean {
-  return timetableTripId === vehicleTripId || timetableTripId.endsWith(`_${vehicleTripId}`)
 }
 
 export function withPositions(candidates: BoardingCandidate[], vehicles: LiveVehicle[]): BoardingCandidate[] {

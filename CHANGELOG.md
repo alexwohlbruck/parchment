@@ -13,6 +13,8 @@
 
 ### Fixed
 
+* NYC subway trains now show on a line's map and follow your own train during navigation.
+
 ## [0.27.1] - 2026-11-25
 
 ### Added

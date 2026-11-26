@@ -2,7 +2,7 @@
 
 ### Added
 
-* When a business isn't on the map, Ask can look it up on its own website, straight from search results, showing each step as it goes. You can add the place to OpenStreetMap or leave a note for mappers.
+* When a business isn't on the map, Ask can look it up on its own website, straight from search results, showing each step as it goes. You can add the place to OpenStreetMap, updating the old entry when the map still shows a closed business at its address, or leave a note for mappers.
 
 ### Changed
 

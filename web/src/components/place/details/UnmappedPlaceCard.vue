@@ -20,8 +20,16 @@ function at() {
   return { lat: String(lat), lng: String(lng) }
 }
 
+const replaces = computed(() => props.place.unmapped?.replaces)
+
 function addToMap() {
-  router.push({ name: AppRoute.QUICK_EDIT_NEW, query: { ...at(), place: props.place.id } })
+  const query = { place: props.place.id }
+  if (replaces.value) {
+    const { type, id } = replaces.value
+    router.push({ name: AppRoute.QUICK_EDIT_ELEMENT, params: { type, id: String(id) }, query })
+  } else {
+    router.push({ name: AppRoute.QUICK_EDIT_NEW, query: { ...at(), ...query } })
+  }
 }
 
 function tellMappers() {
@@ -38,11 +46,15 @@ function tellMappers() {
   <div v-if="center" class="rounded-lg border border-dashed px-3 py-3">
     <p class="text-sm font-medium">{{ t('place.unmapped.title') }}</p>
     <p class="mt-0.5 text-sm text-muted-foreground">
-      {{ t('place.unmapped.description', { site }) }}
+      {{
+        replaces?.formerName
+          ? t('place.unmapped.replacesDescription', { site, former: replaces.formerName })
+          : t('place.unmapped.description', { site })
+      }}
     </p>
     <div class="mt-3 flex flex-wrap gap-2">
       <Button size="sm" :icon="MapPinPlusIcon" @click="addToMap">
-        {{ t('place.unmapped.add') }}
+        {{ replaces ? t('place.unmapped.update') : t('place.unmapped.add') }}
       </Button>
       <Button size="sm" variant="ghost" :icon="MessageSquarePlusIcon" @click="tellMappers">
         {{ t('place.unmapped.note') }}

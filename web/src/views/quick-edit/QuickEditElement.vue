@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -11,7 +11,9 @@ import {
   InfoIcon,
   TriangleAlertIcon,
 } from 'lucide-vue-next'
+import { AppRoute } from '@/router'
 import { useQuickEditService } from '@/services/quick-edit.service'
+import { usePlaceService } from '@/services/place/place.service'
 import { useMapService } from '@/services/map/map.service'
 import { useAppService } from '@/services/app.service'
 import { useExternalLink } from '@/composables/useExternalLink'
@@ -41,8 +43,10 @@ const props = defineProps<{
 }>()
 
 const router = useRouter()
+const route = useRoute()
 const { t } = useI18n()
 const quickEditService = useQuickEditService()
+const placeService = usePlaceService()
 const { flyTo, addVueMarker, removeMarker } = useMapService()
 const { toast } = useAppService()
 const { openExternalLink } = useExternalLink()
@@ -99,6 +103,8 @@ onMounted(async () => {
       }
     }
 
+    if (typeof route.query.place === 'string') await takeOver(route.query.place)
+
     if (
       response.element.type === 'node' &&
       response.element.lat !== undefined
@@ -111,6 +117,11 @@ onMounted(async () => {
       })
     }
   } catch (error: any) {
+    const status = error.response?.status
+    if ((status === 404 || status === 410) && typeof route.query.place === 'string') {
+      await addInstead(route.query.place)
+      return
+    }
     loadError.value = error.response?.data?.message ?? t('quickEdit.loadError')
   } finally {
     loading.value = false
@@ -143,6 +154,26 @@ function placeMarker() {
       },
     },
   )
+}
+
+/** Fills the form with a business found on its own site that now occupies this element's address. */
+async function takeOver(placeId: string) {
+  const unmapped = (await placeService.lookupPlaceById(placeId))?.unmapped
+  const replaces = unmapped?.replaces
+  if (!unmapped || replaces?.type !== props.type || String(replaces.id) !== props.id) return
+  for (const key of Object.keys(tags)) delete tags[key]
+  Object.assign(tags, unmapped.tags)
+  if (unmapped.presetId) await selectPreset({ id: unmapped.presetId } as PresetSummary)
+}
+
+/** The element is gone from OSM since our copy was taken, so the business goes in as a new place. */
+async function addInstead(placeId: string) {
+  const center = (await placeService.lookupPlaceById(placeId))?.geometry?.value?.center
+  if (!center) return
+  router.replace({
+    name: AppRoute.QUICK_EDIT_NEW,
+    query: { lat: String(center.lat), lng: String(center.lng), place: placeId },
+  })
 }
 
 function setTag(key: string, value: string | null) {

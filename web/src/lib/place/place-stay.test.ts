@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addNights, dayLabelKey, defaultPlan, groupOffers, guestMarket, tableTime, upcomingDays } from '@/lib/place/place-stay'
+import { addNights, dayLabelKey, defaultPlan, groupOffers, guestMarket, nightlyPrice, tableTime, upcomingDays } from '@/lib/place/place-stay'
 import type { StayOffer } from '@server/types/integration.types'
 
 const afternoon = new Date(2026, 10, 25, 15, 0)
@@ -81,21 +81,43 @@ describe('groupOffers', () => {
   ]
   const names = (list: StayOffer[]) => list.map(o => o.seller)
 
-  it('puts featured sellers apart and folds all but three of the rest', () => {
-    const groups = groupOffers(offers, false, false)
+  it('puts featured sellers apart, cheapest first, and folds all but three of the rest', () => {
+    const groups = groupOffers(offers, 1, false, false)
     expect(names(groups.featured)).toEqual(['Official', 'Expedia'])
-    expect(names(groups.others)).toEqual(['Super', 'Booking', 'Agoda'])
+    expect(names(groups.others)).toEqual(['Super', 'Trip', 'Booking'])
     expect(groups.hidden).toBe(2)
-    expect(groups.hiddenFrom).toEqual({ amount: 189, currency: 'USD' })
+    expect(groups.hiddenFrom).toEqual({ amount: 210, currency: 'USD' })
   })
 
   it('shows everyone when expanded', () => {
-    expect(groupOffers(offers, false, true)).toMatchObject({ hidden: 0, hiddenFrom: null })
+    expect(groupOffers(offers, 1, false, true)).toMatchObject({ hidden: 0, hiddenFrom: null })
   })
 
   it('keeps only sellers that cancel free', () => {
-    const groups = groupOffers(offers, true, false)
+    const groups = groupOffers(offers, 1, true, false)
     expect(names(groups.featured)).toEqual(['Expedia'])
     expect(names(groups.others)).toEqual(['Booking', 'Hotels'])
+  })
+})
+
+describe('nightlyPrice', () => {
+  const offer = (nightly: number, total: number | null): StayOffer => ({
+    seller: 'Expedia',
+    logo: null,
+    official: false,
+    featured: false,
+    bookHere: false,
+    nightly: { amount: nightly, currency: 'USD' },
+    total: total === null ? null : { amount: total, currency: 'USD' },
+    freeCancellation: false,
+    url: 'https://example.com',
+  })
+
+  it('spreads the total with taxes over the nights', () => {
+    expect(nightlyPrice(offer(249, 578), 2)).toEqual({ amount: 289, currency: 'USD' })
+  })
+
+  it('falls back to the rate before taxes without a total', () => {
+    expect(nightlyPrice(offer(249, null), 2)).toEqual({ amount: 249, currency: 'USD' })
   })
 })

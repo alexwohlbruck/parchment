@@ -1,6 +1,6 @@
 import type { BookingKind } from '@/lib/place/place-booking'
 import { addDays, localDay } from '@/lib/offline/expiry'
-import type { StayOffer } from '@server/types/integration.types'
+import type { StayMoney, StayOffer } from '@server/types/integration.types'
 
 /** Who is going and when. A stay lasts `nights`; a table ignores it. */
 export interface BookingPlan {
@@ -72,21 +72,29 @@ export interface OfferGroups {
   /** Sellers left out of `others` until expanded. */
   hidden: number
   /** The cheapest nightly price among the hidden sellers. */
-  hiddenFrom: StayOffer['nightly']
+  hiddenFrom: StayMoney | null
 }
 
 const SHOWN_OTHERS = 3
 
-/** Featured sellers above everyone else, optionally only those that cancel free, with the long tail folded away. */
-export function groupOffers(offers: StayOffer[], freeCancellationOnly: boolean, expanded: boolean): OfferGroups {
+/** A night's price with taxes and fees, so sellers compare like for like; the pre-tax rate only when that's all there is. */
+export function nightlyPrice(offer: StayOffer, nights: number): StayMoney | null {
+  if (!offer.total) return offer.nightly
+  return { amount: Math.round(offer.total.amount / Math.max(1, nights)), currency: offer.total.currency }
+}
+
+/** Featured sellers above everyone else cheapest first, optionally only those that cancel free, with the long tail folded away. */
+export function groupOffers(
+  offers: StayOffer[],
+  nights: number,
+  freeCancellationOnly: boolean,
+  expanded: boolean,
+): OfferGroups {
+  const price = (offer: StayOffer) => nightlyPrice(offer, nights)?.amount ?? Infinity
   const kept = freeCancellationOnly ? offers.filter(o => o.freeCancellation) : offers
   const featured = kept.filter(o => o.featured)
-  const rest = kept.filter(o => !o.featured)
+  const rest = kept.filter(o => !o.featured).sort((a, b) => price(a) - price(b))
   const others = expanded ? rest : rest.slice(0, SHOWN_OTHERS)
   const folded = rest.slice(others.length)
-  const hiddenFrom = folded
-    .map(o => o.nightly)
-    .filter((n): n is NonNullable<typeof n> => !!n)
-    .sort((a, b) => a.amount - b.amount)[0] ?? null
-  return { featured, others, hidden: folded.length, hiddenFrom }
+  return { featured, others, hidden: folded.length, hiddenFrom: folded[0] ? nightlyPrice(folded[0], nights) : null }
 }

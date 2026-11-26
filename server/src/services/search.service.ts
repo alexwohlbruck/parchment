@@ -460,17 +460,17 @@ export async function search(
   // Apply result limit
   const limitedResults = allResults.slice(0, maxResults)
 
-  // Return autocomplete format if requested
+  const intent = classifyQuery(query, {
+    language,
+    resultTitles: limitedResults.map((r) => r.title),
+  })
+
   if (autocomplete) {
-    const autocompleteResults = limitedResults.map(convertToAutocompleteResult)
     return {
       query,
-      results: autocompleteResults,
+      results: limitedResults.map(convertToAutocompleteResult),
       totalCount: allResults.length,
-      intent: classifyQuery(query, {
-        language,
-        resultTitles: limitedResults.map((r) => r.title),
-      }),
+      intent,
     } as AutocompleteResponse
   }
 
@@ -478,6 +478,7 @@ export async function search(
     query,
     results: limitedResults,
     totalCount: allResults.length,
+    intent,
     match: confidentMatch(
       query,
       scoredResults.slice(0, maxResults),

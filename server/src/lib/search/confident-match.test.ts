@@ -116,28 +116,58 @@ describe('confidentMatch', () => {
       .toBe('coords/40.7/-74')
   })
 
-  it('lists a chain', () => {
+  it('opens a brand named what was typed', () => {
     expect(confidentMatch('starbucks', [
-      result('brand', 'Starbucks'),
+      result('brand', 'Starbucks', 'Q37158'),
+      result('brand', 'Starbucks', 'name:starbucks'),
       result('place', 'Starbucks', 'node/13'),
-    ])).toBeUndefined()
+    ])).toBe('Q37158')
+  })
+
+  it('lists a chain no brand covers', () => {
     expect(confidentMatch('joes pizza', [
       result('place', "Joe's Pizza", 'node/14'),
       result('place', "Joe's Pizza", 'node/15'),
     ], CHARLOTTE)).toBeUndefined()
   })
 
-  it('lists a kind of place', () => {
+  it('opens the kind of place the query names', () => {
     expect(confidentMatch('coffee', [
       result('place', '& Coffee', 'node/16'),
-      result('category', 'Cafe', 'amenity/cafe', { relevance: 0.85 }),
-    ])).toBeUndefined()
+      result('category', 'Cafe', 'amenity/cafe', { relevance: 0.846 }),
+      result('category', 'Restaurant', 'amenity/restaurant', { relevance: 0.84 }),
+    ])).toBe('amenity/cafe')
+    expect(confidentMatch('gas station', [
+      result('category', 'Gas Station', 'amenity/fuel', { relevance: 1 }),
+      result('brand', 'Gas Station', 'name:gas station'),
+    ])).toBe('amenity/fuel')
+  })
+
+  it('ignores a category matching only loosely', () => {
+    expect(confidentMatch('target', [
+      result('brand', 'Target', 'Q1046951'),
+      result('category', 'Shooting Range', 'leisure/shooting_ground', { relevance: 0.44 }),
+    ])).toBe('Q1046951')
+  })
+
+  it('opens a transit line by name', () => {
+    expect(confidentMatch('gold line', [
+      result('transit_route', 'Gold Line', 'transit-route/f:gold', { placeType: 'transit_route' }),
+      result('place', 'Golden Corral'),
+    ], CHARLOTTE)).toBe('transit-route/f:gold')
   })
 
   it('lists when another place nearby also holds every typed word', () => {
     expect(confidentMatch('spectrum', [
       result('place', 'Spectrum Center', 'way/17'),
       result('place', 'Spectrum Store', 'node/18'),
+    ], CHARLOTTE)).toBeUndefined()
+  })
+
+  it('lists when a place elsewhere has exactly the typed name', () => {
+    expect(confidentMatch('gold line', [
+      result('place', 'Gold Line Motors', 'way/25', { at: { lat: 34.87, lng: -82.38 } }),
+      result('place', 'Gold Line', 'relation/26', { placeType: 'Line', at: { lat: 39.65, lng: -79.99 } }),
     ], CHARLOTTE)).toBeUndefined()
   })
 

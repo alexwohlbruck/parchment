@@ -102,7 +102,8 @@ function competes(top: SearchResult, other: SearchResult, center?: LatLng): bool
 
 /**
  * The top place, when no other place near enough to matter has as good a
- * name: one named exactly what was typed beats one that only contains it.
+ * name: one named exactly what was typed beats one that only contains it,
+ * wherever it is.
  */
 function nameMatch(
   query: string,
@@ -113,17 +114,20 @@ function nameMatch(
   const top = places[0]
   if (!top || !namesAll(typed, tokens(top.title))) return undefined
   const exact = normalizeName(top.title) === normalizeName(query)
+  if (!exact && places.some(p => normalizeName(p.title) === normalizeName(query))) return undefined
   const rivalName = (p: SearchResult) =>
     exact ? normalizeName(p.title) === normalizeName(query) : namesAll(typed, tokens(p.title))
   const rival = places.slice(1).some(p => rivalName(p) && competes(top, p, center))
   return rival ? undefined : top
 }
 
+const OPENABLE_TYPES = new Set<SearchResult['type']>(['place', 'transit_route', 'transit_stop'])
+
 /**
- * The one place a full search means, when it means exactly one: a typed
- * coordinate, the nearest match for a street address, or a place whose name
- * no other place nearby shares. A query naming a brand or a kind of place
- * wants a list instead.
+ * The one result a full search means, when it means exactly one: a typed
+ * coordinate, the kind of place or the brand the query names, the nearest
+ * match for a street address, or a place or transit line whose name no other
+ * place nearby shares.
  */
 export function confidentMatch(
   query: string,
@@ -135,13 +139,16 @@ export function confidentMatch(
   if (top?.id.startsWith('coords/')) return top.id
   if (normalizeName(query).length < MIN_QUERY_LENGTH) return undefined
 
-  const namesKind = scored.some(({ result, relevance }) =>
-    (result.type === 'brand' && normalizeName(result.title) === normalizeName(query)) ||
-    (result.type === 'category' && relevance >= CATEGORY_TERM_RELEVANCE))
-  if (namesKind) return undefined
+  const kind = scored.find(({ result, relevance }) =>
+    result.type === 'category' && relevance >= CATEGORY_TERM_RELEVANCE)
+  if (kind) return kind.result.id
+
+  const brand = results.find(r =>
+    r.type === 'brand' && normalizeName(r.title) === normalizeName(query))
+  if (brand) return brand.id
 
   const typed = tokens(query)
-  const places = results.filter(r => r.type === 'place')
+  const places = results.filter(r => OPENABLE_TYPES.has(r.type))
   const match = ADDRESS_QUERY.test(query)
     ? addressMatch(typed, places)
     : nameMatch(query, typed, places, center)

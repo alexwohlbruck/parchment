@@ -31,7 +31,6 @@ import type {
   DisplayChip,
   ChipSentiment,
   ChipCategory,
-  WebPlaceLookup,
 } from '@server/types/place.types'
 
 import { WidgetType, WidgetDataType } from '@server/types/place.types'
@@ -69,7 +68,6 @@ export type {
   DisplayChip,
   ChipSentiment,
   ChipCategory,
-  WebPlaceLookup,
 }
 
 export { WidgetType, WidgetDataType }

@@ -3030,7 +3030,7 @@
       "noteText": "{name} is missing from the map. Address: {address}. Website: {website}",
       "findOnWeb": "Find “{query}” on the web",
       "findOnWebHint": "For places that aren't on the map yet",
-      "finding": "Looking for its website…"
+      "askQuestion": "“{query}” isn't on the map. Can you find it on the web?"
     }
   },
   "settings": {

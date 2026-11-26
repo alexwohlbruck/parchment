@@ -2926,7 +2926,7 @@
       "noteText": "{name} no aparece en el mapa. Dirección: {address}. Sitio web: {website}",
       "findOnWeb": "Buscar “{query}” en la web",
       "findOnWebHint": "Para lugares que aún no están en el mapa",
-      "finding": "Buscando su sitio web…"
+      "askQuestion": "“{query}” no está en el mapa. ¿Puedes buscarlo en la web?"
     }
   },
   "settings": {

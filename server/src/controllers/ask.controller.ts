@@ -9,9 +9,7 @@ import { meterModel } from '../lib/ask/ask-usage'
 import { knownPlaces } from '../lib/ask/known-places'
 import { RoutingPreferencesSchema, TripModeTokenSchema, VehicleSchema } from '../types/directions-api.types'
 import { getAskPreferences } from '../services/user-preferences.service'
-import { findPlaceOnWeb, WebPlaceError } from '../services/web-place.service'
 import type { AskAccess, AskEvent } from '../types/ask.types'
-import type { TranslateFn } from '../lib/i18n/i18n.types'
 import type { Place } from '../types/place.types'
 import type { Vehicle } from '../types/trip.types'
 
@@ -19,22 +17,6 @@ const encoder = new TextEncoder()
 
 function sseFrame(event: AskEvent): Uint8Array {
   return encoder.encode(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`)
-}
-
-type Denied = Extract<AskAccess, { allowed: false }>
-
-/** Answers a user Ask can't serve right now. */
-function accessDenied(access: Denied, t: TranslateFn, status: (code: 429 | 403 | 501, body: unknown) => unknown) {
-  switch (access.reason) {
-    case 'quota-exceeded':
-      return status(429, { message: t('errors.ask.quotaExceeded'), reason: access.reason, limit: access.limit, resetsAt: access.resetsAt })
-    case 'not-permitted':
-      return status(403, { message: t('errors.ask.notPermitted'), reason: access.reason })
-    case 'turned-off':
-      return status(403, { message: t('errors.ask.turnedOff'), reason: access.reason })
-    default:
-      return status(501, { message: t('errors.ask.notConfigured'), reason: access.reason })
-  }
 }
 
 const app = new Elysia()
@@ -63,7 +45,23 @@ const app = new Elysia()
     '/ask',
     async ({ body, user, language, request, status, t }) => {
       const access = await resolveAskAccess(user.id)
-      if (!access.allowed) return accessDenied(access, t, status)
+      if (!access.allowed) {
+        switch (access.reason) {
+          case 'quota-exceeded':
+            return status(429, {
+              message: t('errors.ask.quotaExceeded'),
+              reason: access.reason,
+              limit: access.limit,
+              resetsAt: access.resetsAt,
+            })
+          case 'not-permitted':
+            return status(403, { message: t('errors.ask.notPermitted'), reason: access.reason })
+          case 'turned-off':
+            return status(403, { message: t('errors.ask.turnedOff'), reason: access.reason })
+          default:
+            return status(501, { message: t('errors.ask.notConfigured'), reason: access.reason })
+        }
+      }
 
       const meter = meterModel(access.model)
       const preferences = await getAskPreferences(user.id)
@@ -180,43 +178,6 @@ const app = new Elysia()
         summary: 'Answer a question about places',
         description:
           'Streams Server-Sent Events while a language model searches Parchment\'s place data. `step` events report each search as it runs (`running`, then `done` or `failed`); `reach` carries a travel-time polygon when the question implies one; `answer` carries a short text and the cited places, every one of which came from a search; `error` and then `done` close the stream. `history` holds earlier turns of the same conversation, oldest first. `here` and `places` give the model names (\"here\", \"home\") it can route between; their coordinates go to tools, never into the prompt. A `trip` event carries the trip the answer recommends, for opening in Directions; `route` and `canvas` events name a route or canvas saved to the user\'s library. Every question counts toward the user\'s monthly usage; on the system key, a used-up allowance returns 429 with `reason: quota-exceeded` and `resetsAt`.',
-      },
-    },
-  )
-
-  .post(
-    '/ask/web-place',
-    async ({ body, user, language, request, status, t }) => {
-      const access = await resolveAskAccess(user.id)
-      if (!access.allowed) return accessDenied(access, t, status)
-      const meter = meterModel(access.model)
-      try {
-        return await findPlaceOnWeb(body.query, {
-          near: { lat: body.lat, lng: body.lng },
-          model: meter.model,
-          language,
-          signal: request.signal,
-        })
-      } catch (error) {
-        if (error instanceof WebPlaceError) return status(400, { message: error.message })
-        throw error
-      } finally {
-        recordAskQuestion(user.id, access.keySource, meter.totals).catch((error) =>
-          logError('Recording Ask usage failed', error),
-        )
-      }
-    },
-    {
-      body: t.Object({
-        query: t.String({ minLength: 1, maxLength: 200, description: 'The business name, e.g. "Pianoland, Brooklyn"' }),
-        lat: t.Number({ minimum: -90, maximum: 90 }),
-        lng: t.Number({ minimum: -180, maximum: 180 }),
-      }),
-      detail: {
-        tags: ['Ask'],
-        summary: 'Find a business on its own website',
-        description:
-          'For a business that place search doesn\'t find: a language model finds the business\'s own website, and the place is read from that site, never from directories or review sites. `status` is `found` with a `web/…` place that isn\'t on the map yet (its `unmapped` field holds the tags a new OSM node would carry), `mapped` with the OSM place it turned out to be, or `not-found` with a `reason`. Counts as one Ask question.',
       },
     },
   )

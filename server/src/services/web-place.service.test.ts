@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { parseModelBusiness, webPlace } from './web-place.service'
+import type { Place } from '../types/place.types'
+import { addressPoint, parseModelBusiness, webPlace } from './web-place.service'
 
 describe('parseModelBusiness', () => {
   test('reads the JSON a model wraps in prose or fences', () => {
@@ -75,5 +76,25 @@ describe('webPlace', () => {
       },
       presetId: 'amenity/cafe',
     })
+  })
+})
+
+describe('addressPoint', () => {
+  const hit = (name: string, lat: number, lng: number) =>
+    ({ name: { value: name }, geometry: { value: { center: { lat, lng } } } }) as unknown as Place
+  const business = { name: 'Pianoland', types: [], address: { street: '2527 65th St, Brooklyn' } }
+
+  test('takes the geocoded point for the same house number', () => {
+    const results = [hit('65th Street', 40.62, -73.99), hit('2527 65th Street', 40.6093, -73.9735)]
+    expect(addressPoint(results, business)).toEqual({ lat: 40.6093, lng: -73.9735 })
+  })
+
+  test('falls back when no result has the house number', () => {
+    expect(addressPoint([hit('2525 65th Street', 40.6093, -73.9735)], business)).toBeUndefined()
+  })
+
+  test('trusts the site’s own coordinates over a match far from them', () => {
+    const far = { ...business, geo: { lat: 40.7, lng: -73.9 } }
+    expect(addressPoint([hit('2527 65th Street', 40.6093, -73.9735)], far)).toBeUndefined()
   })
 })

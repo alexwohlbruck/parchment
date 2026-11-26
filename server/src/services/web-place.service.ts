@@ -7,7 +7,7 @@ import { logError } from '../lib/logger'
 import { assertPublicUrl, outboundRequestConfig } from '../lib/outbound-fetch'
 import { matchTags } from '../lib/osm-presets'
 import { readSiteBusinesses, type SiteBusiness } from '../lib/web-place/schema-org'
-import { addressLine, businessTags, CATEGORY_TAGS, hasCategory } from '../lib/web-place/osm-tags'
+import { addressLine, businessTags, CATEGORY_TAGS, hasCategory, splitStreet } from '../lib/web-place/osm-tags'
 import {
   contactLinks,
   hostOf,
@@ -28,6 +28,7 @@ import type { LatLng } from '../types/ask.types'
 const MAX_DISTANCE_KM = 60
 /** A mapped place this close with the same name is the one the site describes. */
 const SAME_PLACE_M = 300
+const SITE_GEO_SLACK_KM = 2
 const FETCH_TIMEOUT_MS = 8000
 const MAX_REDIRECTS = 4
 const MAX_CONTACT_PAGES = 2
@@ -84,7 +85,7 @@ export async function findPlaceOnWeb(query: string, options: Options): Promise<W
     return { status: 'not-found', reason: `${hostOf(url)} looks like a different business (${business.name}).` }
   }
 
-  const center = business.geo ?? (await geocodeAddress(business))
+  const center = (await geocodeAddress(business)) ?? business.geo
   if (!center) return { status: 'not-found', reason: "Couldn't place its address on the map." }
   const km = distance([options.near.lng, options.near.lat], [center.lng, center.lat], { units: 'kilometers' })
   if (km > MAX_DISTANCE_KM) {
@@ -257,11 +258,28 @@ async function geocodeAddress(business: SiteBusiness): Promise<LatLng | undefine
   const line = addressLine(business.address)
   if (!line) return undefined
   try {
-    const { results } = await forwardGeocode(line)
-    return results[0]?.geometry.value.center
+    const { lat, lng } = business.geo ?? {}
+    return addressPoint((await forwardGeocode(line, lat, lng)).results, business)
   } catch {
     return undefined
   }
+}
+
+/** The geocoded point for the business's own house number, which site-authored coordinates often miss. */
+export function addressPoint(results: Place[], business: SiteBusiness): LatLng | undefined {
+  const number = business.address?.street && splitStreet(business.address.street.split(',')[0].trim())['addr:housenumber']
+  if (!number) return undefined
+  const startsWithNumber = new RegExp(`^${number.replace(/[-–]/g, '[-–]')}\\b`, 'i')
+  const match = results.find((place) =>
+    [place.name?.value, place.address?.value?.street1].some((text) => text && startsWithNumber.test(text.trim())),
+  )
+  const center = match?.geometry?.value?.center
+  if (!center) return undefined
+  const { geo } = business
+  if (geo && distance([geo.lng, geo.lat], [center.lng, center.lat], { units: 'kilometers' }) > SITE_GEO_SLACK_KM) {
+    return undefined
+  }
+  return center
 }
 
 /** A mapped place nearby with the same name, so the site describes something OSM already has. */

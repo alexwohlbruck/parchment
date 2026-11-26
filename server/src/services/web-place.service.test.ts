@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { Place } from '../types/place.types'
-import { addressMatch, geocodedAddress, parseModelBusiness, siteName, userAddress, webPlace } from './web-place.service'
+import { addressMatch, geocodedAddress, inArea, parseModelBusiness, siteName, userAddress, webPlace } from './web-place.service'
 
 describe('parseModelBusiness', () => {
   const page = `Moss Café
@@ -130,6 +130,12 @@ describe('addressMatch', () => {
     expect(addressMatch(results, business)?.geometry.value.center).toEqual({ lat: 40.6093, lng: -73.9735 })
   })
 
+  test('skips the same house number on another street', () => {
+    const avenueA = { ...business, address: { street: '119 Avenue A' } }
+    expect(addressMatch([hit('119 New York Avenue', 40.71, -73.65)], avenueA)).toBeUndefined()
+    expect(addressMatch([hit('35 Cooper Square', 40.728, -73.991)], { ...business, address: { street: '35 Cooper Sq' } })).toBeDefined()
+  })
+
   test('falls back when no result has the house number', () => {
     expect(addressMatch([hit('2525 65th Street', 40.6093, -73.9735)], business)).toBeUndefined()
   })
@@ -175,6 +181,21 @@ describe('siteName', () => {
     expect(siteName(names, 'Boogie Lab', 'bookie lab bakery')).toBe('Boogie Lab Bakery & Bistro')
   })
 
+  test('takes a longer name but not a description of the logo', () => {
+    expect(siteName(['Qahwah House', 'Qahwah House coffee cup'], 'Qahwah House', 'qahwah house')).toBe('Qahwah House')
+  })
+
+  test('extends the name only past its end, not to a sister brand', () => {
+    expect(siteName(["Ruby's", "Little Ruby's"], 'Dallas - now open!', "Ruby's cafe")).toBe("Ruby's")
+  })
+
+  test('writes a shouted name in its own case', () => {
+    expect(siteName(['SUPERIORITY BURGER', 'Superiority Burger'], 'SUPERIORITY BURGER', 'superiority burger')).toBe('Superiority Burger')
+    expect(siteName(['SMOR Bakery', 'Smør Bakery'], 'SMOR Bakery', 'smor bakery')).toBe('Smør Bakery')
+    expect(siteName(['SUPERIORITY BURGER'], 'SUPERIORITY BURGER', 'superiority burger')).toBe('Superiority Burger')
+    expect(siteName(['SEY'], 'SEY', 'sey coffee')).toBe('SEY')
+  })
+
   test('keeps the name read off the site when nothing else matches', () => {
     expect(siteName(['Welcome', 'Home'], 'Moss Café', 'moss cafe')).toBe('Moss Café')
   })
@@ -188,4 +209,18 @@ test('tags a business with the preset a model picked and the fields it checked',
   )
   expect(place.unmapped?.presetId).toBe('shop/musical_instrument')
   expect(place.unmapped?.tags).toMatchObject({ shop: 'musical_instrument', wheelchair: 'yes' })
+})
+
+describe('inArea', () => {
+  const at = (street: string, branch?: string) => ({ name: 'Joe Coffee', types: [], branch, address: { street, locality: 'New York' } })
+
+  test.each([
+    [at('141 Waverly Pl'), 'Joe Coffee, Upper West Side', false],
+    [at('514 Columbus Ave', 'Upper West Side'), 'Joe Coffee, Upper West Side', true],
+    [at('141 Waverly Pl'), 'Joe Coffee, New York', true],
+    [at('141 Waverly Pl'), 'Joe Coffee', true],
+    [at('47th & 3rd Ave'), 'Ess-a-Bagel', false],
+  ])('%#', (business, query, expected) => {
+    expect(inArea(business, query)).toBe(expected)
+  })
 })

@@ -1,3 +1,5 @@
+import { declaredNames } from './schema-org'
+
 /** Sites that list other people's businesses. Their data is copyrighted, so it never seeds an OSM edit. */
 const LISTING_SITES = new Set([
   'agoda', 'airbnb', 'allmenus', 'angi', 'apple', 'bbb', 'beyondmenu', 'bing', 'birdeye',
@@ -67,8 +69,11 @@ export function attribute(tag: string, name: string): string | undefined {
 }
 
 const TAGLINE = /\s+[|–—·:]\s+|\s+-\s+/
+/** "Bakery in New York, NY": a title describing the place rather than naming it. */
+const WHERE = /\s+in\s+[^,]+,\s*[A-Z]{2}$/
+const NOT_A_NAME = /^(?:home|homepage|welcome|logo|menu|main)$/i
 /** A country or company form a site appends to its name, "La Cabra USA" or "Joe's Pizza LLC", that the place itself isn't called. */
-const ENTITY_SUFFIX = /,?\s+(?:USA|US|UK|NYC|Inc\.?|LLC|L\.L\.C\.|Ltd\.?|Co\.?|Corp\.?|GmbH|ApS|AB|AS|BV|SA|S\.A\.|Pty)$/
+const ENTITY_SUFFIX = /,?\s+(?:USA|US|UK|NYC|Inc\.?|LLC|L\.L\.C\.|Ltd\.?|Corp\.?|GmbH|ApS|AB|AS|BV|SA|S\.A\.|Pty)$/
 
 /**
  * What the site calls itself, most deliberate first: its declared site name, its logo's
@@ -79,7 +84,10 @@ export function siteNames(html: string): string[] {
     .map(([tag]) => tag)
     .filter((tag) => /logo/i.test(tag))
     .map((tag) => logoName(decodeEntities(attribute(tag, 'alt') ?? '')))
+    // Alt text a site generated rather than wrote: "graphical user interface, text".
+    .filter((alt) => /\p{Lu}/u.test(alt))
   const sources = [
+    ...declaredNames(html),
     metaContent(html, /^og:site_name$/i),
     ...logos,
     metaContent(html, /^application-name$/i),
@@ -88,8 +96,8 @@ export function siteNames(html: string): string[] {
   ]
   const names = sources
     .flatMap((text) => text?.split(TAGLINE) ?? [])
-    .map((name) => name.replace(/\s+/g, ' ').trim().replace(ENTITY_SUFFIX, ''))
-    .filter((name) => name && name.length <= 60)
+    .map((name) => name.replace(/\s+/g, ' ').trim().replace(ENTITY_SUFFIX, '').replace(/[,;:]+$|(?<=\p{L}{5})\.$/u, ''))
+    .filter((name) => name && name.length <= 60 && !NOT_A_NAME.test(name) && !WHERE.test(name))
   return [...new Set(names)]
 }
 
@@ -98,7 +106,9 @@ function logoName(alt: string): string {
   return alt
     .replace(/\([^)]*\)/g, ' ')
     .replace(/^(?:the\s+)?logo\s+(?:of|for)\s+/i, '')
-    .replace(/\s+(?:brand\s+)?logo\b.*$/i, '')
+    .replace(/\s+(?:brand\s+)?logo(?:type)?\b.*$/i, '')
+    // A logo linking home: "Fairfax Home".
+    .replace(/\s+home(?:page)?$/i, '')
     .trim()
 }
 
@@ -132,7 +142,7 @@ export function contactLinks(html: string, base: string): string[] {
     if (!CONTACT.test(words)) continue
     try {
       const url = new URL(href, base)
-      if (/^https?:$/.test(url.protocol) && hostOf(url.href) === host) {
+      if (/^https?:$/.test(url.protocol) && sameSite(hostOf(url.href), host)) {
         url.hash = ''
         if (url.href !== new URL(base).href) {
           links.set(url.href, Math.min(links.get(url.href) ?? 1, ADDRESS_PAGE.test(words) ? 0 : 1))
@@ -143,12 +153,42 @@ export function contactLinks(html: string, base: string): string[] {
   return [...links].sort((a, b) => a[1] - b[1]).map(([url]) => url)
 }
 
+function plainText(html: string): string {
+  return decodeEntities(html).replace(/\s+/g, ' ').trim()
+}
+
+/** One host, or one a subdomain of the other: "locations.princestreetpizza.com" and "princestreetpizza.com". */
+function sameSite(a: string | undefined, b: string | undefined): boolean {
+  return !!a && !!b && (a === b || a.endsWith(`.${b}`) || b.endsWith(`.${a}`))
+}
+
+/** Every same-site link with its visible text, for picking one location's own page. */
+export function siteLinks(html: string, base: string): { url: string; label: string }[] {
+  const host = hostOf(base)
+  const links = new Map<string, string>()
+  for (const [tag, href, inner] of html.matchAll(/<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
+    try {
+      const url = new URL(href, base)
+      url.hash = ''
+      if (!/^https?:$/.test(url.protocol) || !sameSite(hostOf(url.href), host) || links.get(url.href)) continue
+      const label = plainText(inner.replace(/<[^>]+>/g, ' ')) || plainText(attribute(tag, 'aria-label') ?? '')
+      links.set(url.href, label || links.get(url.href) || '')
+    } catch {}
+  }
+  return [...links].map(([url, label]) => ({ url, label }))
+}
+
 /** Lower case, accents and punctuation gone, "&" read as "and". */
 export function normalizeName(name: string): string {
   return name
     .normalize('NFKD')
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
+    .replace(/[øœ]/g, 'o')
+    .replace(/æ/g, 'ae')
+    .replace(/ß/g, 'ss')
+    .replace(/ł/g, 'l')
+    .replace(/['’]/g, '')
     .replace(/&/g, ' and ')
     .replace(/[^a-z0-9]+/g, ' ')
     .replace(/^the /, '')
@@ -167,6 +207,15 @@ export function sameName(a: string, b: string): boolean {
  * "bookie lab bakery" for "Boogie Lab Bakery & Bistro".
  */
 export function typedName(typed: string, name: string): boolean {
+  if (spelledAs(typed, name)) return true
+  const bare = normalizeName(typed.replace(KIND_WORDS, ''))
+  return !!bare && bare === normalizeName(name.replace(KIND_WORDS, ''))
+}
+
+/** What kind of place it is, typed after its name: "Ruby's cafe" for a site that says "Ruby's". */
+const KIND_WORDS = /(?:\s+(?:cafe|café|coffee|restaurant|bakery|bar|pub|bistro|diner|deli|pizzeria|shop|store))+$/i
+
+function spelledAs(typed: string, name: string): boolean {
   if (sameName(typed, name)) return true
   const [want, have] = [normalizeName(typed).split(' '), normalizeName(name).split(' ')]
   if (!want[0] || !have[0]) return false

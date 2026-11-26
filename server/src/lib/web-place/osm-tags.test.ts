@@ -45,6 +45,9 @@ describe('splitStreet', () => {
     ['Hauptstraße 5', { 'addr:housenumber': '5', 'addr:street': 'Hauptstraße' }],
     ['Pier 39', { 'addr:housenumber': '39', 'addr:street': 'Pier' }],
     ['The Arcade', { 'addr:street': 'The Arcade' }],
+    ['Århusgade 48 st. th', { 'addr:housenumber': '48', 'addr:street': 'Århusgade' }],
+    ['Vesterbrogade 12, 2. tv', { 'addr:housenumber': '12', 'addr:street': 'Vesterbrogade' }],
+    ['Calle 5 de Mayo 12', { 'addr:housenumber': '12', 'addr:street': 'Calle 5 de Mayo' }],
   ])('%s', (line, expected) => {
     expect(splitStreet(line)).toEqual(expected)
   })

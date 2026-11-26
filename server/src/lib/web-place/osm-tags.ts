@@ -1,4 +1,4 @@
-import type { SiteBusiness } from './schema-org'
+import { compactHours, type SiteBusiness } from './schema-org'
 import { BUSINESS_KEYS, isOsmHours, presetTags } from './preset-schema'
 
 /** schema.org business types and the OSM tags that say the same thing. */
@@ -91,7 +91,7 @@ export function businessTags(business: SiteBusiness, website: string): Record<st
   if (business.phone) tags.phone = business.phone
   if (business.email) tags.email = business.email
   if (business.branch && business.branch !== business.name) tags.branch = business.branch
-  if (business.openingHours && isOsmHours(business.openingHours)) tags.opening_hours = business.openingHours
+  if (business.openingHours && isOsmHours(business.openingHours)) tags.opening_hours = compactHours(business.openingHours)
   if (business.cuisine?.length && SERVES_FOOD.has(category?.amenity ?? '')) {
     tags.cuisine = business.cuisine.map((item) => item.toLowerCase().replace(/[\s-]+/g, '_')).join(';')
   }
@@ -126,15 +126,23 @@ function addressTags(address: SiteBusiness['address']): Record<string, string> {
 export function splitStreet(line: string): Record<string, string> {
   const leading = line.match(/^(\d+[A-Za-z]?(?:[-–]\d+[A-Za-z]?)?)\s+(.+)$/)
   if (leading) return { 'addr:housenumber': leading[1], 'addr:street': leading[2] }
-  const trailing = line.match(/^(.+?)\s+(\d+[A-Za-z]?(?:[-–]\d+[A-Za-z]?)?)$/)
+  const trailing = withoutFloor(line).match(/^(.+?)\s+(\d+[A-Za-z]?(?:[-–]\d+[A-Za-z]?)?)$/)
   if (trailing) return { 'addr:housenumber': trailing[2], 'addr:street': trailing[1] }
   return { 'addr:street': line }
 }
 
-/** The address as one line, for geocoding. */
+/** A floor and door after the house number, "Århusgade 48 st. th" or "Vesterbrogade 12, 2. tv", which no geocoder reads. */
+const FLOOR = /^(.+?\s\d+[A-Za-z]?),?(?:\s+(?:st|kl|th|tv|mf|sal|\d{1,2})\.?){1,3}$/i
+
+function withoutFloor(line: string): string {
+  return line.match(FLOOR)?.[1] ?? line
+}
+
+/** The address as one line, for geocoding. A country after the postcode throws Nominatim off: "…, SE1 9AB, GB" finds nothing. */
 export function addressLine(address: SiteBusiness['address']): string | undefined {
   if (!address?.street) return undefined
-  return [address.street, address.locality, address.region, address.postalCode, address.country]
+  const country = address.locality || address.postalCode ? undefined : address.country
+  return [withoutFloor(address.street), address.locality, address.region, address.postalCode, country]
     .filter(Boolean)
     .join(', ')
 }

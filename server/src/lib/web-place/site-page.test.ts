@@ -47,7 +47,7 @@ describe('contactLinks', () => {
 
 describe('sameName', () => {
   test.each([
-    ["Joe's Pizza", 'joes pizza', false],
+    ["Joe's Pizza", 'joes pizza', true],
     ["Joe's Pizza", "Joe's Pizza Brooklyn", true],
     ['The Crêpe Shop', 'Crepe Shop', true],
     ['Bread & Butter', 'Bread and Butter Café', true],
@@ -67,6 +67,10 @@ describe('typedName', () => {
     ['cafe 12', 'Cafe 13', false],
     ['joes pizza', 'Moes Pizza', false],
     ['sushi palace', 'Pizza Palace', false],
+    ["Ruby's cafe", "Ruby's", true],
+    ['rolos restaurant', "Rolo's", true],
+    ['moss bakery', 'Moss Café', true],
+    ['moss bakery', 'Kate Moss Studio', false],
   ])('%s / %s', (typed, name, same) => {
     expect(typedName(typed, name)).toBe(same)
   })
@@ -76,11 +80,26 @@ describe('siteNames', () => {
   test('drops a country or company form from the name', () => {
     expect(siteNames('<meta property="og:site_name" content="La Cabra USA"><title>La Cabra</title>')).toEqual(['La Cabra'])
     expect(siteNames("<title>Joe's Pizza LLC</title>")).toEqual(["Joe's Pizza"])
+    expect(siteNames('<title>Clinton St. Baking Co.</title>')).toEqual(['Clinton St. Baking Co.'])
+    expect(siteNames('<title>Five Elephant.</title>')).toEqual(['Five Elephant'])
   })
 
   test('reads only the name out of a logo’s alt text', () => {
     expect(siteNames('<img src="a" alt="Cafe Wands logo (ornament-stacked)">')).toEqual(['Cafe Wands'])
     expect(siteNames('<img class="logo" src="a" alt="Logo of Moss Café">')).toEqual(['Moss Café'])
+    expect(siteNames('<img class="logo" src="a" alt="Du Pain et des Idées logotype">')).toEqual(['Du Pain et des Idées'])
+  })
+
+  test('drops a logo linking home, generated alt text and titles that describe rather than name', () => {
+    const html = `<title>Home | Smør Bakery in New York, NY</title>
+      <img class="logo" src="a" alt="Fairfax Home"><img class="logo" src="b" alt="graphical user interface, text">`
+    expect(siteNames(html)).toEqual(['Fairfax'])
+  })
+
+  test('leads with the name its JSON-LD declares', () => {
+    const html = `<title>Dallas - now open!</title>
+      <script type="application/ld+json">{"@type":"Organization","name":"Ruby's","legalName":"Ruby's Cafe LLC"}</script>`
+    expect(siteNames(html)).toEqual(["Ruby's", "Ruby's Cafe", 'Dallas', 'now open!'])
   })
 
   test('puts the declared site name and logo before the title, splitting off taglines', () => {

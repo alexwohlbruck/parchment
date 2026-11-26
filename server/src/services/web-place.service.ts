@@ -26,8 +26,10 @@ import {
   hostOf,
   isListingSite,
   pageText,
+  siteLinks,
   siteNames,
   sameName,
+  normalizeName,
   typedName,
 } from '../lib/web-place/site-page'
 import { OverpassAdapter } from './integrations/adapters/overpass-adapter'
@@ -49,6 +51,8 @@ const SITE_GEO_SLACK_KM = 2
 const FETCH_TIMEOUT_MS = 8000
 const MAX_REDIRECTS = 4
 const MAX_CONTACT_PAGES = 2
+const MAX_BRANCH_LINKS = 300
+const LOCATIONS_PAGE = /locations?|stores?|cafes|shops|visit|find-?us/i
 /** Reasoning models spend most of these thinking before they answer. */
 const SITE_TOKENS = 1000
 const READ_TOKENS = 3000
@@ -120,8 +124,8 @@ export async function findPlaceOnWeb(query: string, options: Options): Promise<W
 
   const from = business.addressFrom && ADDRESS_FROM[business.addressFrom]
   options.progress?.('locate', [addressLine(business.address), from].filter(Boolean).join(' · '))
-  const geocoded = await geocodeAddress(business)
-  if (geocoded?.match) business = { ...business, address: geocodedAddress(business.address, geocoded.match) }
+  const geocoded = await geocodeAddress(business, options.near)
+  if (geocoded) business = { ...business, address: geocodedAddress(business.address, geocoded.match) }
   const center = geocoded?.center ?? business.geo
   if (!center) return { status: 'not-found', reason: "Couldn't place its address on the map." }
   const km = distance([options.near.lng, options.near.lat], [center.lng, center.lat], { units: 'kilometers' })
@@ -198,35 +202,60 @@ export function userAddress(line: string): NonNullable<SiteBusiness['address']> 
   }
 }
 
-/** The site's fullest spelling of its name, over the spelling a search was typed with. */
+/**
+ * The site's fullest spelling of its name, over the spelling a search was typed with:
+ * "Boogie Lab Bakery & Bistro" for "Boogie Lab", in its own case rather than its logo's capitals.
+ */
 export function siteName(names: string[], read: string, typed: string): string {
   const named = names.find((candidate) => sameName(candidate, read) || typedName(typed, candidate))
-  if (!named) return read
-  return names
-    .filter((candidate) => sameName(candidate, named))
-    .reduce((longest, candidate) => (candidate.length > longest.length ? candidate : longest))
+  if (!named) return signCase(read)
+  const base = normalizeName(named)
+  const fuller = names.filter((candidate) => {
+    const name = normalizeName(candidate)
+    // A longer name, not a description: "Bakery & Bistro" after "Boogie Lab", never "coffee cup".
+    return name === base || (name.startsWith(`${base} `) && /^[\p{Lu}\d&+]/u.test(candidate.slice(named.length).trim()))
+  })
+  const longest = Math.max(...fuller.map((candidate) => normalizeName(candidate).length))
+  const [best] = fuller
+    .filter((candidate) => normalizeName(candidate).length === longest)
+    .sort((a, b) => capitalWords(a) - capitalWords(b))
+  return signCase(best)
+}
+
+function capitalWords(name: string): number {
+  return name.split(/\s+/).filter((word) => /\p{L}{2}/u.test(word) && word === word.toUpperCase()).length
+}
+
+/** "SUPERIORITY BURGER" as "Superiority Burger"; a short acronym like "SEY" or "NYC" stays. */
+function signCase(name: string): string {
+  const words = name.split(/\s+/).filter((word) => /\p{L}/u.test(word))
+  const shouting = words.length && capitalWords(name) === words.length && words.some((word) => word.length > 3)
+  return shouting ? titleCase(name) : name
 }
 
 /** The site's own description of the business: its JSON-LD, else what the model reads off its pages. */
 async function readSite(website: string, query: string, options: Options) {
-  const name = query.split(',')[0].trim()
   options.progress?.('read', hostOf(website) ?? website)
   const home = await fetchPage(website, options.signal)
   if (!home) return null
   const pages = [home]
-  let business = pickBusiness(readSiteBusinesses(home.html), name, options.near)
+  let business = pickBusiness(readSiteBusinesses(home.html), query, options.near)
   for (const link of contactLinks(home.html, home.url).slice(0, MAX_CONTACT_PAGES)) {
     if (business?.address) break
     const page = await fetchPage(link, options.signal)
     if (!page) continue
     pages.push(page)
-    business = pickBusiness(readSiteBusinesses(page.html), name, options.near) ?? business
+    business = pickBusiness(readSiteBusinesses(page.html), query, options.near) ?? business
   }
   const text = pagesText(pages)
   if (!business || !hasCategory(business)) {
     options.progress?.('classify', business ? 'Its structured data doesn’t say what kind of place it is' : 'It has no structured data')
     const read = await readWithModel(text, query, options)
     business = business && read ? { ...business, preset: read.preset } : (business ?? read ?? undefined)
+  }
+  if (business && !options.address && !inArea(business, query)) {
+    const branch = await readBranchPage(pages, query, options)
+    if (branch?.address?.street) business = { ...branch, preset: branch.preset ?? business.preset }
   }
   if (business && !business.address?.street && !options.address) {
     const address = await readImageAddress(pages, options)
@@ -236,9 +265,12 @@ async function readSite(website: string, query: string, options: Options) {
   return business ? { business, url: home.url, names: siteNames(home.html) } : null
 }
 
-function pickBusiness(found: SiteBusiness[], name: string, near: LatLng): SiteBusiness | undefined {
+function pickBusiness(found: SiteBusiness[], query: string, near: LatLng): SiteBusiness | undefined {
+  const name = query.split(',')[0].trim()
   const named = found.filter((business) => typedName(name, business.name))
-  const pool = named.length ? named : found
+  const candidates = named.length ? named : found
+  const there = candidates.filter((business) => inArea(business, query))
+  const pool = there.length ? there : candidates
   const km = (business: SiteBusiness) =>
     business.geo
       ? distance([near.lng, near.lat], [business.geo.lng, business.geo.lat], { units: 'kilometers' })
@@ -279,13 +311,13 @@ async function fetchPage(start: string, signal?: AbortSignal): Promise<Page | nu
 
 const READ_BRIEF = `Read this business's own web pages and reply with one JSON object only:
 {"name","branch","preset","street","city","region","postcode","country","phone","email","opening_hours","hours_quote","closed","opens_soon"}
-- When the pages list several locations, describe only the one being looked for: the one its neighbourhood or city names, else the nearest to where it was searched. Its street, hours and phone must all be that location's.
+- When the pages list several locations, describe only the one being looked for: the one its neighbourhood or city names, else the nearest to where it was searched. Its street, hours and phone must all be that location's. If the search names a neighbourhood or city and no location on the pages is there, street is null.
 - name: the business's name without the location, e.g. "La Cabra"
 - branch: that location's own name when the pages list several, e.g. "Chelsea"; null when there is only one
 - preset: the OpenStreetMap preset that fits it best, copied exactly from the list below, or null if none fits
 - street: house number and street as the page writes them, e.g. "123 Main Street"
 - country: ISO 3166 two-letter code
-- opening_hours: OpenStreetMap opening_hours syntax, e.g. "Mo-Fr 09:00-17:00; Sa 10:00-14:00"
+- opening_hours: OpenStreetMap opening_hours syntax, e.g. "Mo-Fr 09:00-17:00; Sa 10:00-14:00". A later rule replaces earlier ones for its days, so give a day with two sittings both ranges in one rule: "We-Sa 08:30-15:30,17:30-22:00"
 - hours_quote: the exact words on the page the hours come from
 - closed: true only if the pages say it has closed for good
 - opens_soon: true only if the pages say it hasn't opened yet, e.g. "coming soon" or "opening this fall"
@@ -304,6 +336,60 @@ async function readWithModel(text: string, query: string, { model, near, signal 
     signal,
   })
   return parseModelBusiness(message.content ?? '', text)
+}
+
+/** True when the location read is in the area the search names after a comma, "Joe Coffee, Upper West Side". */
+export function inArea(business: SiteBusiness, query: string): boolean {
+  if (!business.address?.street || !splitStreet(business.address.street)['addr:housenumber']) return false
+  const area = normalizeName(query.split(',').slice(1).join(' '))
+  if (!area) return true
+  const where = ` ${normalizeName([business.branch, business.address.street, business.address.locality, business.address.region].join(' '))} `
+  return area.split(' ').every((word) => where.includes(` ${word} `))
+}
+
+const BRANCH_BRIEF = `These are the links on a business's website. Reply with only the URL of the page for the one location being looked for: the one in the area the search names, else the nearest to where it was searched. Reply NONE if no link is a single location's own page.`
+
+/** The page of the one location the search names, when the pages read so far only list the locations. */
+async function readBranchPage(pages: Page[], query: string, options: Options): Promise<SiteBusiness | null> {
+  if (!options.model) return null
+  const read = new Set(pages.map((page) => page.url))
+  const directory = contactLinks(pages[0].html, pages[0].url).find((url) => !read.has(url) && LOCATIONS_PAGE.test(url))
+  const listed = directory && (await fetchPage(directory, options.signal))
+  if (listed) {
+    pages.push(listed)
+    read.add(listed.url)
+  }
+  // A locations page lists its branches; the homepage mostly links to everything else.
+  const links = [...pages]
+    .reverse()
+    .flatMap((page) => siteLinks(page.html, page.url))
+    .filter((link, index, all) => !read.has(link.url) && all.findIndex((other) => other.url === link.url) === index)
+    .slice(0, MAX_BRANCH_LINKS)
+  if (!links.length) return null
+  try {
+    const { message } = await options.model.complete({
+      messages: [
+        { role: 'system', content: BRANCH_BRIEF },
+        {
+          role: 'user',
+          content: `Looking for: ${query}, searched near ${options.near.lat.toFixed(4)}, ${options.near.lng.toFixed(4)}\n\n${links.map((link) => `${link.url} ${link.label}`).join('\n')}`,
+        },
+      ],
+      maxTokens: SITE_TOKENS,
+      signal: options.signal,
+    })
+    const url = message.content?.match(/https?:\/\/\S+/)?.[0]
+    const chosen = url && links.find((link) => link.url === url.replace(/[)>.,]+$/, ''))
+    if (!chosen) return null
+    options.progress?.('read', chosen.url.replace(/^https?:\/\/(?:www\.)?/, '').replace(/\/$/, ''))
+    const page = await fetchPage(chosen.url, options.signal)
+    if (!page) return null
+    pages.push(page)
+    return readWithModel(pagesText([page]), query, options)
+  } catch (error) {
+    if (!options.signal?.aborted) logError('Failed to pick a location’s page', error)
+    return null
+  }
 }
 
 const IMAGE_BRIEF = `These images are from a business's own website. If one shows the business's street address, reply with one JSON object only, copying exactly what the image shows:
@@ -509,29 +595,25 @@ async function readFields(business: SiteBusiness, text: string, { model, signal,
   }
 }
 
-async function geocodeAddress(business: SiteBusiness): Promise<{ center: LatLng; match?: Place } | undefined> {
+async function geocodeAddress(business: SiteBusiness, near: LatLng): Promise<{ center: LatLng; match: Place } | undefined> {
   const line = addressLine(business.address)
   if (!line) return undefined
   try {
-    const { lat, lng } = business.geo ?? {}
-    const { results } = await forwardGeocode(line, lat, lng)
+    const { lat, lng } = business.geo ?? near
+    const { results } = await forwardGeocode(line, lat, lng, (found) => !!addressMatch(found, business))
     const match = addressMatch(results, business)
-    if (match) return { center: match.geometry.value.center, match }
-    const loose = business.geo || business.addressFrom
-    const top = results[0]?.geometry.value.center
-    return !loose && top ? { center: top } : undefined
+    return match && { center: match.geometry.value.center, match }
   } catch {
     return undefined
   }
 }
 
-/** The geocoded result for the business's own house number, which site-authored coordinates often miss. */
+/** The geocoded result for the business's own house on its own street, which site-authored coordinates often miss. */
 export function addressMatch(results: Place[], business: SiteBusiness): Place | undefined {
-  const number = business.address?.street && splitStreet(business.address.street.split(',')[0].trim())['addr:housenumber']
-  if (!number) return undefined
-  const startsWithNumber = new RegExp(`^${number.replace(/[-–]/g, '[-–]')}\\b`, 'i')
+  const street = business.address?.street
+  if (!street) return undefined
   const match = results.find((place) =>
-    [place.name?.value, place.address?.value?.street1].some((text) => text && startsWithNumber.test(text.trim())),
+    [place.address?.value?.street1, place.name?.value].some((text) => text && sameAddress(splitStreet(text.trim()), street)),
   )
   const center = match?.geometry?.value?.center
   if (!center) return undefined
@@ -560,7 +642,9 @@ export function geocodedAddress(address: SiteBusiness['address'], match: Place):
 
 /** "BROOKLYN" as "Brooklyn"; anything already in mixed case stays as written. */
 function titleCase(text: string): string {
-  return text === text.toUpperCase() ? text.toLowerCase().replace(/\b\p{L}/gu, (letter) => letter.toUpperCase()) : text
+  return text === text.toUpperCase()
+    ? text.toLowerCase().replace(/(^|[\s\-/])(\p{L})/gu, (_, before, letter) => before + letter.toUpperCase())
+    : text
 }
 
 /** A node or way at the business's address with no business on it now, nodes first, then nearest. */

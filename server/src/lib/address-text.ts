@@ -25,7 +25,10 @@ export function normalizeText(text: string): string {
  */
 export function normalizeStreetName(street: string): string {
   return (
-    normalizeText(street)
+    normalizeText(street.replace(/ß/g, 'ss'))
+      .replace(/\bstr\b/g, 'strasse')
+      .replace(/(\p{L})str\b/gu, '$1strasse')
+      .replace(/\bbd\b/g, 'boulevard')
       // Normalize directional abbreviations
       .replace(/\b(n|north)\b/g, 'north')
       .replace(/\b(s|south)\b/g, 'south')
@@ -44,6 +47,9 @@ export function normalizeStreetName(street: string): string {
       .replace(/\b(ct|court)\b/g, 'court')
       .replace(/\b(pl|place)\b/g, 'place')
       .replace(/\b(blvd|boulevard)\b/g, 'boulevard')
+      .replace(/\b(sq|square)\b/g, 'square')
+      .replace(/\b(pkwy|parkway)\b/g, 'parkway')
+      .replace(/\b(hwy|highway)\b/g, 'highway')
       // Remove unit/apartment info for comparison
       .replace(/\b(unit|apt|apartment|suite|ste)\s+\w+/g, '')
       .trim()

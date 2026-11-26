@@ -1,5 +1,5 @@
 import type { SiteBusiness } from './schema-org'
-import { isOsmHours, presetTags } from './preset-schema'
+import { BUSINESS_KEYS, isOsmHours, presetTags } from './preset-schema'
 
 /** schema.org business types and the OSM tags that say the same thing. */
 export const CATEGORY_TAGS: Record<string, Record<string, string>> = {
@@ -95,6 +95,13 @@ export function businessTags(business: SiteBusiness, website: string): Record<st
     tags.cuisine = business.cuisine.map((item) => item.toLowerCase().replace(/[\s-]+/g, '_')).join(';')
   }
   return tags
+}
+
+/** A business that hasn't opened yet, as OSM's lifecycle prefix maps it: `construction:amenity=cafe`. */
+export function notYetOpenTags(tags: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(tags).map(([key, value]) => [BUSINESS_KEYS.has(key) ? `construction:${key}` : key, value]),
+  )
 }
 
 const UNIT = /^(?:suite|ste\.?|unit|apt\.?|#)\s*(.+)$/i

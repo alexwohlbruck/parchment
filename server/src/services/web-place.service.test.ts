@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { Place } from '../types/place.types'
-import { addressPoint, parseModelBusiness, siteName, webPlace } from './web-place.service'
+import { addressMatch, geocodedAddress, parseModelBusiness, siteName, userAddress, webPlace } from './web-place.service'
 
 describe('parseModelBusiness', () => {
   const page = `Moss Café
@@ -37,12 +37,29 @@ Open weekdays 7am – 2pm`
     expect(parseModelBusiness(reply, page)?.openingHours).toBeUndefined()
   })
 
-  test('needs a name and a street that are on the page', () => {
-    expect(parseModelBusiness('{"name":"Moss Café","street":null}', page)).toBeNull()
-    expect(parseModelBusiness('{"name":"Moss Café","street":"12 Pine Road"}', page)).toBeNull()
+  test('needs a name that is on the page', () => {
     expect(parseModelBusiness('{"name":"Fern Bakery","street":"8 Elm St"}', page)).toBeNull()
     expect(parseModelBusiness('no idea', page)).toBeNull()
   })
+
+  test('keeps the business but not a street the page never states, so its images can be read', () => {
+    expect(parseModelBusiness('{"name":"Moss Café","street":"12 Pine Road"}', page)?.address?.street).toBeUndefined()
+    expect(parseModelBusiness('{"name":"Moss Café","street":null}', page)?.name).toBe('Moss Café')
+  })
+
+  test('notes a site that says it is opening soon', () => {
+    expect(parseModelBusiness('{"name":"Moss Café","opens_soon":true}', page)?.opensSoon).toBe(true)
+  })
+})
+
+test('maps a business that is opening soon under a construction prefix', () => {
+  const place = webPlace(
+    { name: 'Cafe Wands', types: [], preset: 'amenity/cafe', opensSoon: true, address: { street: '215 Union St' } },
+    'https://cafewands.example/',
+    { lat: 40.6835, lng: -73.9967 },
+  )
+  expect(place.unmapped).toMatchObject({ opensSoon: true, tags: { 'construction:amenity': 'cafe' } })
+  expect(place.unmapped?.tags.amenity).toBeUndefined()
 })
 
 test('leaves the type to the mapper when the site says only that it is a business', () => {
@@ -94,23 +111,48 @@ describe('webPlace', () => {
   })
 })
 
-describe('addressPoint', () => {
+describe('addressMatch', () => {
   const hit = (name: string, lat: number, lng: number) =>
     ({ name: { value: name }, geometry: { value: { center: { lat, lng } } } }) as unknown as Place
   const business = { name: 'Pianoland', types: [], address: { street: '2527 65th St, Brooklyn' } }
 
   test('takes the geocoded point for the same house number', () => {
     const results = [hit('65th Street', 40.62, -73.99), hit('2527 65th Street', 40.6093, -73.9735)]
-    expect(addressPoint(results, business)).toEqual({ lat: 40.6093, lng: -73.9735 })
+    expect(addressMatch(results, business)?.geometry.value.center).toEqual({ lat: 40.6093, lng: -73.9735 })
   })
 
   test('falls back when no result has the house number', () => {
-    expect(addressPoint([hit('2525 65th Street', 40.6093, -73.9735)], business)).toBeUndefined()
+    expect(addressMatch([hit('2525 65th Street', 40.6093, -73.9735)], business)).toBeUndefined()
   })
 
   test('trusts the site’s own coordinates over a match far from them', () => {
     const far = { ...business, geo: { lat: 40.7, lng: -73.9 } }
-    expect(addressPoint([hit('2527 65th Street', 40.6093, -73.9735)], far)).toBeUndefined()
+    expect(addressMatch([hit('2527 65th Street', 40.6093, -73.9735)], far)).toBeUndefined()
+  })
+})
+
+test('spells the address the way the geocoder does, keeping the unit', () => {
+  const match = {
+    name: { value: '215 Union Street' },
+    address: { value: { street1: '215 Union Street', locality: 'New York', region: 'NY', postalCode: '11231' } },
+  } as unknown as Place
+  expect(geocodedAddress({ street: '215 UNION ST, Suite 2', locality: 'BROOKLYN' }, match)).toEqual({
+    street: '215 Union Street, Suite 2',
+    locality: 'Brooklyn',
+    region: 'NY',
+    postalCode: '11231',
+  })
+})
+
+describe('userAddress', () => {
+  test('reads a typed address into street, city, state and postcode', () => {
+    expect(userAddress('215 Union St, Brooklyn')).toEqual({ street: '215 Union St', locality: 'Brooklyn', region: undefined, postalCode: undefined })
+    expect(userAddress('215 Union St, Brooklyn, NY 11231')).toEqual({
+      street: '215 Union St',
+      locality: 'Brooklyn',
+      region: 'NY',
+      postalCode: '11231',
+    })
   })
 })
 

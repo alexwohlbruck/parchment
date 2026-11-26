@@ -15,6 +15,7 @@ const STAGE_LABELS: Record<WebPlaceStage, string> = {
   site: 'Finding its own site',
   read: 'Reading its site',
   classify: 'Working out what it is',
+  images: 'Looking for its address in its images',
   fields: 'Checking OSM tags',
   locate: 'Placing its address',
   map: 'Checking the map',
@@ -40,7 +41,7 @@ function stageSteps(context: AskContext) {
   }
 }
 
-const findPlaceOnWebTool: AskTool<{ query: string; near?: PointArg; website?: string }> = {
+const findPlaceOnWebTool: AskTool<{ query: string; near?: PointArg; website?: string; address?: string }> = {
   name: 'find_place_on_web',
   description:
     "Last resort for a named business that find_places can't find: finds the business's own website and reads the place from it. Returns a place you can cite that isn't on the map yet (the app offers to add it), the mapped place if the map has it after all, or why it couldn't be confirmed.",
@@ -56,22 +57,28 @@ const findPlaceOnWebTool: AskTool<{ query: string; near?: PointArg; website?: st
         type: 'string',
         description: "The business's own website, when already known. Never a directory, review or social media page.",
       },
+      address: {
+        type: 'string',
+        description:
+          'The street address, only when the user gave it, e.g. "215 Union St, Brooklyn". Pass it with the website from an earlier lookup when the site gave none.',
+      },
     },
     required: ['query'],
   },
   label: () => 'Looking it up on the web',
   detail: ({ query }) => query,
-  async run({ query, near, website }, context) {
+  async run({ query, near, website, address }, context) {
     const origin = await centre(near, context)
     const steps = stageSteps(context)
     const lookup = await cached(
       'find_place_on_web',
-      { query, website, origin: { lat: origin.lat.toFixed(2), lng: origin.lng.toFixed(2) } },
+      { query, website, address, origin: { lat: origin.lat.toFixed(2), lng: origin.lng.toFixed(2) } },
       { language: context.language },
       () =>
         findPlaceOnWeb(query, {
           near: origin,
           website,
+          address,
           progress: steps.report,
           model: context.model,
           language: context.language,
@@ -95,6 +102,7 @@ const findPlaceOnWebTool: AskTool<{ query: string; near?: PointArg; website?: st
           status: 'not-on-map',
           place: summary,
           website: place.contactInfo.website?.value,
+          ...(place.unmapped?.opensSoon && { opensSoon: true }),
           alsoMentionedBy: lookup.corroboratedBy,
         }
   },

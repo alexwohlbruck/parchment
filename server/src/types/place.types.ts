@@ -512,6 +512,8 @@ export interface Place {
   unmapped?: {
     tags: Record<string, string>
     presetId: string | null
+    /** Its site says it hasn't opened yet, so OSM gets it under a `construction:` prefix. */
+    opensSoon?: boolean
     /** An element already on the map at the same address, with no business there now, to take over. */
     replaces?: { type: 'node' | 'way'; id: number; formerName?: string }
   }

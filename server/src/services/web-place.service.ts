@@ -1,4 +1,5 @@
 import axios from 'axios'
+import sharp from 'sharp'
 import { createHash } from 'node:crypto'
 import { distance } from '@turf/turf'
 import { SOURCE } from '../lib/constants'
@@ -7,7 +8,9 @@ import { logError, logger } from '../lib/logger'
 import { assertPublicUrl, outboundRequestConfig } from '../lib/outbound-fetch'
 import { getPresetById, matchTags } from '../lib/osm-presets'
 import { readSiteBusinesses, type SiteBusiness } from '../lib/web-place/schema-org'
-import { addressLine, businessTags, categoryTags, hasCategory, splitStreet } from '../lib/web-place/osm-tags'
+import { addressLine, businessTags, categoryTags, hasCategory, notYetOpenTags, splitStreet } from '../lib/web-place/osm-tags'
+import { unbundlePage, type BundledAsset } from '../lib/web-place/bundled-page'
+import { addressImages } from '../lib/web-place/site-images'
 import {
   businessPresetIds,
   checkClaims,
@@ -50,6 +53,9 @@ const MAX_CONTACT_PAGES = 2
 const SITE_TOKENS = 1000
 const READ_TOKENS = 3000
 const FIELD_TOKENS = 4000
+const IMAGE_TOKENS = 1000
+const MAX_IMAGE_BYTES = 5_000_000
+const IMAGE_SIDE_PX = 1000
 
 export class WebPlaceError extends Error {}
 
@@ -65,13 +71,15 @@ export function getWebPlace(id: string): Promise<Place | null> {
 }
 
 /** A stage of a lookup, as it starts or learns more, so a caller can show the work. */
-export type WebPlaceStage = 'site' | 'read' | 'classify' | 'fields' | 'locate' | 'map'
+export type WebPlaceStage = 'site' | 'read' | 'classify' | 'images' | 'fields' | 'locate' | 'map'
 
 interface Options {
   near: LatLng
   progress?: (stage: WebPlaceStage, detail?: string) => void
   /** The business's own site, when the caller already knows it. */
   website?: string
+  /** A street address the user gave, which stands in for one the site doesn't state. */
+  address?: string
   model?: LanguageModelCapability
   language?: Language
   signal?: AbortSignal
@@ -105,9 +113,16 @@ export async function findPlaceOnWeb(query: string, options: Options): Promise<W
     return { status: 'not-found', reason: `${hostOf(url)} looks like a different business (${business.name}).` }
   }
   business = { ...business, name: siteName(site.names, business.name, name) }
+  if (options.address) business = { ...business, address: userAddress(options.address), addressFrom: 'you' }
+  if (!business.address?.street) {
+    return { status: 'not-found', reason: `${hostOf(url)} doesn't give a street address, in its text or its images.` }
+  }
 
-  options.progress?.('locate', addressLine(business.address) ?? business.name)
-  const center = (await geocodeAddress(business)) ?? business.geo
+  const from = business.addressFrom && ADDRESS_FROM[business.addressFrom]
+  options.progress?.('locate', [addressLine(business.address), from].filter(Boolean).join(' · '))
+  const geocoded = await geocodeAddress(business)
+  if (geocoded?.match) business = { ...business, address: geocodedAddress(business.address, geocoded.match) }
+  const center = geocoded?.center ?? business.geo
   if (!center) return { status: 'not-found', reason: "Couldn't place its address on the map." }
   const km = distance([options.near.lng, options.near.lat], [center.lng, center.lat], { units: 'kilometers' })
   if (km > MAX_DISTANCE_KM) {
@@ -164,6 +179,23 @@ async function areaName({ lat, lng }: LatLng): Promise<string | undefined> {
 interface Page {
   url: string
   html: string
+  /** Images a bundled page carries inline, by the ids its markup uses. */
+  assets?: Map<string, BundledAsset>
+}
+
+const ADDRESS_FROM = { image: 'read off its images', you: 'as you gave it' } as const
+
+/** "215 Union St, Brooklyn, NY 11231" as the site's address shape. */
+export function userAddress(line: string): NonNullable<SiteBusiness['address']> {
+  const [street, ...rest] = line.split(',').map((part) => part.trim()).filter(Boolean)
+  const postcode = rest.find((part) => /^\d{5}(?:-\d{4})?$/.test(part))
+  const region = rest.find((part) => /^[A-Z]{2}(?:\s+\d{5})?$/.test(part))
+  return {
+    street,
+    locality: rest.find((part) => part !== postcode && part !== region),
+    region: region?.slice(0, 2),
+    postalCode: postcode ?? region?.match(/\d{5}/)?.[0],
+  }
 }
 
 /** The site's fullest spelling of its name, over the spelling a search was typed with. */
@@ -194,6 +226,10 @@ async function readSite(website: string, name: string, options: Options) {
     options.progress?.('classify', business ? 'Its structured data doesn’t say what kind of place it is' : 'It has no structured data')
     const read = await readWithModel(text, options)
     business = business && read ? { ...business, preset: read.preset } : (business ?? read ?? undefined)
+  }
+  if (business && !business.address?.street && !options.address) {
+    const address = await readImageAddress(pages, options)
+    if (address) business = { ...business, address, addressFrom: 'image' }
   }
   if (business) business = await readFields(business, text, options)
   return business ? { business, url: home.url, names: siteNames(home.html) } : null
@@ -230,7 +266,9 @@ async function fetchPage(start: string, signal?: AbortSignal): Promise<Page | nu
       }
       const type = String(response.headers['content-type'] ?? '')
       if (!type.includes('html')) return null
-      return { url, html: String(response.data) }
+      const html = String(response.data)
+      const bundled = unbundlePage(html)
+      return bundled ? { url, ...bundled } : { url, html }
     }
   } catch (error) {
     if (!axios.isCancel(error)) logError('Failed to read a business website', error, { url })
@@ -239,13 +277,14 @@ async function fetchPage(start: string, signal?: AbortSignal): Promise<Page | nu
 }
 
 const READ_BRIEF = `Read this business's own web pages and reply with one JSON object only:
-{"name","preset","street","city","region","postcode","country","phone","email","opening_hours","hours_quote","closed"}
+{"name","preset","street","city","region","postcode","country","phone","email","opening_hours","hours_quote","closed","opens_soon"}
 - preset: the OpenStreetMap preset that fits it best, copied exactly from the list below, or null if none fits
 - street: house number and street as the page writes them, e.g. "123 Main Street"
 - country: ISO 3166 two-letter code
 - opening_hours: OpenStreetMap opening_hours syntax, e.g. "Mo-Fr 09:00-17:00; Sa 10:00-14:00"
 - hours_quote: the exact words on the page the hours come from
 - closed: true only if the pages say it has closed for good
+- opens_soon: true only if the pages say it hasn't opened yet, e.g. "coming soon" or "opening this fall"
 Copy only what the pages state; null for anything they don't. Never fill a value in from what is typical for this kind of place.
 Presets: `
 
@@ -260,6 +299,74 @@ async function readWithModel(text: string, { model, signal }: Options): Promise<
     signal,
   })
   return parseModelBusiness(message.content ?? '', text)
+}
+
+const IMAGE_BRIEF = `These images are from a business's own website. If one shows the business's street address, reply with one JSON object only, copying exactly what the image shows:
+{"street","city","region","postcode"}, e.g. {"street":"215 Union St","city":"Brooklyn","region":null,"postcode":null}
+If none shows a street address, reply {"street":null}. Never guess one.`
+
+/** An address the site shows only in its logo or other images, read by a model that can see them. */
+async function readImageAddress(pages: Page[], options: Options): Promise<SiteBusiness['address'] | undefined> {
+  if (!options.model) return undefined
+  const sources = pages.flatMap((page) => addressImages(page.html).map((src) => ({ src, page }))).slice(0, 2)
+  if (!sources.length) return undefined
+  options.progress?.('images', sources.length === 1 ? '1 image' : `${sources.length} images`)
+  const images = (await Promise.all(sources.map(({ src, page }) => imageDataUrl(src, page, options.signal)))).filter(
+    (url): url is string => !!url,
+  )
+  if (!images.length) return undefined
+  try {
+    const { message } = await options.model.complete({
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: IMAGE_BRIEF },
+            ...images.map((url) => ({ type: 'image_url' as const, image_url: { url } })),
+          ],
+        },
+      ],
+      maxTokens: IMAGE_TOKENS,
+      signal: options.signal,
+    })
+    const data = parseJson(message.content ?? '')
+    const text = (key: string) => (typeof data?.[key] === 'string' && data[key].trim() ? data[key].trim() : undefined)
+    const street = text('street')
+    if (!street || !splitStreet(street)['addr:housenumber']) return undefined
+    return { street, locality: text('city'), region: text('region'), postalCode: text('postcode') }
+  } catch (error) {
+    // Models that can't read images refuse the request; the lookup carries on without them.
+    if (!axios.isCancel(error)) logger.debug(`Reading a site's images failed: ${String(error)}`)
+    return undefined
+  }
+}
+
+async function imageDataUrl(src: string, page: Page, signal?: AbortSignal): Promise<string | null> {
+  try {
+    const bytes = page.assets?.get(src)?.bytes ?? (await fetchImage(new URL(src, page.url).href, signal))
+    if (!bytes) return null
+    const png = await sharp(bytes)
+      .resize({ width: IMAGE_SIDE_PX, height: IMAGE_SIDE_PX, fit: 'inside', withoutEnlargement: true })
+      .png()
+      .toBuffer()
+    return `data:image/png;base64,${png.toString('base64')}`
+  } catch {
+    return null
+  }
+}
+
+async function fetchImage(url: string, signal?: AbortSignal): Promise<Buffer | null> {
+  if (!/^https?:$/.test(new URL(url).protocol)) return null
+  await assertPublicUrl(url)
+  const response = await axios.get<ArrayBuffer>(url, {
+    ...outboundRequestConfig,
+    timeout: FETCH_TIMEOUT_MS,
+    responseType: 'arraybuffer',
+    maxContentLength: MAX_IMAGE_BYTES,
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Parchment)' },
+    signal,
+  })
+  return String(response.headers['content-type'] ?? '').startsWith('image/') ? Buffer.from(response.data) : null
 }
 
 function pagesText(pages: Page[]): string {
@@ -286,8 +393,9 @@ export function parseModelBusiness(reply: string, text: string): SiteBusiness | 
     return found && onPage(found, text) ? found : undefined
   }
   const name = stated('name')
-  const street = value('street')
-  if (!name || !street || !streetOnPage(street, text)) return null
+  if (!name) return null
+  const read = value('street')
+  const street = read && streetOnPage(read, text) ? read : undefined
   const preset = value('preset')
   const hours = value('opening_hours')
   const hoursQuote = value('hours_quote')
@@ -308,6 +416,7 @@ export function parseModelBusiness(reply: string, text: string): SiteBusiness | 
     email: stated('email'),
     openingHours: hours && hoursQuote && onPage(hoursQuote, text) && isOsmHours(hours) ? hours : undefined,
     closed: data.closed === true,
+    ...(data.opens_soon === true && { opensSoon: true }),
   }
 }
 
@@ -394,20 +503,24 @@ async function readFields(business: SiteBusiness, text: string, { model, signal,
   }
 }
 
-async function geocodeAddress(business: SiteBusiness): Promise<LatLng | undefined> {
+async function geocodeAddress(business: SiteBusiness): Promise<{ center: LatLng; match?: Place } | undefined> {
   const line = addressLine(business.address)
   if (!line) return undefined
   try {
     const { lat, lng } = business.geo ?? {}
     const { results } = await forwardGeocode(line, lat, lng)
-    return addressPoint(results, business) ?? (business.geo ? undefined : results[0]?.geometry.value.center)
+    const match = addressMatch(results, business)
+    if (match) return { center: match.geometry.value.center, match }
+    const loose = business.geo || business.addressFrom
+    const top = results[0]?.geometry.value.center
+    return !loose && top ? { center: top } : undefined
   } catch {
     return undefined
   }
 }
 
-/** The geocoded point for the business's own house number, which site-authored coordinates often miss. */
-export function addressPoint(results: Place[], business: SiteBusiness): LatLng | undefined {
+/** The geocoded result for the business's own house number, which site-authored coordinates often miss. */
+export function addressMatch(results: Place[], business: SiteBusiness): Place | undefined {
   const number = business.address?.street && splitStreet(business.address.street.split(',')[0].trim())['addr:housenumber']
   if (!number) return undefined
   const startsWithNumber = new RegExp(`^${number.replace(/[-–]/g, '[-–]')}\\b`, 'i')
@@ -420,7 +533,28 @@ export function addressPoint(results: Place[], business: SiteBusiness): LatLng |
   if (geo && distance([geo.lng, geo.lat], [center.lng, center.lat], { units: 'kilometers' }) > SITE_GEO_SLACK_KM) {
     return undefined
   }
-  return center
+  return match
+}
+
+/** The address as the geocoder spells the matched house, e.g. "215 UNION ST" off a logo as "215 Union Street". */
+export function geocodedAddress(address: SiteBusiness['address'], match: Place): SiteBusiness['address'] {
+  const found = match.address?.value
+  const street = found?.street1 ?? match.name?.value
+  if (!street || !splitStreet(street)['addr:housenumber']) return address
+  const unit = address?.street?.split(',').slice(1).map((part) => part.trim()).filter(Boolean) ?? []
+  return {
+    ...address,
+    street: [street, ...unit].join(', '),
+    // The site's own city: New York's geocoder says "New York" where OSM writes "Brooklyn".
+    locality: address?.locality ? titleCase(address.locality) : found?.locality,
+    region: found?.region ?? address?.region,
+    postalCode: found?.postalCode ?? address?.postalCode,
+  }
+}
+
+/** "BROOKLYN" as "Brooklyn"; anything already in mixed case stays as written. */
+function titleCase(text: string): string {
+  return text === text.toUpperCase() ? text.toLowerCase().replace(/\b\p{L}/gu, (letter) => letter.toUpperCase()) : text
 }
 
 /** A node or way at the business's address with no business on it now, nodes first, then nearest. */
@@ -490,6 +624,7 @@ export function webPlace(
   vacant?: VacantElement,
 ): Place {
   const tags = businessTags(business, website)
+  const osmTags = business.opensSoon ? notYetOpenTags(tags) : tags
   const id = createHash('sha256').update(`${website}|${business.name}`).digest('hex').slice(0, 16)
   const place = attributeTo(
     adapter.placeInfo.adaptPlaceDetails(
@@ -505,7 +640,8 @@ export function webPlace(
     tags,
     sources: [{ id: SOURCE.WEB, name: hostOf(website) ?? website, url: website }],
     unmapped: {
-      tags: vacant ? replacementTags(vacant.tags, tags) : tags,
+      tags: vacant ? replacementTags(vacant.tags, osmTags) : osmTags,
+      ...(business.opensSoon && { opensSoon: true }),
       ...(vacant && { replaces: { type: vacant.type, id: vacant.id, formerName: formerName(vacant.tags) } }),
       presetId: business.preset ?? (hasCategory(business) ? (matchTags(tags, 'point')?.preset.id ?? null) : null),
     },

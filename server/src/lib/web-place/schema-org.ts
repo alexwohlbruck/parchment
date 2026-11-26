@@ -20,6 +20,10 @@ export interface SiteBusiness {
   preset?: string
   /** Further tags read off its pages that the preset's schema allows. */
   tags?: Record<string, string>
+  /** Where the address came from when its pages' text doesn't give one. */
+  addressFrom?: 'image' | 'you'
+  /** Its pages say it hasn't opened yet. */
+  opensSoon?: boolean
 }
 
 type Json = Record<string, any>

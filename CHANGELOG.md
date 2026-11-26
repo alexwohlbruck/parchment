@@ -9,6 +9,7 @@
 ### Fixed
 
 * Editing a place offers every detail its type supports, such as wheelchair access, email and payment methods for shops.
+* Places from Foursquare no longer show “Moving Target” or “unknown” as their type.
 
 ## [0.27.1] - 2026-11-25
 

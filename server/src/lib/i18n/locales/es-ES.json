@@ -35,9 +35,12 @@
     "place": {
       "invalidParams": "Proporcione source+id, name+lat+lng o lat+lng",
       "invalidOsmType": "Tipo OSM no válido. El formato debe ser \"type/id\" donde type es node, way o relation.",
+      "listingUnsupported": "Solo se pueden cambiar los anuncios de lugares de OpenStreetMap.",
+      "listingInvalid": "Ese enlace no es la página de un local en este sitio.",
       "notFoundWithParams": "Lugar no encontrado con los parámetros proporcionados",
       "retrievalError": "Error al recuperar datos del lugar",
-      "coordinatesRequired": "Se requieren lat y lng"
+      "coordinatesRequired": "Se requieren lat y lng",
+      "invalidStay": "Elige una estancia de 1 a 30 noches a partir de hoy"
     },
     "server": {
       "internal": "Se produjo un error interno del servidor",

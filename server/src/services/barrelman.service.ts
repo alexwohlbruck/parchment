@@ -146,3 +146,31 @@ async function safeJson(response: Response): Promise<unknown | null> {
     return null
   }
 }
+
+export class BarrelmanError extends Error {
+  constructor(readonly status: number, path: string) {
+    super(`Barrelman ${path} responded ${status}`)
+  }
+}
+
+/** Send a JSON request to Barrelman with the service key, returning the parsed body (null for 204). */
+export async function sendBarrelman<T>(
+  method: 'GET' | 'PUT' | 'DELETE',
+  path: string,
+  body?: unknown,
+  timeoutMs = DEFAULT_BARRELMAN_TIMEOUT_MS,
+): Promise<T | null> {
+  const config = resolveBarrelmanConfig()
+  if (!config?.host) throw new BarrelmanError(501, path)
+  const headers: Record<string, string> = {}
+  if (config.apiKey) headers.Authorization = `Bearer ${config.apiKey}`
+  if (body !== undefined) headers['Content-Type'] = 'application/json'
+  const response = await fetch(`${config.host}${path}`, {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+    signal: AbortSignal.timeout(timeoutMs),
+  })
+  if (!response.ok) throw new BarrelmanError(response.status, path)
+  return response.status === 204 ? null : ((await response.json()) as T)
+}

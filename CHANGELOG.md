@@ -5,15 +5,27 @@
 * Ask now has a shortcut in the home screen's navigation on phones.
 * Attach up to 4 screenshots when you send feedback, or paste one straight into the form.
 * Tap a departure to follow that train or bus along its line, with the time it reaches every stop.
+* Admins can fix which Google or Foursquare listing a place shows, or mark that it has none, from the bottom of the place page.
+* Restaurants link straight to their booking page on OpenTable, Resy, Tock or SevenRooms for your party size and date, with a search as the fallback.
+* Hotels show a Compare prices card with each seller's nightly price, taxes and fees, and free cancellation, linking to that seller for your dates.
+* Places that deliver link to order on Uber Eats, DoorDash and other delivery services.
 
 ### Changed
 
+* Photos, hours and ratings from business listings load faster when you reopen a place, and the place keeps the same listing each time.
 * Press Enter in search to see all results right away, without waiting for suggestions. When a search clearly means one place or address, it opens straight away, and Back shows the full results.
 * Searching for a kind of place or a chain, like "coffee" or "Starbucks", opens that browse straight away, and a question opens Ask.
+* Trees grow in when you zoom close enough to see them, rippling out from the middle of the map, and shrink away as you zoom back out, rather than popping.
+* Detailed streets, paths, parking and other map layers fade in and out as you zoom or as they load, rather than popping.
+* With Day & Night on, the globe's night side now shows city lights and a deep blue sky on the standard map, with a sunset glow around the Earth's edge and a brighter sun.
 * Trees in fall turn a mix of yellow, gold, orange, red and dusty brown, with a few holding on to green.
 
 ### Fixed
 
+* Shallow coastal seas no longer show as a pale band against the deep ocean when zoomed out.
+* NYC subway trains now show on a line's map and follow your own train during navigation.
+* Shadows of lampposts, benches, picnic tables and bins now start at their base, and small objects cast them at all.
+* Fewer stutters when moving the map around parks and bridges.
 * With seasonal colors off, cherry trees show their pink blossom again rather than plain summer green.
 
 ## [0.27.1] - 2026-11-25

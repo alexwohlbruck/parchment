@@ -1,0 +1,281 @@
+{
+  "data": [
+    {
+      "hotelId": "lp1897",
+      "roomTypes": [
+        {
+          "roomTypeId": "GQ2TOLJWGI4TK7CSIZHHYMRQGI2TAMZTGAYDEMBQPQYXYURRGIYTO7BRGU3TGNY",
+          "offerId": "offer-king-flex",
+          "supplier": "nuitee",
+          "supplierId": 2,
+          "rates": [
+            {
+              "rateId": "rate-offer-king-flex",
+              "occupancyNumber": 1,
+              "name": "Standard King Room",
+              "maxOccupancy": 2,
+              "adultCount": 2,
+              "childCount": 0,
+              "childrenAges": [],
+              "boardType": "RO",
+              "boardName": "Room Only",
+              "remarks": "",
+              "priceType": "commission",
+              "commission": [
+                {
+                  "amount": 6.28,
+                  "currency": "USD"
+                }
+              ],
+              "retailRate": {
+                "total": [
+                  {
+                    "amount": 163.66,
+                    "currency": "USD"
+                  }
+                ],
+                "suggestedSellingPrice": [
+                  {
+                    "amount": 191.52,
+                    "currency": "USD",
+                    "source": "booking.com"
+                  }
+                ],
+                "initialPrice": [
+                  {
+                    "amount": 163.66,
+                    "currency": "USD"
+                  }
+                ],
+                "taxesAndFees": [
+                  {
+                    "included": true,
+                    "description": "NYC Javits Center Fee",
+                    "amount": 1.62,
+                    "currency": "USD"
+                  },
+                  {
+                    "included": true,
+                    "description": "NYC Occupancy Tax",
+                    "amount": 2.16,
+                    "currency": "USD"
+                  },
+                  {
+                    "included": true,
+                    "description": "NY State Tax",
+                    "amount": 11.88,
+                    "currency": "USD"
+                  },
+                  {
+                    "included": true,
+                    "description": "NY City Tax",
+                    "amount": 7.87,
+                    "currency": "USD"
+                  },
+                  {
+                    "included": false,
+                    "description": "Facility Fee",
+                    "amount": 43.61,
+                    "currency": "USD"
+                  }
+                ]
+              },
+              "cancellationPolicies": {
+                "cancelPolicyInfos": [
+                  {
+                    "cancelTime": "2026-12-03 02:00:00",
+                    "amount": 163.66,
+                    "currency": "USD",
+                    "type": "amount",
+                    "timezone": "GMT"
+                  }
+                ],
+                "hotelRemarks": [],
+                "refundableTag": "RFN"
+              },
+              "paymentTypes": [
+                "NUITEE_PAY",
+                "PROPERTY_PAY"
+              ]
+            }
+          ],
+          "offerRetailRate": {
+            "amount": 163.66,
+            "currency": "USD"
+          },
+          "suggestedSellingPrice": {
+            "amount": 191.52,
+            "currency": "USD",
+            "source": "booking.com"
+          },
+          "offerInitialPrice": {
+            "amount": 163.66,
+            "currency": "USD"
+          },
+          "priceType": "commission",
+          "rateType": "standard"
+        },
+        {
+          "roomTypeId": "GQ2TOLJWGI4TK7CSIZHHYMRQGI2TAMZTGAYDEMBQPQYXYURRGIYTO7BRGU3TGNY",
+          "offerId": "offer-king-nr",
+          "supplier": "nuitee",
+          "supplierId": 2,
+          "rates": [
+            {
+              "rateId": "rate-offer-king-nr",
+              "occupancyNumber": 1,
+              "name": "Standard King Room",
+              "maxOccupancy": 2,
+              "adultCount": 2,
+              "childCount": 0,
+              "childrenAges": [],
+              "boardType": "RO",
+              "boardName": "Room Only",
+              "remarks": "",
+              "priceType": "commission",
+              "commission": [
+                {
+                  "amount": 6.28,
+                  "currency": "USD"
+                }
+              ],
+              "retailRate": {
+                "total": [
+                  {
+                    "amount": 149.1,
+                    "currency": "USD"
+                  }
+                ],
+                "suggestedSellingPrice": [
+                  {
+                    "amount": 191.52,
+                    "currency": "USD",
+                    "source": "booking.com"
+                  }
+                ],
+                "initialPrice": [
+                  {
+                    "amount": 163.66,
+                    "currency": "USD"
+                  }
+                ],
+                "taxesAndFees": null
+              },
+              "cancellationPolicies": {
+                "cancelPolicyInfos": [
+                  {
+                    "cancelTime": "2026-12-03 02:00:00",
+                    "amount": 149.1,
+                    "currency": "USD",
+                    "type": "amount",
+                    "timezone": "GMT"
+                  }
+                ],
+                "hotelRemarks": [],
+                "refundableTag": "NRFN"
+              },
+              "paymentTypes": [
+                "NUITEE_PAY",
+                "PROPERTY_PAY"
+              ]
+            }
+          ],
+          "offerRetailRate": {
+            "amount": 149.1,
+            "currency": "USD"
+          },
+          "suggestedSellingPrice": null,
+          "offerInitialPrice": {
+            "amount": 163.66,
+            "currency": "USD"
+          },
+          "priceType": "commission",
+          "rateType": "standard"
+        },
+        {
+          "roomTypeId": "GQ2TOLJWGI4TK7CSIZHHYMRQGI2TAMZTGAYDEMBQPQYXYURRGIYTO7BRGU3TGNY",
+          "offerId": "offer-queen-bb",
+          "supplier": "nuitee",
+          "supplierId": 2,
+          "rates": [
+            {
+              "rateId": "rate-offer-queen-bb",
+              "occupancyNumber": 1,
+              "name": "Superior Queen Room",
+              "maxOccupancy": 2,
+              "adultCount": 2,
+              "childCount": 0,
+              "childrenAges": [],
+              "boardType": "BB",
+              "boardName": "Bed and Breakfast",
+              "remarks": "",
+              "priceType": "commission",
+              "commission": [
+                {
+                  "amount": 6.28,
+                  "currency": "USD"
+                }
+              ],
+              "retailRate": {
+                "total": [
+                  {
+                    "amount": 182.4,
+                    "currency": "USD"
+                  }
+                ],
+                "suggestedSellingPrice": [
+                  {
+                    "amount": 191.52,
+                    "currency": "USD",
+                    "source": "booking.com"
+                  }
+                ],
+                "initialPrice": [
+                  {
+                    "amount": 163.66,
+                    "currency": "USD"
+                  }
+                ],
+                "taxesAndFees": null
+              },
+              "cancellationPolicies": {
+                "cancelPolicyInfos": [
+                  {
+                    "cancelTime": "2026-12-03 02:00:00",
+                    "amount": 182.4,
+                    "currency": "USD",
+                    "type": "amount",
+                    "timezone": "GMT"
+                  }
+                ],
+                "hotelRemarks": [],
+                "refundableTag": "RFN"
+              },
+              "paymentTypes": [
+                "NUITEE_PAY",
+                "PROPERTY_PAY"
+              ]
+            }
+          ],
+          "offerRetailRate": {
+            "amount": 182.4,
+            "currency": "USD"
+          },
+          "suggestedSellingPrice": {
+            "amount": 175.0,
+            "currency": "USD",
+            "source": "booking.com"
+          },
+          "offerInitialPrice": {
+            "amount": 163.66,
+            "currency": "USD"
+          },
+          "priceType": "commission",
+          "rateType": "standard"
+        }
+      ]
+    }
+  ],
+  "guestLevel": 0,
+  "sandbox": true
+}

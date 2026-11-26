@@ -384,6 +384,32 @@ const availableIntegrations: IntegrationDefinition[] = [
     scope: [IntegrationScope.SYSTEM, IntegrationScope.USER],
   },
   {
+    id: IntegrationId.LITEAPI,
+    name: 'LiteAPI',
+    description: 'Live hotel room prices, booked on your LiteAPI white-label site',
+    color: '#5B3DF5',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(IntegrationId.LITEAPI)
+    },
+    paid: false,
+    cloud: true,
+    configSchema: 'liteapiSchema',
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
+    id: IntegrationId.SERPAPI,
+    name: 'SerpApi',
+    description: 'Every seller\'s price for a hotel, from Google Hotels',
+    color: '#2E7D5B',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(IntegrationId.SERPAPI)
+    },
+    paid: true,
+    cloud: true,
+    configSchema: 'serpapiSchema',
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
     id: IntegrationId.OPENSTREETMAP,
     name: 'OpenStreetMap',
     description:

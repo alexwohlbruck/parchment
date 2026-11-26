@@ -8,6 +8,8 @@
 
 ### Changed
 
+* Press Enter in search to see all results right away, without waiting for suggestions. When a search clearly means one place or address, it opens straight away, and Back shows the full results.
+
 ### Fixed
 
 ## [0.27.1] - 2026-11-25

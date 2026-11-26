@@ -1,6 +1,6 @@
 import { POI_STYLES } from '@/lib/map-style/build'
 import { defineStore, storeToRefs } from 'pinia'
-import { ASK_OPTION, BROWSE_OPTION_PREFIX, RECENT_ASK_PREFIX, buildSearchSuggestions } from '@/services/search-suggestions.service'
+import { ASK_OPTION, FULL_SEARCH_OPTION, BROWSE_OPTION_PREFIX, RECENT_ASK_PREFIX, buildSearchSuggestions } from '@/services/search-suggestions.service'
 import { recentSearchRoute } from '@/services/place/place-display'
 import { computed, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
@@ -303,7 +303,7 @@ export const useCommandStore = defineStore('command', () => {
             return
           }
 
-          if (itemId === 'search-more-results') {
+          if (itemId === FULL_SEARCH_OPTION) {
             const { currentSearchQuery } = useCommandService()
             router.push({
               name: AppRoute.SEARCH_RESULTS,

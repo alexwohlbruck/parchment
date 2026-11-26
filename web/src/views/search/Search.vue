@@ -406,9 +406,20 @@ async function performSearch(opts: { refit?: boolean } = {}) {
         lng: center.lng,
         maxResults,
       }
-      const searchResults = isOffline.value
-        ? []
-        : await searchService.search({ ...options, autocomplete: false })
+      const { results: searchResults, match } = isOffline.value
+        ? { results: [] }
+        : await searchService.fullSearch(options)
+
+      // Coming back from the place a search opened shows the list instead.
+      const returned = !!router.options.history.state.forward
+      const matched = refit && match && !returned
+        ? searchResults.find(result => result.id === match)?.metadata.place
+        : undefined
+      if (matched) {
+        setPartialPlace(matched as unknown as Place)
+        router.push(getPlaceRoute(matched.id))
+        return
+      }
       // Transit lines and GTFS-only stops ride along as pseudo-places; their
       // cards route to the transit views via placeToDisplay.
       places = (searchResults as SearchResult[])

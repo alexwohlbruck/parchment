@@ -3,7 +3,7 @@
  * Transit Route Detail View
  *
  * Dedicated route at /transit/route/:feedId/:routeId
- * Query params: ?direction=...&vehicle=...
+ * Query params: ?direction=...&vehicle=...&trip=...
  */
 import { computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -49,20 +49,37 @@ if (initialVehicle) {
   setTimeout(stopWatch, 30_000)
 }
 
+// A tapped departure names its run. The route has to load first: opening it
+// clears any selection, and the run's direction is read off its stops.
+const initialTrip = (route.query.trip as string) || undefined
+if (initialTrip && !initialVehicle) {
+  const stopWatch = watch(
+    () => store.activeRoute,
+    (active) => {
+      if (!active) return
+      store.selectTrip(initialTrip)
+      stopWatch()
+    },
+  )
+}
+
 // Sync selections back to query params
 watch(
   () => ({
     direction: store.activeDirection,
     vehicle: store.selectedVehicleId,
+    trip: store.selectedTripId,
   }),
-  ({ direction, vehicle }) => {
+  ({ direction, vehicle, trip }) => {
     const query: Record<string, string> = {}
     if (direction) query.direction = direction
     if (vehicle) query.vehicle = vehicle
+    else if (trip) query.trip = trip
 
     const current = route.query
     if (current.direction !== (query.direction || undefined) ||
-        current.vehicle !== (query.vehicle || undefined)) {
+        current.vehicle !== (query.vehicle || undefined) ||
+        current.trip !== (query.trip || undefined)) {
       router.replace({ query })
     }
   },

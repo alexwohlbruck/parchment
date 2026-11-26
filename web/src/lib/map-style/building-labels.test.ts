@@ -26,4 +26,16 @@ describe('building labels', () => {
     const labels = layers.find(l => l.id === BUILDING_LABELS_LAYER)
     expect(draws(labels, { class: 'theatre', subclass: 'theatre', name: 'A Building' })).toBe(false)
   })
+
+  test('wears a dot and the POI layer\'s type', () => {
+    const labels = layers.find(l => l.id === BUILDING_LABELS_LAYER)
+    const poi = layers.find(l => l.id === 'POI')
+    expect(labels.layout['icon-image']).toBe('circle')
+    for (const key of ['text-font', 'text-size', 'text-max-width', 'text-line-height']) {
+      expect(labels.layout[key]).toEqual(poi.layout[key])
+    }
+    for (const key of ['text-halo-color', 'text-halo-width', 'text-halo-blur']) {
+      expect(labels.paint[key]).toEqual(poi.paint[key])
+    }
+  })
 })

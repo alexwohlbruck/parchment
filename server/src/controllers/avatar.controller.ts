@@ -1,7 +1,8 @@
 import Elysia, { t } from 'elysia'
 import { requireAuth } from '../middleware/auth.middleware'
 import { i18nPlugin } from '../lib/i18n/plugin'
-import { removeAvatar, setAvatar, UnreadableImageError } from '../services/avatar.service'
+import { removeAvatar, setAvatar } from '../services/avatar.service'
+import { UnreadableImageError } from '../lib/webp'
 import { sniffImageType, type RasterImageType } from '../lib/image-type'
 
 const MAX_SIZE = 2 * 1024 * 1024

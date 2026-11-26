@@ -22,6 +22,7 @@ import type { StationLine } from '@/composables/transit/usePlaceTransitLines'
 import type { Dayjs } from 'dayjs'
 import RealtimeIndicator from '@/components/transit/departures/RealtimeIndicator.vue'
 import { ChevronRightIcon } from 'lucide-vue-next'
+import { useOpenDeparture } from '@/composables/transit/useOpenDeparture'
 import { formatCountdown, type RouteGroup } from '@/lib/transit/transit-departures'
 
 const props = defineProps<{
@@ -58,6 +59,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const openDeparture = useOpenDeparture()
 
 const styleOf = (line: StationLine) =>
   bulletFor(line.id, props.lat, props.lng, line.type, line.shortName || line.longName)
@@ -164,13 +166,19 @@ function openStation(station: {
                 <div
                   v-for="dir in group.directions"
                   :key="dir.headsign"
-                  class="flex items-center justify-between gap-3"
+                  class="flex items-center justify-between gap-3 cursor-pointer"
+                  @click="dir.departures[0] && openDeparture(feedId, dir.departures[0])"
                 >
                   <span class="text-sm truncate min-w-0">{{ dir.headsign }}</span>
                   <div class="flex items-center gap-0.5 shrink-0">
                     <template v-for="(dep, i) in dir.departures" :key="i">
                       <span v-if="i > 0" class="text-muted-foreground text-xs">,</span>
-                      <span class="text-sm tabular-nums">{{ countdown(dep) }}</span>
+                      <button
+                        type="button"
+                        class="text-sm tabular-nums rounded-sm underline-offset-2 hover:underline"
+                        :title="t('place.transit.followRun')"
+                        @click.stop="openDeparture(feedId, dep)"
+                      >{{ countdown(dep) }}</button>
                       <RealtimeIndicator
                         v-if="dep.realTime"
                         :real-time="true"

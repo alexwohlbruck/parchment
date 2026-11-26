@@ -15,6 +15,7 @@ import { createPoller } from '@/lib/power/poller'
 import { pollInterval } from '@/lib/power/power-saver'
 import type { TransitVehiclePosition } from '@/types/multimodal.types'
 import { projectVehicleOnRoute } from '@/lib/transit/route-projection'
+import { localTripId } from '@/lib/transit/transit-focus'
 import type {
   StopTransferRoute,
   RouteDetailStop,
@@ -33,6 +34,8 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
   const isLoading = ref(false)
   const vehicles = ref<Map<string, TransitVehiclePosition>>(new Map())
   const selectedVehicleId = ref<string | null>(null)
+  /** The run being followed, feed-local. Outlives its vehicle: most runs report times long before (or without) a position. */
+  const selectedTripId = ref<string | null>(null)
   const selectedDirection = ref<string | null>(null)
 
   const stopRunningRoutes = ref(new Map<string, Set<string>>())
@@ -397,6 +400,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     isLoading.value = true
     departureContext.value = context ?? null
     selectedVehicleId.value = null
+    selectedTripId.value = null
     vehiclePoller.stop()
     try {
       const { data } = await api.get<RouteDetail>(
@@ -426,6 +430,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     activeRoute.value = null
     departureContext.value = null
     selectedVehicleId.value = null
+    selectedTripId.value = null
     selectedDirection.value = null
     tripStopTimes.value = []
     vehicles.value = new Map()
@@ -434,19 +439,47 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
   let tripStopFetchId = 0
 
   function selectVehicle(vehicleId: string | null) {
+    const vehicle = vehicleId ? vehicles.value.get(vehicleId) : undefined
+    followTrip(vehicle ? localTripId(vehicle) : null, vehicleId)
+  }
+
+  /** Follow one run — a tapped departure — and its vehicle once one reports in. */
+  function selectTrip(tripId: string | null) {
+    followTrip(tripId, tripId ? vehicleOnTrip(tripId) : null, true)
+  }
+
+  function followTrip(tripId: string | null, vehicleId: string | null, orient = false) {
     selectedVehicleId.value = vehicleId
+    selectedTripId.value = tripId
     tripStopTimes.value = []
     tripStopFetchId++
+    orientToTrip = orient && !!tripId
+    if (tripId) void fetchTripStopTimes(tripId)
+  }
 
-    if (vehicleId && activeRoute.value) {
-      const vehicle = vehicles.value.get(vehicleId)
-      if (vehicle?.tripId) {
-        const rawTripId = vehicle.tripId.startsWith(`${vehicle.feedId}_`)
-          ? vehicle.tripId.slice(vehicle.feedId.length + 1)
-          : vehicle.tripId
-        void fetchTripStopTimes(vehicle.feedId, rawTripId, vehicleId)
-      }
+  function vehicleOnTrip(tripId: string): string | null {
+    for (const v of vehicles.value.values()) {
+      if (localTripId(v) === tripId) return v.vehicleId
     }
+    return null
+  }
+
+  /** Set when a run is opened directly, so its first stop times can turn the timeline to face its way. */
+  let orientToTrip = false
+
+  /** The direction a run travels, read off where its first and last calls sit on the line. */
+  function tripDirection(times: TripStopTime[]): string | null {
+    const stops = routeStops.value
+    const indexOf = (st: TripStopTime) =>
+      stops.findIndex(
+        (s) =>
+          s.stopId === st.stopId ||
+          (st.parentStation != null && (s.stopId === st.parentStation || s.parentStation === st.parentStation)),
+      )
+    const first = times.map(indexOf).find((i) => i >= 0)
+    const last = [...times].reverse().map(indexOf).find((i) => i >= 0)
+    if (first === undefined || last === undefined || first === last) return null
+    return directions.value[last < first ? 1 : 0] ?? null
   }
 
   /**
@@ -498,17 +531,22 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     }
   }
 
-  async function fetchTripStopTimes(feedId: string, tripId: string, forVehicleId: string) {
+  async function fetchTripStopTimes(tripId: string) {
+    const feedId = activeRoute.value?.feedId
+    if (!feedId) return
     const fetchId = tripStopFetchId
     try {
       const { data } = await api.get<{ stops: TripStopTime[] }>(
         '/transit/trip-stops',
         { params: { feedId, tripId } },
       )
-      // Guard against stale write: only apply if the vehicle is still selected
-      if (fetchId !== tripStopFetchId || selectedVehicleId.value !== forVehicleId) return
-      if (data?.stops) {
-        tripStopTimes.value = data.stops
+      if (fetchId !== tripStopFetchId || selectedTripId.value !== tripId) return
+      if (!data?.stops?.length) return
+      tripStopTimes.value = data.stops
+      if (orientToTrip) {
+        orientToTrip = false
+        const direction = tripDirection(data.stops)
+        if (direction) setDirection(direction)
       }
     } catch {
       // Trip stop times unavailable — fine, we just won't show them
@@ -544,8 +582,13 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
       }
       vehicles.value = updated
 
+      const tripId = selectedTripId.value
       if (selectedVehicleId.value && !updated.has(selectedVehicleId.value)) {
         selectedVehicleId.value = null
+      }
+      if (tripId) {
+        selectedVehicleId.value ??= vehicleOnTrip(tripId)
+        void fetchTripStopTimes(tripId)
       }
     } catch {
       // Will retry on next poll
@@ -564,6 +607,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     vehiclesOnRoute,
     selectedVehicleId,
     selectedVehicle,
+    selectedTripId,
     directions,
     upcomingDepartures,
     headwayMinutes,
@@ -587,6 +631,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     setStopSkips,
     runningAtStops,
     selectVehicle,
+    selectTrip,
     setDirection,
   }
 })

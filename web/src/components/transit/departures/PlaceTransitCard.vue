@@ -37,6 +37,7 @@ import StationTransfers from '@/components/transit/departures/StationTransfers.v
 import StopDeparturesPage from '@/components/transit/departures/StopDeparturesPage.vue'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
+import { useOpenDeparture } from '@/composables/transit/useOpenDeparture'
 
 /** Past this, a countdown stops being easier to read than a clock time. */
 
@@ -49,6 +50,7 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const { register, unregister, activate } = usePlaceTabs()
+const openDeparture = useOpenDeparture()
 const router = useRouter()
 const currentTime = useTransitClock()
 
@@ -371,7 +373,8 @@ function openRoute(routeId?: string) {
             <div
               v-for="dir in group.directions"
               :key="dir.headsign"
-              class="flex items-center justify-between gap-3"
+              class="flex items-center justify-between gap-3 cursor-pointer"
+              @click="dir.departures[0] && openDeparture(transitInfo?.feedId, dir.departures[0])"
             >
               <span class="text-sm truncate min-w-0">
                 {{ dir.headsign }}
@@ -379,7 +382,12 @@ function openRoute(routeId?: string) {
               <div class="flex items-center gap-0.5 shrink-0">
                 <template v-for="(dep, i) in dir.departures" :key="i">
                   <span v-if="i > 0" class="text-muted-foreground text-xs">,</span>
-                  <span class="text-sm tabular-nums">{{ formatCountdownShort(dep) }}</span>
+                  <button
+                    type="button"
+                    class="text-sm tabular-nums rounded-sm underline-offset-2 hover:underline"
+                    :title="t('place.transit.followRun')"
+                    @click.stop="openDeparture(transitInfo?.feedId, dep)"
+                  >{{ formatCountdownShort(dep) }}</button>
                   <RealtimeIndicator
                     v-if="dep.realTime"
                     :real-time="true"

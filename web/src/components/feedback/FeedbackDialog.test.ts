@@ -142,6 +142,29 @@ describe('FeedbackDialog board selection', () => {
     )
   })
 
+  it('attaches picked and pasted screenshots, skipping other files', async () => {
+    URL.createObjectURL = vi.fn(() => `blob:${Math.random()}`)
+    URL.revokeObjectURL = vi.fn()
+    const picked = new File(['a'], 'a.png', { type: 'image/png' })
+    const pasted = new File(['b'], 'b.jpg', { type: 'image/jpeg' })
+    const pdf = new File(['c'], 'c.pdf', { type: 'application/pdf' })
+
+    const w = await mountOpen()
+    const input = w.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', { value: [picked, pdf] })
+    await input.trigger('change')
+    await w.find('form').trigger('paste', { clipboardData: { files: [pasted] } })
+    await w.find('#feedback-title').setValue('A title')
+    await w.find('form').trigger('submit')
+    await nextTick()
+
+    expect(w.findAll('img')).toHaveLength(2)
+    expect(errorToast).toHaveBeenCalledWith('feedback.screenshotType')
+    expect(submitFeedback).toHaveBeenCalledWith(
+      expect.objectContaining({ screenshots: [picked, pasted] }),
+    )
+  })
+
   it('does not submit without a title', async () => {
     const w = await mountOpen()
     await w.find('form').trigger('submit')

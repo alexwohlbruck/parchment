@@ -2,7 +2,26 @@
 
 ### Added
 
+* Ask now has a shortcut in the home screen's navigation on phones.
+* Attach up to 4 screenshots when you send feedback, or paste one straight into the form.
+* Tap a departure to follow that train or bus along its line, with the time it reaches every stop.
 * Admins can fix which Google or Foursquare listing a place shows, or mark that it has none, from the bottom of the place page.
+
+### Changed
+
+* Press Enter in search to see all results right away, without waiting for suggestions. When a search clearly means one place or address, it opens straight away, and Back shows the full results.
+* Searching for a kind of place or a chain, like "coffee" or "Starbucks", opens that browse straight away, and a question opens Ask.
+* With Day & Night on, the globe's night side now shows city lights and a deep blue sky on the standard map, with a sunset glow around the Earth's edge and a brighter sun.
+
+### Fixed
+
+* NYC subway trains now show on a line's map and follow your own train during navigation.
+* Shadows of lampposts, benches, picnic tables and bins now start at their base, and small objects cast them at all.
+
+## [0.27.1] - 2026-11-25
+
+### Added
+
 * The command palette lists the commands you use most at the top.
 * On a place, the command palette offers directions, call, website, share and edit, and **D** gets directions there.
 * Share your location with a friend for 1 hour, 4 hours, until tomorrow morning or until you turn it off. Your friends list shows how long is left.
@@ -17,6 +36,7 @@
 
 ### Fixed
 
+* Building roofs keep the same shading when you turn map layers on or off.
 * Sharing a place copies its link when the browser can't open a share sheet.
 * Uploaded profile photos show up instead of a blank square.
 
@@ -37,6 +57,7 @@
 * Location sharing with friends on other servers isn't available yet, and the switch says so.
 * Water names are set in italic, in every map style.
 * A menu or dialog opened over a sheet now tucks that sheet behind it and dims the map, so it's clear what you're using. Tap outside to close it.
+* Ferry routes draw as the map's own dashed ferry lanes, so busy harbours no longer turn into a solid band over the water.
 * Your recovery key is now 24 words that are easier to write down and type back in. Anyone with an older recovery key will be asked to save the words instead.
 * Deleting a passkey tells you when it's one that can unlock your encrypted data on a new device, and when it's the only one.
 * Passkeys from more password managers can unlock your encrypted data, since adding one now checks a second time before giving up.

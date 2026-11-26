@@ -14,6 +14,7 @@ import {
   type VenueProvider,
 } from '@server/lib/place/booking-venues'
 import type { PlaceAction } from '@server/types/place.types'
+import { BOOKING_BRANDS, bookingBrandOf, siteName, type BookingBrandKey } from './booking-brands'
 
 export {
   bookingKind,
@@ -156,10 +157,6 @@ const SEARCHES: Record<BookingKind, [BookingProvider, (target: BookingTarget) =>
   ahead: [['search', webSearchUrl]],
 }
 
-function siteName(raw: string): string {
-  return new URL(raw).hostname.replace(/^www\./, '')
-}
-
 /**
  * A booking page: on a known site it's that site's venue page, prefilled. On
  * any other site, the place's own tagged page is "their website", and a link
@@ -170,7 +167,9 @@ function directLink(raw: string, target: BookingTarget, own: boolean): BookingLi
   const id = provider && parseVenueUrl(provider, raw)
   const url = provider && id ? venuePageUrl(provider, id, target.plan) : null
   if (provider) return { provider, url: url ?? raw }
-  return own ? { provider: 'venue', url: raw } : { provider: 'other', url: raw, name: siteName(raw) }
+  if (own) return { provider: 'venue', url: raw }
+  const brand = bookingBrandOf(raw)
+  return { provider: 'other', url: raw, name: brand ? BOOKING_BRANDS[brand].name : siteName(raw) }
 }
 
 /**
@@ -208,19 +207,10 @@ export function bookingLinks(target: BookingTarget): BookingLink[] {
   return links
 }
 
-const DELIVERY_NAMES: [RegExp, string][] = [
-  [/(^|\.)ubereats\.com$/, 'Uber Eats'],
-  [/(^|\.)doordash\.com$/, 'DoorDash'],
-  [/(^|\.)grubhub\.com$/, 'Grubhub'],
-  [/(^|\.)seamless\.com$/, 'Seamless'],
-  [/(^|\.)postmates\.com$/, 'Postmates'],
-  [/(^|\.)deliveroo\.[a-z.]+$/, 'Deliveroo'],
-  [/(^|\.)just-eat\.[a-z.]+$/, 'Just Eat'],
-]
-
 export interface DeliveryLink {
   name: string
   url: string
+  brand?: BookingBrandKey
 }
 
 /** Where to order delivery from the place, one link per service. */
@@ -234,8 +224,9 @@ export function deliveryLinks(actions: PlaceAction[] | undefined): DeliveryLink[
     } catch {
       continue
     }
-    const name = DELIVERY_NAMES.find(([pattern]) => pattern.test(host))?.[1] ?? host.replace(/^www\./, '')
-    if (!links.some(l => l.name === name)) links.push({ name, url: action.url })
+    const brand = bookingBrandOf(action.url)
+    const name = brand ? BOOKING_BRANDS[brand].name : host.replace(/^www\./, '')
+    if (!links.some(l => l.name === name)) links.push({ name, url: action.url, ...(brand && { brand }) })
   }
   return links
 }

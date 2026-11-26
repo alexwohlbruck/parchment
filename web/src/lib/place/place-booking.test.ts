@@ -174,7 +174,7 @@ describe('deliveryLinks', () => {
         { kind: 'reservation', url: 'https://resy.com/cities/ny/carbone' },
       ]),
     ).toEqual([
-      { name: 'Uber Eats', url: 'https://www.ubereats.com/store/carbone/abc' },
+      { name: 'Uber Eats', url: 'https://www.ubereats.com/store/carbone/abc', brand: 'ubereats' },
       { name: 'order.example.com', url: 'https://order.example.com/carbone' },
     ])
   })

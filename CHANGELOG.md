@@ -16,6 +16,7 @@
 
 * NYC subway trains now show on a line's map and follow your own train during navigation.
 * Shadows of lampposts, benches, picnic tables and bins now start at their base, and small objects cast them at all.
+* Fewer stutters when moving the map around parks and bridges.
 
 ## [0.27.1] - 2026-11-25
 

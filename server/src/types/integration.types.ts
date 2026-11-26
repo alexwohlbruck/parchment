@@ -1,3 +1,4 @@
+import type { HotelCandidate } from '../lib/place/hotel-match'
 import type { EntrancePurpose } from '../lib/transit/entrance-choice'
 import type { SpeechCapability } from './speech.types'
 import type { LanguageModelCapability } from './language-model.types'
@@ -712,6 +713,99 @@ export interface RideshareEstimateCapability {
   ): Promise<RideshareEstimateResponse>
 }
 
+// ── Hotel rates ──────────────────────────────────────────────────────
+
+export type { HotelCandidate }
+
+export interface StayRatesRequest {
+  /** The provider's id for the hotel, from the place's stored provider match. */
+  hotelId: string
+  /** YYYY-MM-DD */
+  checkin: string
+  /** YYYY-MM-DD */
+  checkout: string
+  adults: number
+  currency: string
+  /** ISO 3166-1 alpha-2 country the guest books from. */
+  guestNationality: string
+}
+
+export interface StayMoney {
+  amount: number
+  currency: string
+}
+
+export interface StayRoom {
+  offerId: string
+  name: string
+  /** Total for the whole stay, taxes the hotel collects up front included. */
+  total: StayMoney
+  /** Charged at the property on top of the total. */
+  payAtProperty: StayMoney | null
+  board: string | null
+  /** Free cancellation until this ISO instant, or null when the rate can't be refunded. */
+  freeCancellationUntil: string | null
+  /** Checkout for this exact offer. */
+  bookingUrl: string
+}
+
+export interface StayRates {
+  provider: string
+  hotelId: string
+  rooms: StayRoom[]
+  /** The hotel's page on the provider's booking site, prefilled with the dates and guests. */
+  bookingUrl: string | null
+}
+
+export interface HotelRatesCapability {
+  /** Live room rates for one of the provider's hotels. */
+  getStayRates(request: StayRatesRequest): Promise<StayRates>
+  /** The provider's hotels within `radius` metres, those loosely matching `name` when given. */
+  findHotels(center: { lat: number; lng: number }, radius: number, name?: string): Promise<HotelCandidate[]>
+  /** One hotel by the provider's id, or null when it no longer exists. */
+  getHotel(hotelId: string): Promise<HotelCandidate | null>
+}
+
+/** The dates and guests a stay is priced for. */
+export type Stay = Omit<StayRatesRequest, 'hotelId'>
+
+/** One seller's price for a stay. */
+export interface StayOffer {
+  seller: string
+  logo: string | null
+  /** The hotel's own site. */
+  official: boolean
+  /** Google's featured sellers, shown above the rest. */
+  featured: boolean
+  /** Sold through Parchment's booking partner. */
+  bookHere: boolean
+  /** Per night, before taxes and fees. */
+  nightly: StayMoney | null
+  /** The whole stay with taxes and fees. */
+  total: StayMoney | null
+  freeCancellation: boolean
+  /** The seller's booking page for these dates and guests. */
+  url: string
+}
+
+export interface StayOffers {
+  offers: StayOffer[]
+}
+
+export interface GoogleHotelsSearch {
+  /** Candidates keyed by property token. */
+  candidates: HotelCandidate[]
+  /** Set when Google resolved the query to one hotel and returned its prices with it. */
+  property?: { candidate: HotelCandidate; offers: StayOffer[] }
+}
+
+export interface HotelPricesCapability {
+  /** Hotels matching a query, priced for the stay when Google resolves it to one. */
+  searchHotels(query: string, stay: Stay): Promise<GoogleHotelsSearch>
+  /** Every seller's price for one hotel by its property token. */
+  getOffers(propertyToken: string, stay: Stay): Promise<StayOffer[]>
+}
+
 // ── Capability container ─────────────────────────────────────────────
 
 export interface IntegrationCapabilities {
@@ -734,6 +828,8 @@ export interface IntegrationCapabilities {
   locationHistory?: LocationHistoryCapability
   transitRouting?: TransitRoutingCapability
   rideshareEstimate?: RideshareEstimateCapability
+  hotelRates?: HotelRatesCapability
+  hotelPrices?: HotelPricesCapability
   feedback?: FeedbackCapability
   languageModel?: LanguageModelCapability
 }

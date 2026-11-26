@@ -183,4 +183,9 @@ export const permissions: {
     name: 'Map notes',
     description: 'Create and edit map notes on OpenStreetMap',
   },
+  {
+    id: PermissionId.PLACES_LISTINGS_WRITE,
+    name: 'Correct business listings',
+    description: 'Change which Google, Foursquare or other listing a place is matched to, for everyone',
+  },
 ]

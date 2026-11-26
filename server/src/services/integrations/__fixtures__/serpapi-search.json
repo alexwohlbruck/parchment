@@ -1,0 +1,34 @@
+{
+  "search_metadata": {
+    "status": "Success"
+  },
+  "properties": [
+    {
+      "type": "hotel",
+      "name": "EVEN Hotel Brooklyn by IHG",
+      "property_token": "ChoIp8bW2tGU-6vDARoNL2cvMTFmMHR0Z2ZzdBAB",
+      "gps_coordinates": {
+        "latitude": 40.6884,
+        "longitude": -73.9809
+      }
+    },
+    {
+      "type": "hotel",
+      "name": "Hotel Indigo Brooklyn Downtown",
+      "property_token": "ChgIindigo",
+      "gps_coordinates": {
+        "latitude": 40.6889,
+        "longitude": -73.9812
+      }
+    },
+    {
+      "type": "hotel",
+      "name": "EVEN Hotel Brooklyn by IHG",
+      "property_token": "ChgIfar",
+      "gps_coordinates": {
+        "latitude": 40.73,
+        "longitude": -73.95
+      }
+    }
+  ]
+}

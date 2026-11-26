@@ -5,6 +5,7 @@
 * Ask now has a shortcut in the home screen's navigation on phones.
 * Attach up to 4 screenshots when you send feedback, or paste one straight into the form.
 * Tap a departure to follow that train or bus along its line, with the time it reaches every stop.
+* Admins can fix which Google or Foursquare listing a place shows, or mark that it has none, from the bottom of the place page.
 
 ### Changed
 
@@ -30,6 +31,7 @@
 
 ### Changed
 
+* Photos, hours and ratings from business listings load faster when you reopen a place, and the place keeps the same listing each time.
 * The layers time control now sits in its own section and appears whenever transit or Day & Night is on.
 
 ### Fixed

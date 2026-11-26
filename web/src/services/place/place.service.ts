@@ -221,6 +221,14 @@ function placeService() {
     return fetchPlaceWithCache(queryParams, signal)
   }
 
+  /** Refetch the open place, skipping the cache, after something changed it server-side. */
+  async function refreshPlaceDetails(id: string, source: SourceId = SOURCE.OSM) {
+    const queryParams = { source, id }
+    const fresh = await fetchPlaceFromApi(buildPlaceCacheKey(queryParams), queryParams)
+    if (fresh) currentPlace.value = fresh
+    return fresh
+  }
+
   /**
    * Find a bookmark matching the place's external IDs
    */
@@ -426,6 +434,7 @@ function placeService() {
     loading,
     prefetchPlaceDetails,
     fetchPlaceDetails,
+    refreshPlaceDetails,
     lookupPlace,
     lookupPlaceById,
     fetchPlaceDetailsByName,

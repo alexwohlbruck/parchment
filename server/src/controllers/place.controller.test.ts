@@ -28,6 +28,8 @@ mock.module('../services/place.service', () => ({
   lookupEnrichedPlaceById,
   lookupPlaceByNameAndLocation,
   lookupEnrichedPlaceByCoordinates,
+  lookupPlaceById: async () => null,
+  lookupPlacesByNameAndLocation: async () => [],
 }))
 
 let permissions: string[] = []

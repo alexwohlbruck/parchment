@@ -64,6 +64,15 @@ const mergePlaces = mock((primary: any, ...rest: any[]) =>
 const mergePlacesCollection = mock((places: any[]) => places)
 mock.module('./merge.service', () => ({ mergePlaces, mergePlacesCollection, shouldMergePlaces: () => true }))
 
+let storedMatches: Record<string, { providerPlaceId: string | null; confirmed: boolean }> = {}
+const auto = (providerPlaceId: string) => ({ providerPlaceId, confirmed: false })
+const getProviderMatches = mock(async () => storedMatches)
+const applyProviderMatchUpdate = mock(async (..._args: unknown[]) => {})
+mock.module('./place/provider-matches.service', () => ({
+  getProviderMatches,
+  applyProviderMatchUpdate,
+}))
+
 mock.module('../lib/logger', () => ({
   logger: { info: () => {}, warn: () => {}, debug: () => {}, error: () => {} },
   logError: () => {},
@@ -106,11 +115,15 @@ beforeEach(() => {
   searchPlaces.mockClear()
   searchPlaces.mockImplementation(async () => [])
   getConfiguredIntegrationForSource.mockClear()
+  getConfiguredIntegrationForSource.mockImplementation(() => placeInfoRecord)
   getCachedIntegrationInstance.mockClear()
   getConfiguredIntegrationsByCapability.mockClear()
   getConfiguredIntegrationsByCapability.mockImplementation(() => [])
   mergePlaces.mockClear()
   findBookmarkByExternalIds.mockClear()
+  storedMatches = {}
+  getProviderMatches.mockClear()
+  applyProviderMatchUpdate.mockClear()
 })
 
 describe('lookupPlaceById', () => {
@@ -323,5 +336,131 @@ describe('lookupEnrichedPlaceById', () => {
     mergePlaces.mockImplementation((primary: any, ...rest: any[]) =>
       Object.assign({}, primary, ...rest.filter(Boolean)),
     )
+  })
+})
+
+describe('stored provider matches', () => {
+  const premium = { premiumData: true }
+  const googleSearch = () =>
+    getConfiguredIntegrationsByCapability.mockImplementation(() => [
+      { integrationId: 'google' },
+    ])
+  const lastUpdate = () => applyProviderMatchUpdate.mock.calls.at(-1) as any[]
+
+  test('fetches a stored match directly instead of searching', async () => {
+    storedMatches = { google: auto('ChIJ1') }
+    googleSearch()
+    getPlaceInfo.mockImplementation(async (pid: string) =>
+      pid === 'ChIJ1'
+        ? basePlace({ id: 'google/ChIJ1', externalIds: { google: 'ChIJ1' } })
+        : basePlace(),
+    )
+
+    await lookupEnrichedPlaceById(SOURCE.OSM as any, 'node/1', premium)
+
+    expect(searchPlaces).not.toHaveBeenCalled()
+    expect(getPlaceInfo.mock.calls.map((call) => call[0])).toContain('ChIJ1')
+    expect(lastUpdate()[2]).toEqual({ upserts: {}, removals: [] })
+  })
+
+  test('falls back to search and replaces a stale stored id', async () => {
+    storedMatches = { google: auto('gone') }
+    googleSearch()
+    getPlaceInfo.mockImplementation(async (pid: string) =>
+      pid === 'gone' ? null : (basePlace() as any),
+    )
+    searchPlaces.mockImplementation(async () => [
+      basePlace({ id: 'google/ChIJ2', externalIds: { google: 'ChIJ2' } }),
+    ])
+
+    await lookupEnrichedPlaceById(SOURCE.OSM as any, 'node/1', premium)
+
+    expect(searchPlaces).toHaveBeenCalled()
+    expect(lastUpdate()).toEqual([
+      SOURCE.OSM,
+      'node/1',
+      { upserts: { google: 'ChIJ2' }, removals: [] },
+    ])
+  })
+
+  test('forgets a stale stored id the search no longer finds', async () => {
+    storedMatches = { google: auto('gone') }
+    googleSearch()
+    getPlaceInfo.mockImplementation(async (pid: string) =>
+      pid === 'gone' ? null : (basePlace() as any),
+    )
+
+    await lookupEnrichedPlaceById(SOURCE.OSM as any, 'node/1', premium)
+
+    expect(lastUpdate()[2]).toEqual({ upserts: {}, removals: [SOURCE.GOOGLE] })
+  })
+
+  test('saves the id a first search matched', async () => {
+    googleSearch()
+    searchPlaces.mockImplementation(async () => [
+      basePlace({ id: 'google/ChIJ1', externalIds: { google: 'ChIJ1' } }),
+    ])
+
+    await lookupEnrichedPlaceById(SOURCE.OSM as any, 'node/1', premium)
+
+    expect(lastUpdate()[2]).toEqual({ upserts: { google: 'ChIJ1' }, removals: [] })
+  })
+
+  test('keeps a stored id whose provider is not configured', async () => {
+    storedMatches = { google: auto('ChIJ1') }
+    getConfiguredIntegrationForSource.mockImplementation((source: string) =>
+      source === SOURCE.GOOGLE ? null : placeInfoRecord,
+    )
+
+    await lookupEnrichedPlaceById(SOURCE.OSM as any, 'node/1', premium)
+
+    expect(getPlaceInfo.mock.calls.map((call) => call[0])).not.toContain('ChIJ1')
+    expect(lastUpdate()[2]).toEqual({ upserts: {}, removals: [] })
+  })
+
+  test('never replaces a match a person confirmed', async () => {
+    storedMatches = { google: { providerPlaceId: 'ChIJchosen', confirmed: true }, foursquare: auto('gone') }
+    googleSearch()
+    getPlaceInfo.mockImplementation(async (pid: string) =>
+      pid === 'gone' ? null : (basePlace({ externalIds: pid === 'ChIJchosen' ? { google: 'ChIJchosen' } : {} }) as any),
+    )
+    searchPlaces.mockImplementation(async () => [
+      basePlace({ id: 'google/ChIJother', externalIds: { google: 'ChIJother' } }),
+    ])
+
+    await lookupEnrichedPlaceById(SOURCE.OSM as any, 'node/1', premium)
+
+    expect(lastUpdate()[2].upserts.google).toBeUndefined()
+  })
+
+  test('never searches a provider a person said has no listing', async () => {
+    storedMatches = { google: { providerPlaceId: null, confirmed: true } }
+    googleSearch()
+    instance.sources = [SOURCE.GOOGLE]
+    searchPlaces.mockImplementation(async () => [
+      basePlace({ id: 'google/ChIJ1', externalIds: { google: 'ChIJ1' } }),
+    ])
+
+    await lookupEnrichedPlaceById(SOURCE.OSM as any, 'node/1', premium)
+
+    expect(searchPlaces).not.toHaveBeenCalled()
+    expect(lastUpdate()[2]).toEqual({ upserts: {}, removals: [] })
+  })
+
+  test('neither reads nor writes matches for a free caller', async () => {
+    await lookupEnrichedPlaceById(SOURCE.OSM as any, 'node/1')
+
+    expect(getProviderMatches).not.toHaveBeenCalled()
+    expect(applyProviderMatchUpdate).not.toHaveBeenCalled()
+  })
+
+  test('still enriches when the match store is unavailable', async () => {
+    getProviderMatches.mockImplementationOnce(async () => {
+      throw new Error('db down')
+    })
+    googleSearch()
+
+    expect(await lookupEnrichedPlaceById(SOURCE.OSM as any, 'node/1', premium)).toBeTruthy()
+    expect(searchPlaces).toHaveBeenCalled()
   })
 })

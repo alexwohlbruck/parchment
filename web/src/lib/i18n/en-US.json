@@ -3030,6 +3030,18 @@
     "list": {
       "empty": "No places found",
       "emptyDescription": "Try a different search or area"
+    },
+    "listings": {
+      "title": "Business listings",
+      "none": "No listing",
+      "change": "Change",
+      "pickerTitle": "{provider} listing",
+      "pickerDescription": "Pick the listing for this place. Everyone sees your choice.",
+      "search": "Search {provider}",
+      "noneOption": "Not on {provider}",
+      "noCandidates": "No listings nearby",
+      "saved": "Listing updated",
+      "failed": "Couldn't update the listing"
     }
   },
   "settings": {

@@ -1,6 +1,6 @@
 import { Elysia, t } from 'elysia'
 import { makeClientRateLimit } from '../middleware/rate-limit.middleware'
-import { getSession, requireAuth } from '../middleware/auth.middleware.js'
+import { getSession, permissions, requireAuth } from '../middleware/auth.middleware.js'
 import { DEFAULT_LANGUAGE } from '../lib/i18n/i18n.types'
 import {
   lookupPlaceByNameAndLocation,
@@ -15,6 +15,12 @@ import { fetchWidgetData } from '../services/widget.service'
 import { fetchNearestStreetImage } from '../services/street-imagery.service'
 import { logError, logger } from '../lib/logger'
 import { i18nPlugin } from '../lib/i18n/plugin'
+import type { Source } from '../lib/constants'
+import {
+  correctListing,
+  getPlaceListings,
+  searchListingCandidates,
+} from '../services/place/listing-matches.service'
 
 const app = new Elysia({ prefix: '/places' })
   .use(i18nPlugin)
@@ -270,6 +276,74 @@ app.get(
       summary: 'Get nearest street-level image to a coordinate',
     },
   },
+)
+
+const placeKey = {
+  source: t.String({ description: 'Source of the place, e.g. `osm`', examples: ['osm'] }),
+  id: t.String({ description: 'Id in that source, e.g. `node/6493733562`', examples: ['node/6493733562'] }),
+}
+const providerKey = t.String({
+  pattern: '^[a-z][a-z0-9_-]{1,31}$',
+  description: 'Provider of the listing, e.g. `google`, `foursquare`',
+})
+
+// Matches are shared map data: one correction changes the place for every user.
+app.group('/listings', (listings) =>
+  listings
+    .use(permissions(PermissionId.PLACES_LISTINGS_WRITE))
+    .get(
+      '/',
+      async ({ query, language }) => ({
+        listings: await getPlaceListings(query.source as Source, query.id, { language }),
+      }),
+      {
+        query: t.Object(placeKey),
+        detail: {
+          tags: ['Places'],
+          summary: 'Get the business listings a place is matched to',
+          description:
+            'One entry per provider the place can be matched at: the matched listing (null for none), whether a person confirmed it, and whether candidates can be searched.',
+        },
+      },
+    )
+    .get(
+      '/candidates',
+      async ({ query, language }) => ({
+        candidates: await searchListingCandidates(query.source as Source, query.id, query.provider, {
+          query: query.q,
+          language,
+        }),
+      }),
+      {
+        query: t.Object({ ...placeKey, provider: providerKey, q: t.Optional(t.String({ maxLength: 200 })) }),
+        detail: {
+          tags: ['Places'],
+          summary: 'Search nearby listings at one provider',
+          description: 'Listings within 500 m of the place, nearest first. `q` defaults to the place name.',
+        },
+      },
+    )
+    .put(
+      '/',
+      async ({ body, status, t }) => {
+        const stored = await correctListing(body.source as Source, body.id, body.provider, body.providerPlaceId)
+        if (!stored) return status(400, { message: t('errors.place.listingUnsupported') })
+        return { ok: true }
+      },
+      {
+        body: t.Object({
+          ...placeKey,
+          provider: providerKey,
+          providerPlaceId: t.Nullable(t.String({ minLength: 1, maxLength: 255 })),
+        }),
+        detail: {
+          tags: ['Places'],
+          summary: 'Correct the listing a place is matched to',
+          description:
+            'Sets the listing for one provider, or `providerPlaceId: null` for none. Stored as a confirmed match that automatic matching never replaces. OSM places only.',
+        },
+      },
+    ),
 )
 
 export default app

@@ -3,30 +3,45 @@ import type { Place } from '../types/place.types'
 import { addressPoint, parseModelBusiness, siteName, webPlace } from './web-place.service'
 
 describe('parseModelBusiness', () => {
+  const page = `Moss Café
+8 Elm St, Burlington VT 05401 · (802) 555-0142
+Open weekdays 7am – 2pm`
+
   test('reads the JSON a model wraps in prose or fences', () => {
-    const reply = 'Here it is:\n```json\n{"name":"Moss Café","category":"CafeOrCoffeeShop","street":"8 Elm Street","city":"Burlington","region":"VT","postcode":"05401","country":"US","phone":null,"email":null,"opening_hours":"Mo-Fr 07:00-14:00","closed":false}\n```'
-    expect(parseModelBusiness(reply)).toEqual({
+    const reply = 'Here it is:\n```json\n{"name":"Moss Café","preset":"amenity/cafe","street":"8 Elm Street","city":"Burlington","region":"VT","postcode":"05401","country":"us","phone":"+1 802 555 0142","email":null,"opening_hours":"Mo-Fr 07:00-14:00","hours_quote":"Open weekdays 7am – 2pm","closed":false}\n```'
+    expect(parseModelBusiness(reply, page)).toEqual({
       name: 'Moss Café',
-      types: ['CafeOrCoffeeShop'],
+      types: [],
+      preset: 'amenity/cafe',
       address: { street: '8 Elm Street', locality: 'Burlington', region: 'VT', postalCode: '05401', country: 'US' },
-      phone: undefined,
+      phone: '+1 802 555 0142',
       email: undefined,
       openingHours: 'Mo-Fr 07:00-14:00',
       closed: false,
     })
   })
 
-  test('drops a category it wasn’t offered and hours that aren’t OSM syntax', () => {
+  test('drops what the page doesn’t say and presets the schema doesn’t have', () => {
     const business = parseModelBusiness(
-      '{"name":"Moss","category":"Coffee","street":"8 Elm St","opening_hours":"7am – 2pm weekdays"}',
+      '{"name":"Moss Café","preset":"amenity/coffee_house","street":"8 Elm St","phone":"802-555-9999","email":"hi@moss.example","opening_hours":"Mo-Su 06:00-22:00","hours_quote":"Open daily 6 to 10"}',
+      page,
     )
-    expect(business?.types).toEqual([])
+    expect(business?.preset).toBeUndefined()
+    expect(business?.phone).toBeUndefined()
+    expect(business?.email).toBeUndefined()
     expect(business?.openingHours).toBeUndefined()
   })
 
-  test('needs a name and a street', () => {
-    expect(parseModelBusiness('{"name":"Moss","street":null}')).toBeNull()
-    expect(parseModelBusiness('no idea')).toBeNull()
+  test('keeps hours only in clean OSM syntax', () => {
+    const reply = '{"name":"Moss Café","street":"8 Elm St","opening_hours":"7am-2pm","hours_quote":"7am – 2pm"}'
+    expect(parseModelBusiness(reply, page)?.openingHours).toBeUndefined()
+  })
+
+  test('needs a name and a street that are on the page', () => {
+    expect(parseModelBusiness('{"name":"Moss Café","street":null}', page)).toBeNull()
+    expect(parseModelBusiness('{"name":"Moss Café","street":"12 Pine Road"}', page)).toBeNull()
+    expect(parseModelBusiness('{"name":"Fern Bakery","street":"8 Elm St"}', page)).toBeNull()
+    expect(parseModelBusiness('no idea', page)).toBeNull()
   })
 })
 
@@ -108,4 +123,15 @@ describe('siteName', () => {
   test('keeps the name read off the site when nothing else matches', () => {
     expect(siteName(['Welcome', 'Home'], 'Moss Café', 'moss cafe')).toBe('Moss Café')
   })
+})
+
+test('tags a business with the preset a model picked and the fields it checked', () => {
+  const place = webPlace(
+    { name: 'Pianoland', types: [], preset: 'shop/musical_instrument', tags: { wheelchair: 'yes', operator: 'Pianoland Movers & Storage' }, address: { street: '2527 65th St' } },
+    'https://pianoland.example/',
+    { lat: 40.6095, lng: -73.9735 },
+  )
+  expect(place.unmapped?.presetId).toBe('shop/musical_instrument')
+  expect(place.unmapped?.tags).toMatchObject({ shop: 'musical_instrument', wheelchair: 'yes' })
+  expect(place.unmapped?.tags.operator).toBeUndefined()
 })

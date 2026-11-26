@@ -3,11 +3,21 @@ import { createHash } from 'node:crypto'
 import { distance } from '@turf/turf'
 import { SOURCE } from '../lib/constants'
 import { MemoCache } from '../lib/memo-cache'
-import { logError } from '../lib/logger'
+import { logError, logger } from '../lib/logger'
 import { assertPublicUrl, outboundRequestConfig } from '../lib/outbound-fetch'
-import { matchTags } from '../lib/osm-presets'
+import { getPresetById, matchTags } from '../lib/osm-presets'
 import { readSiteBusinesses, type SiteBusiness } from '../lib/web-place/schema-org'
-import { addressLine, businessTags, CATEGORY_TAGS, hasCategory, splitStreet } from '../lib/web-place/osm-tags'
+import { addressLine, businessTags, categoryTags, hasCategory, splitStreet } from '../lib/web-place/osm-tags'
+import {
+  businessPresetIds,
+  checkClaims,
+  isBusinessPreset,
+  isOsmHours,
+  onPage,
+  presetFieldSpecs,
+  type Claim,
+  type FieldSpec,
+} from '../lib/web-place/preset-schema'
 import {
   contactLinks,
   hostOf,
@@ -20,7 +30,7 @@ import { OverpassAdapter } from './integrations/adapters/overpass-adapter'
 import { forwardGeocode, reverseGeocode } from './geocoding.service'
 import { lookupPlacesByNameAndLocation } from './place.service'
 import type { Language } from '../lib/i18n/i18n.types'
-import type { LanguageModelCapability } from '../types/language-model.types'
+import type { ChatMessage, LanguageModelCapability } from '../types/language-model.types'
 import type { Place, WebPlaceLookup } from '../types/place.types'
 import type { LatLng } from '../types/ask.types'
 
@@ -35,6 +45,7 @@ const MAX_CONTACT_PAGES = 2
 /** Reasoning models spend most of these thinking before they answer. */
 const SITE_TOKENS = 1000
 const READ_TOKENS = 1500
+const FIELD_TOKENS = 4000
 
 export class WebPlaceError extends Error {}
 
@@ -161,10 +172,12 @@ async function readSite(website: string, name: string, options: Options) {
     pages.push(page)
     business = pickBusiness(readSiteBusinesses(page.html), name, options.near) ?? business
   }
+  const text = pagesText(pages)
   if (!business || !hasCategory(business)) {
-    const read = await readWithModel(pages, options)
-    business = business && read ? { ...business, types: [...read.types, ...business.types] } : (business ?? read ?? undefined)
+    const read = await readWithModel(text, options)
+    business = business && read ? { ...business, preset: read.preset } : (business ?? read ?? undefined)
   }
+  if (business) business = await readFields(business, text, options)
   return business ? { business, url: home.url, names: siteNames(home.html) } : null
 }
 
@@ -208,56 +221,139 @@ async function fetchPage(start: string, signal?: AbortSignal): Promise<Page | nu
 }
 
 const READ_BRIEF = `Read this business's own web pages and reply with one JSON object only:
-{"name","category","street","city","region","postcode","country","phone","email","opening_hours","closed"}
-- category: one of ${Object.keys(CATEGORY_TAGS).join(', ')}, or null
-- street: house number and street, e.g. "123 Main Street"
+{"name","preset","street","city","region","postcode","country","phone","email","opening_hours","hours_quote","closed"}
+- preset: the OpenStreetMap preset that fits it best, copied exactly from the list below, or null if none fits
+- street: house number and street as the page writes them, e.g. "123 Main Street"
 - country: ISO 3166 two-letter code
-- opening_hours: OpenStreetMap syntax, e.g. "Mo-Fr 09:00-17:00; Sa 10:00-14:00"
+- opening_hours: OpenStreetMap opening_hours syntax, e.g. "Mo-Fr 09:00-17:00; Sa 10:00-14:00"
+- hours_quote: the exact words on the page the hours come from
 - closed: true only if the pages say it has closed for good
-Only what the pages state; null for anything they don't.`
+Copy only what the pages state; null for anything they don't. Never fill a value in from what is typical for this kind of place.
+Presets: `
 
-async function readWithModel(pages: Page[], { model, signal }: Options): Promise<SiteBusiness | null> {
+async function readWithModel(text: string, { model, signal }: Options): Promise<SiteBusiness | null> {
   if (!model) return null
-  const content = pages.map((page) => `${page.url}\n${pageText(page.html)}`).join('\n\n---\n\n')
   const { message } = await model.complete({
     messages: [
-      { role: 'system', content: READ_BRIEF },
-      { role: 'user', content },
+      { role: 'system', content: READ_BRIEF + businessPresetIds().join(' ') },
+      { role: 'user', content: text },
     ],
     maxTokens: READ_TOKENS,
     signal,
   })
-  return parseModelBusiness(message.content ?? '')
+  return parseModelBusiness(message.content ?? '', text)
 }
 
-export function parseModelBusiness(reply: string): SiteBusiness | null {
-  let data: Record<string, unknown>
+function pagesText(pages: Page[]): string {
+  return pages.map((page) => `${page.url}\n${pageText(page.html)}`).join('\n\n---\n\n')
+}
+
+function parseJson(reply: string): Record<string, unknown> | null {
   try {
-    data = JSON.parse(reply.slice(reply.indexOf('{'), reply.lastIndexOf('}') + 1))
+    const data = JSON.parse(reply.slice(reply.indexOf('{'), reply.lastIndexOf('}') + 1))
+    return data && typeof data === 'object' && !Array.isArray(data) ? data : null
   } catch {
     return null
   }
-  const text = (key: string) =>
+}
+
+/** The business the model read, keeping only what the page text bears out. */
+export function parseModelBusiness(reply: string, text: string): SiteBusiness | null {
+  const data = parseJson(reply)
+  if (!data) return null
+  const value = (key: string) =>
     typeof data[key] === 'string' && (data[key] as string).trim() ? (data[key] as string).trim() : undefined
-  const name = text('name')
-  const street = text('street')
-  if (!name || !street) return null
-  const category = text('category')
-  const hours = text('opening_hours')
+  const stated = (key: string) => {
+    const found = value(key)
+    return found && onPage(found, text) ? found : undefined
+  }
+  const name = stated('name')
+  const street = value('street')
+  if (!name || !street || !streetOnPage(street, text)) return null
+  const preset = value('preset')
+  const hours = value('opening_hours')
+  const hoursQuote = value('hours_quote')
+  const phone = value('phone')
+  const country = value('country')
   return {
     name,
-    types: category && CATEGORY_TAGS[category] ? [category] : [],
+    types: [],
+    preset: preset && isBusinessPreset(preset) ? preset : undefined,
     address: {
       street,
-      locality: text('city'),
-      region: text('region'),
-      postalCode: text('postcode'),
-      country: text('country'),
+      locality: stated('city'),
+      region: stated('region'),
+      postalCode: stated('postcode'),
+      country: country && /^[A-Z]{2}$/i.test(country) ? country.toUpperCase() : undefined,
     },
-    phone: text('phone'),
-    email: text('email'),
-    openingHours: hours && /^[A-Za-z0-9 ,:;\-+/]+$/.test(hours) ? hours : undefined,
+    phone: phone && digitsOnPage(phone, text) ? phone : undefined,
+    email: stated('email'),
+    openingHours: hours && hoursQuote && onPage(hoursQuote, text) && isOsmHours(hours) ? hours : undefined,
     closed: data.closed === true,
+  }
+}
+
+/** The house number and street name both appear, however the page abbreviates "Street". */
+function streetOnPage(street: string, text: string): boolean {
+  if (onPage(street, text)) return true
+  const { 'addr:housenumber': number, 'addr:street': name } = splitStreet(street.split(',')[0].trim())
+  const word = name?.split(' ')[0]
+  return !!number && !!word && onPage(`${number} ${word}`, text)
+}
+
+function digitsOnPage(phone: string, text: string): boolean {
+  const digits = phone.replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '')
+  return digits.length >= 7 && text.replace(/\D/g, '').includes(digits)
+}
+
+const FIELD_HINTS: Record<string, string> = {
+  multiCombo: 'each value becomes <key><value>=yes, several separated by ;',
+  semiCombo: 'several separated by ;',
+  number: 'a number',
+  text: 'words exactly as the page writes them',
+}
+
+function fieldsBrief(preset: string, specs: FieldSpec[]): string {
+  const lines = specs.map(({ key, type, label, options }) => {
+    const how = FIELD_HINTS[type]?.replace('<key>', key) ?? 'one value'
+    return `${key} (${label}; ${how})${options ? `: ${options.join(', ')}` : ''}`
+  })
+  return `You are tagging a ${getPresetById(preset)?.name ?? preset} (${preset}) for OpenStreetMap from the business's own web pages.
+Answer every field below, in one JSON object keyed by field key. Each answer is null, or {"value": ..., "quote": ...}:
+- value: one of the listed options where options are given; snake_case otherwise
+- quote: the exact words copied from the pages that state it
+Null unless the pages say it outright. Never answer from what is typical for this kind of place.
+${lines.join('\n')}`
+}
+
+/** Fills the preset's other fields from the pages, keeping only what the schema allows and the pages quote. */
+async function readFields(business: SiteBusiness, text: string, { model, signal }: Options): Promise<SiteBusiness> {
+  const category = categoryTags(business)
+  const preset = business.preset ?? (category && matchTags(category, 'point')?.preset.id)
+  const specs = preset ? presetFieldSpecs(preset) : []
+  if (!model || !preset || !specs.length) return business
+  try {
+    const messages: ChatMessage[] = [
+      { role: 'system', content: fieldsBrief(preset, specs) },
+      { role: 'user', content: text },
+    ]
+    const ask = async () => {
+      const { message } = await model.complete({ messages, maxTokens: FIELD_TOKENS, signal })
+      messages.push({ role: 'assistant', content: message.content })
+      return parseJson(message.content ?? '') ?? {}
+    }
+    const claims = await ask()
+    const skipped = specs.filter(({ key }) => !(key in claims)).map(({ key }) => key)
+    if (skipped.length) {
+      messages.push({ role: 'user', content: `You skipped ${skipped.join(', ')}. Answer each of them the same way.` })
+      Object.assign(claims, await ask())
+    }
+    const { tags, rejected } = checkClaims(claims as Record<string, Claim | null>, specs, text)
+    if (rejected.length) logger.debug({ preset, rejected }, '[web-place] dropped fields the schema or pages do not bear out')
+    return { ...business, tags }
+  } catch (error) {
+    if (!signal?.aborted) logError('Failed to read a business’s fields', error)
+    return business
   }
 }
 
@@ -338,7 +434,10 @@ export function webPlace(
     externalIds: { [SOURCE.WEB]: id },
     tags,
     sources: [{ id: SOURCE.WEB, name: hostOf(website) ?? website, url: website }],
-    unmapped: { tags, presetId: hasCategory(business) ? (matchTags(tags, 'point')?.preset.id ?? null) : null },
+    unmapped: {
+      tags,
+      presetId: business.preset ?? (hasCategory(business) ? (matchTags(tags, 'point')?.preset.id ?? null) : null),
+    },
   }
 }
 

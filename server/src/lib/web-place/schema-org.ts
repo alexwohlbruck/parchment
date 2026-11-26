@@ -16,6 +16,10 @@ export interface SiteBusiness {
   openingHours?: string
   cuisine?: string[]
   closed?: boolean
+  /** The iD preset a model picked for it, when its JSON-LD names no type. */
+  preset?: string
+  /** Further tags read off its pages that the preset's schema allows. */
+  tags?: Record<string, string>
 }
 
 type Json = Record<string, any>

@@ -1,4 +1,6 @@
 import type { SiteBusiness } from './schema-org'
+import { isOsmHours, presetTags } from './preset-schema'
+import { sameName } from './site-page'
 
 /** schema.org business types and the OSM tags that say the same thing. */
 export const CATEGORY_TAGS: Record<string, Record<string, string>> = {
@@ -73,17 +75,24 @@ const SERVES_FOOD = new Set(['restaurant', 'fast_food', 'cafe'])
 
 /** True when one of the business's types says what kind of place it is. */
 export function hasCategory(business: SiteBusiness): boolean {
-  return business.types.some((type) => CATEGORY_TAGS[type])
+  return !!business.preset || business.types.some((type) => CATEGORY_TAGS[type])
+}
+
+/** The tags that say what kind of place the business is. */
+export function categoryTags(business: SiteBusiness): Record<string, string> | undefined {
+  if (business.preset) return presetTags(business.preset)
+  return business.types.map((type) => CATEGORY_TAGS[type]).find(Boolean)
 }
 
 /** The OSM tags a new node for this business would carry, from the business's own site. */
 export function businessTags(business: SiteBusiness, website: string): Record<string, string> {
-  const category = business.types.map((type) => CATEGORY_TAGS[type]).find(Boolean)
-  const tags: Record<string, string> = { ...category, name: business.name, website }
+  const category = categoryTags(business)
+  const tags: Record<string, string> = { ...business.tags, ...category, name: business.name, website }
+  if (tags.operator && sameName(tags.operator, business.name)) delete tags.operator
   Object.assign(tags, addressTags(business.address))
   if (business.phone) tags.phone = business.phone
   if (business.email) tags.email = business.email
-  if (business.openingHours) tags.opening_hours = business.openingHours
+  if (business.openingHours && isOsmHours(business.openingHours)) tags.opening_hours = business.openingHours
   if (business.cuisine?.length && SERVES_FOOD.has(category?.amenity ?? '')) {
     tags.cuisine = business.cuisine.map((item) => item.toLowerCase().replace(/[\s-]+/g, '_')).join(';')
   }

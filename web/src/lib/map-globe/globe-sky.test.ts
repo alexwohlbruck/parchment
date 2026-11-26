@@ -109,7 +109,7 @@ describe('GlobeSky', () => {
     sky.onRemove(map(), gl)
   })
 
-  it('keeps cloud, ocean, and city-light imagery off the standard map', () => {
+  it('keeps cloud and ocean imagery off the standard map but lights its cities', () => {
     const { gl, calls } = context()
     const host = {
       getZoom: () => 2, getPixelRatio: () => 1,
@@ -127,15 +127,16 @@ describe('GlobeSky', () => {
     satellite = false
     sky.render(gl, input(1))
     expect(calls.uniform1f).toHaveBeenCalledWith('u_cloud_blend', 0)
-    expect(calls.uniform1f).toHaveBeenCalledWith('u_lights_blend', 0)
     expect(calls.uniform1f).toHaveBeenCalledWith('u_ocean_blend', 0)
     expect(calls.uniform1f).toHaveBeenCalledWith('u_moon_visible', 0)
+    expect(calls.uniform1f).toHaveBeenCalledWith('u_night_brightness', 0.16)
     expect(fetch).not.toHaveBeenCalled()
     sky.onRemove(host, gl)
     sky.onAdd(host, gl)
     sky.render(gl, input(1))
     const urls = vi.mocked(fetch).mock.calls.map(([url]) => String(url))
-    expect(urls.some(url => /clouds|night-lights|ocean-mask/.test(url))).toBe(false)
+    expect(urls.some(url => /clouds|ocean-mask/.test(url))).toBe(false)
+    expect(urls.some(url => /night-lights/.test(url))).toBe(true)
     sky.onRemove(host, gl)
   })
 

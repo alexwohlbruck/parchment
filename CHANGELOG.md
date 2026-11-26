@@ -21,6 +21,7 @@
 * Trees grow in when you zoom close enough to see them, rippling out from the middle of the map, and shrink away as you zoom back out, rather than popping.
 * Detailed streets, paths, parking and other map layers fade in and out as you zoom or as they load, rather than popping.
 * With Day & Night on, the globe's night side now shows city lights and a deep blue sky on the standard map, with a sunset glow around the Earth's edge and a brighter sun.
+* Trees in fall turn a mix of yellow, gold, orange, red and dusty brown, with a few holding on to green.
 
 ### Fixed
 
@@ -30,6 +31,7 @@
 * NYC subway trains now show on a line's map and follow your own train during navigation.
 * Shadows of lampposts, benches, picnic tables and bins now start at their base, and small objects cast them at all.
 * Fewer stutters when moving the map around parks and bridges.
+* With seasonal colors off, cherry trees show their pink blossom again rather than plain summer green.
 
 ## [0.27.1] - 2026-11-25
 

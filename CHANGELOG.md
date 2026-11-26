@@ -7,7 +7,7 @@
 
 ### Changed
 
-* Press Enter in search to see all results right away, without waiting for suggestions. A search that names exactly one place opens that place.
+* Press Enter in search to see all results right away, without waiting for suggestions. When a search clearly means one place or address, it opens straight away, and Back shows the full results.
 
 ### Fixed
 

@@ -6,7 +6,7 @@ import { useAuthService } from '@/services/auth.service'
 import { usePlaceService } from '@/services/place/place.service'
 import { PermissionId } from '@/types/auth.types'
 import type { Place } from '@/types/place.types'
-import { listingPlaceId, listingProviderName } from '@/lib/place/listing-providers'
+import { listingPlaceId, listingProviderName, listingTitle } from '@/lib/place/listing-providers'
 import { fetchPlaceListings, type ProviderListing } from '@/services/place/listings.service'
 import ListingPicker from './ListingPicker.vue'
 
@@ -63,7 +63,7 @@ async function onSaved() {
       class="flex items-center gap-3 py-1"
     >
       <div v-if="listing.listing" class="min-w-0 flex-1">
-        <div class="truncate text-sm font-medium">{{ listing.listing.name ?? listing.listing.id }}</div>
+        <div class="truncate text-sm font-medium">{{ listingTitle(listing.listing) ?? place.name?.value ?? listing.listing.id }}</div>
         <div class="truncate text-xs text-muted-foreground">
           {{ [listingProviderName(listing.provider), listing.listing.address].filter(Boolean).join(' · ') }}
         </div>

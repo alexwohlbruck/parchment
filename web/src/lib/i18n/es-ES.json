@@ -4300,5 +4300,9 @@
     "remove": "Quitar foto",
     "unreadable": "No se pudo abrir esa imagen",
     "saveFailed": "No se pudo actualizar tu foto"
+  },
+  "recents": {
+    "clear": "Borrar",
+    "clearFailed": "No se pudieron borrar tus recientes"
   }
 }

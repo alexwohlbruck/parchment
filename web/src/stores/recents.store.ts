@@ -206,15 +206,19 @@ export const useRecentsStore = defineStore('recents', () => {
   async function clearSearches() {
     const userId = currentUserId()
     if (!userId) return
-    await recentSearches.clear(userId)
     searches.value = []
+    await recentSearches.clear(userId)
   }
 
   async function clearPlaces() {
     const userId = currentUserId()
     if (!userId) return
-    await recentPlaces.clear(userId)
     places.value = []
+    await recentPlaces.clear(userId)
+  }
+
+  async function clearAll() {
+    await Promise.all([clearSearches(), clearPlaces()])
   }
 
   return {
@@ -231,5 +235,6 @@ export const useRecentsStore = defineStore('recents', () => {
     recordTransitRoute,
     clearSearches,
     clearPlaces,
+    clearAll,
   }
 })

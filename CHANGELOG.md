@@ -2,6 +2,7 @@
 
 ### Added
 
+* Clear your recent searches and places with **Clear** next to Recents in search or on the home screen.
 * When a business isn't on the map, Ask can look it up on its own website, or its Facebook page when it has none, straight from search results, showing each step as it goes. You can add the place to OpenStreetMap, updating the old entry when the map still shows a closed business at its address, or leave a note for mappers that lists every suggested tag. It picks out the right location of a business with several, finds addresses shown only in a site's logo or images, takes one you give it, and marks places that haven't opened yet.
 * Ask now has a shortcut in the home screen's navigation on phones.
 * Attach up to 4 screenshots when you send feedback, or paste one straight into the form.

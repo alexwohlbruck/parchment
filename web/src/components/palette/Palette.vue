@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ClearRecentsButton from '@/components/recents/ClearRecentsButton.vue'
 import { computed, ref, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onClickOutside, useMagicKeys, useDebounceFn } from '@vueuse/core'
@@ -693,6 +694,9 @@ const filterFunction = computed(() => {
               :key="group.key"
               :heading="group.heading"
             >
+              <template v-if="group.key === 'recents' && !query" #heading-action>
+                <ClearRecentsButton />
+              </template>
               <!-- Tile layout: horizontal scrolling cards (e.g. Frequents). -->
               <div
                 v-if="group.layout === 'tiles'"

@@ -54,7 +54,6 @@ import HotkeysMenu from '@/components/HotkeysMenu.vue'
 import ImpersonationBanner from '@/components/ImpersonationBanner.vue'
 import OnboardingDialog from '@/components/onboarding/OnboardingDialog.vue'
 import KeyRestoreDialog from '@/components/identity/KeyRestoreDialog.vue'
-import RecoveryWordsPrompt from '@/components/identity/RecoveryWordsPrompt.vue'
 import { Toaster } from '@/components/ui/sonner'
 import SyncQueueDialog from '@/components/sync/SyncQueueDialog.vue'
 import { TransitionSlide } from '@morev/vue-transitions'
@@ -366,7 +365,6 @@ function beforeNavTransition(value: boolean) {
   />
   <template v-else-if="authStore.me">
     <KeyRestoreDialog />
-    <RecoveryWordsPrompt />
   </template>
 
   <div v-for="dialog in dialogs" :key="dialog.id">

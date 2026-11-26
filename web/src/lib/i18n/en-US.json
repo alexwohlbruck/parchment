@@ -3228,6 +3228,10 @@
           "start": "I've saved them",
           "showAgain": "Show my words again",
           "savedToast": "Recovery words saved"
+        },
+        "hint": {
+          "title": "Save recovery words",
+          "later": "Remind me later"
         }
       },
       "transferDevice": {

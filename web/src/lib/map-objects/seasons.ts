@@ -134,11 +134,11 @@ function sample(keys: Key[], day: number): { color: Rgb; alt: Rgb; leaf: number 
   return { color: mix(a[1], b[1]), alt: mix(a[2], b[2]), leaf: a[3] + (b[3] - a[3]) * t }
 }
 
-function resample(keys: Key[], flavor: FlavorId): SeasonRamp {
+function resample(keys: Key[], flavor: FlavorId, held?: number): SeasonRamp {
   const color = new Float32Array(RAMP * 4)
   const alt = new Float32Array(RAMP * 3)
   for (let i = 0; i < RAMP; i++) {
-    const at = sample(keys, (i / RAMP) * 365)
+    const at = sample(keys, held ?? (i / RAMP) * 365)
     const c = flavor === 'dark' ? night(at.color) : at.color
     const a = flavor === 'dark' ? night(at.alt) : at.alt
     color.set([...c, at.leaf], i * 4)
@@ -147,14 +147,23 @@ function resample(keys: Key[], flavor: FlavorId): SeasonRamp {
   return { color, alt }
 }
 
-const RAMPS: Record<FlavorId, Record<string, SeasonRamp>> = {
-  light: Object.fromEntries(Object.entries(KEYS).map(([role, keys]) => [role, resample(keys, 'light')])),
-  dark: Object.fromEntries(Object.entries(KEYS).map(([role, keys]) => [role, resample(keys, 'dark')])),
+/** With seasons off, the day each role is held at: cherries in full bloom, everything else in high summer. */
+const SIGNATURE_DAY: Record<string, number> = { blossom: 104 }
+
+function ramps(flavor: FlavorId, seasonal: boolean): Record<string, SeasonRamp> {
+  return Object.fromEntries(
+    Object.entries(KEYS).map(([role, keys]) => [role, resample(keys, flavor, seasonal ? undefined : (SIGNATURE_DAY[role] ?? MIDSUMMER * 365))]),
+  )
 }
 
-/** Every leafy role's year, for a flavor. */
-export function seasonRamps(flavor: FlavorId): Record<string, SeasonRamp> {
-  return RAMPS[flavor]
+const RAMPS = {
+  seasonal: { light: ramps('light', true), dark: ramps('dark', true) },
+  held: { light: ramps('light', false), dark: ramps('dark', false) },
+}
+
+/** Every leafy role's year, for a flavor; with seasons off, each role holds its signature look all year. */
+export function seasonRamps(flavor: FlavorId, seasonal = true): Record<string, SeasonRamp> {
+  return RAMPS[seasonal ? 'seasonal' : 'held'][flavor]
 }
 
 /** A role's colour, its alternate and its leaf at a point in the year; the shader's lookup, for the CPU. */

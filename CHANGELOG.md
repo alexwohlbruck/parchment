@@ -13,6 +13,8 @@
 
 ### Fixed
 
+* With seasonal colors off, cherry trees show their pink blossom again rather than plain summer green.
+
 ## [0.27.1] - 2026-11-25
 
 ### Added

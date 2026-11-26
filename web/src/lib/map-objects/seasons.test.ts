@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import models from './models.json'
-import { DECIDUOUS, PHASE_SPREAD, dayOfYear, phaseOf, plantYear, rampAt, seasonRamps, yearAt } from './seasons'
+import { DECIDUOUS, MIDSUMMER, PHASE_SPREAD, dayOfYear, phaseOf, plantYear, rampAt, seasonRamps, yearAt } from './seasons'
 import { TREE_FAMILIES } from './trees'
 
 const ramps = seasonRamps('light')
@@ -59,6 +59,27 @@ test('cherries blossom on bare wood before they leaf', () => {
   expect(color[0]).toBeGreaterThan(color[1])
   expect(leaf('blossom', on(4, 1))).toBeGreaterThan(0.5)
   expect(leaf('blossom', on(1))).toBe(0)
+})
+
+describe('with seasons off', () => {
+  const held = seasonRamps('light', false)
+
+  test('cherries stay in full bloom all year', () => {
+    for (const month of [1, 4, 7, 11]) {
+      const { color, leaf } = rampAt(held.blossom, on(month))
+      expect(leaf).toBe(1)
+      expect(color[0]).toBeGreaterThan(color[1])
+    }
+  })
+
+  test('every other plant stays in high summer', () => {
+    for (const role of Object.keys(held).filter(role => role !== 'blossom')) {
+      const now = rampAt(held[role], on(1))
+      const summer = rampAt(ramps[role], MIDSUMMER)
+      now.color.forEach((c, i) => expect(c, role).toBeCloseTo(summer.color[i], 2))
+      expect(now.leaf, role).toBeCloseTo(summer.leaf, 2)
+    }
+  })
 })
 
 test('evergreens keep their leaf all year', () => {

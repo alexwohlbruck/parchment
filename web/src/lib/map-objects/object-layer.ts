@@ -674,6 +674,8 @@ export class ObjectLayer {
 
   setFlavor(palette: ObjectPalette, ramps: Record<string, SeasonRamp> = this.ramps) {
     this.palette = palette
+    // New ramps can move a tree's leaf, and with it whether its bare branches show.
+    if (ramps !== this.ramps && this.map) this.invalidate(false)
     this.ramps = ramps
     for (const model of this.models.values())
       for (const p of model.primitives) {

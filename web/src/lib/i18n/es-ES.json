@@ -4302,7 +4302,6 @@
     "saveFailed": "No se pudo actualizar tu foto"
   },
   "recents": {
-    "clear": "Borrar",
-    "clearFailed": "No se pudieron borrar tus recientes"
+    "remove": "Quitar de recientes"
   }
 }

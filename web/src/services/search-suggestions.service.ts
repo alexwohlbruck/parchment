@@ -160,6 +160,7 @@ export async function buildSearchSuggestions(
     ]
       .sort((a, b) => b.at - a.at)
       .slice(0, 8)
+      .map(r => ({ ...r, option: { ...r.option, recentId: r.identity } }))
 
   // ── Empty query → frequents, common categories, recents. ──
   if (!q) {

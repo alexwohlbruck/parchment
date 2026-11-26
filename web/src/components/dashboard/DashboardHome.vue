@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import ClearRecentsButton from '@/components/recents/ClearRecentsButton.vue'
+import RemoveRecentButton from '@/components/recents/RemoveRecentButton.vue'
 import {
   computed,
   inject,
@@ -324,11 +324,7 @@ function navigateToRoute(routeName: AppRoute) {
 
       <!-- Recent searches and viewed places, interleaved newest-first -->
       <div v-if="recentItems.length > 0">
-        <SectionHeader size="lg" :title="t('general.recents')" class="mb-1.5 px-1">
-          <template #trailing>
-            <ClearRecentsButton />
-          </template>
-        </SectionHeader>
+        <SectionHeader size="lg" :title="t('general.recents')" class="mb-1.5 px-1" />
         <div class="space-y-2">
           <PlaceCard
             v-for="item in visibleRecents"
@@ -339,7 +335,11 @@ function navigateToRoute(routeName: AppRoute) {
             icon-variant="ghost"
             :subtitle="item.subtitle"
             @click="minimizeSheet()"
-          />
+          >
+            <template #trailing>
+              <RemoveRecentButton :identity="item.key" />
+            </template>
+          </PlaceCard>
         </div>
       </div>
       </div>

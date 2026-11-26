@@ -15,12 +15,12 @@ const props = defineProps<
     v-bind="props"
     :class="cn('overflow-hidden p-1 text-foreground', $attrs.class ?? '')"
   >
-    <div v-if="heading" class="flex items-center justify-between gap-2 pr-2">
-      <ComboboxLabel class="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-        {{ heading }}
-      </ComboboxLabel>
-      <slot name="heading-action" />
-    </div>
+    <ComboboxLabel
+      v-if="heading"
+      class="px-2 py-1.5 text-xs font-medium text-muted-foreground"
+    >
+      {{ heading }}
+    </ComboboxLabel>
     <slot />
   </ComboboxGroup>
 </template>

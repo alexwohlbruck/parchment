@@ -16,6 +16,8 @@ import { useAuthStore } from '@/stores/auth.store'
 import {
   recentSearches,
   recentPlaces,
+  recentPlaceIdentity,
+  recentSearchIdentity,
   transitRouteToRecentPlace,
   type RecentSearchEntry,
   type RecentPlaceEntry,
@@ -203,22 +205,30 @@ export const useRecentsStore = defineStore('recents', () => {
     places.value = recentPlaces.list()
   }
 
+  /** Forget one recent, by its `recentSearchIdentity` or `recentPlaceIdentity`. */
+  function forget(identity: string) {
+    const userId = currentUserId()
+    if (!userId) return
+    const keepSearch = (e: RecentSearchEntry) => recentSearchIdentity(e) !== identity
+    const keepPlace = (e: RecentPlaceEntry) => recentPlaceIdentity(e) !== identity
+    recentSearches.retain(keepSearch, userId)
+    recentPlaces.retain(keepPlace, userId)
+    searches.value = searches.value.filter(keepSearch)
+    places.value = places.value.filter(keepPlace)
+  }
+
   async function clearSearches() {
     const userId = currentUserId()
     if (!userId) return
-    searches.value = []
     await recentSearches.clear(userId)
+    searches.value = []
   }
 
   async function clearPlaces() {
     const userId = currentUserId()
     if (!userId) return
-    places.value = []
     await recentPlaces.clear(userId)
-  }
-
-  async function clearAll() {
-    await Promise.all([clearSearches(), clearPlaces()])
+    places.value = []
   }
 
   return {
@@ -233,8 +243,8 @@ export const useRecentsStore = defineStore('recents', () => {
     recordBrandSearch,
     recordPlace,
     recordTransitRoute,
+    forget,
     clearSearches,
     clearPlaces,
-    clearAll,
   }
 })

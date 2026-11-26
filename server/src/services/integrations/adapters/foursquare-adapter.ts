@@ -6,6 +6,7 @@ import type {
   OpeningHours,
   OpeningTime,
   Review,
+  PlaceAction,
 } from '../../../types/place.types'
 import { SOURCE } from '../../../lib/constants'
 
@@ -97,6 +98,8 @@ export interface FoursquarePlace {
   hours_popular?: Array<{ day: number; open: string; close: string }>
   /** Menu URL. */
   menu?: string
+  /** Third-party booking and ordering pages (Premium). */
+  place_actions?: Array<{ action?: string; url?: string; provider_id?: string }>
   /** ISO date the place was marked permanently closed. */
   date_closed?: string
 }
@@ -162,6 +165,7 @@ export class FoursquareAdapter {
       ratings: this.extractRatings(data),
       popularity: data.popularity != null ? attr(data.popularity) : undefined,
       popularHours: this.extractPopularHours(data) ?? undefined,
+      placeActions: this.extractActions(data),
       sources: [
         {
           id: SOURCE.FOURSQUARE,
@@ -347,6 +351,21 @@ export class FoursquareAdapter {
     }
 
     return amenities
+  }
+
+  /** Reservation and delivery pages, kept only when they are http(s) URLs. */
+  private extractActions(data: FoursquarePlace): AttributedValue<PlaceAction[]> | undefined {
+    const actions: PlaceAction[] = []
+    for (const { action, url } of data.place_actions ?? []) {
+      if ((action !== 'reservation' && action !== 'delivery') || !url) continue
+      try {
+        const parsed = new URL(url)
+        if (parsed.protocol === 'https:' || parsed.protocol === 'http:') actions.push({ kind: action, url: parsed.toString() })
+      } catch {
+        continue
+      }
+    }
+    return actions.length ? attr(actions) : undefined
   }
 
   /**

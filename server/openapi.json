@@ -17191,6 +17191,392 @@
         }
       }
     },
+    "/places/stay-offers": {
+      "get": {
+        "parameters": [
+          {
+            "description": "Place source, e.g. osm",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "query",
+            "name": "source",
+            "required": true
+          },
+          {
+            "description": "Place id within its source, e.g. node/4176535246",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "query",
+            "name": "id",
+            "required": true
+          },
+          {
+            "description": "YYYY-MM-DD",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "in": "query",
+            "name": "checkin",
+            "required": true
+          },
+          {
+            "description": "YYYY-MM-DD",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "in": "query",
+            "name": "checkout",
+            "required": true
+          },
+          {
+            "schema": {
+              "minimum": 1,
+              "maximum": 8,
+              "default": 2,
+              "anyOf": [
+                {
+                  "format": "numeric",
+                  "default": 0,
+                  "type": "string"
+                },
+                {
+                  "minimum": 1,
+                  "maximum": 8,
+                  "default": 2,
+                  "type": "number"
+                }
+              ]
+            },
+            "in": "query",
+            "name": "adults",
+            "required": false
+          },
+          {
+            "description": "ISO 4217, default USD",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z]{3}$"
+            },
+            "in": "query",
+            "name": "currency",
+            "required": false
+          },
+          {
+            "description": "ISO 3166-1 alpha-2, default US",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z]{2}$"
+            },
+            "in": "query",
+            "name": "nationality",
+            "required": false
+          }
+        ],
+        "operationId": "getPlacesStay-offers",
+        "tags": [
+          "Places"
+        ],
+        "summary": "Compare sellers' prices for a hotel",
+        "description": "One offer per seller from Google Hotels (SerpApi) and from our booking partner (LiteAPI, `bookHere`), each with its nightly price before taxes, the stay total with taxes and fees, free cancellation, and a link to that seller's page for these dates. The hotel is matched to each source once, by name within 250 m, and stored in the match store (`google_hotels`, `liteapi`), a miss included. `offers` is null when no source is configured or none lists the hotel. Stays run 1 to 30 nights. Cached for 30 minutes.",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/places/listings/": {
+      "get": {
+        "parameters": [
+          {
+            "description": "Source of the place, e.g. `osm`",
+            "examples": [
+              "osm"
+            ],
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "source",
+            "required": true
+          },
+          {
+            "description": "Id in that source, e.g. `node/6493733562`",
+            "examples": [
+              "node/6493733562"
+            ],
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "operationId": "getPlacesListings",
+        "tags": [
+          "Places"
+        ],
+        "summary": "Get the business listings a place is matched to",
+        "description": "One entry per provider the place can be matched at: the matched listing (null for none), whether a person confirmed it, and whether candidates can be searched.",
+        "responses": {
+          "200": {}
+        }
+      },
+      "put": {
+        "parameters": [],
+        "operationId": "putPlacesListings",
+        "tags": [
+          "Places"
+        ],
+        "summary": "Correct the listing a place is matched to",
+        "description": "Sets the listing for one provider, or `providerPlaceId: null` for none. Stored as a confirmed match that automatic matching never replaces. OSM places only. Booking sites (`opentable`, `resy`, `booking`, `expedia`) take the venue id parsed from its page URL, e.g. `r/<slug>` or `us/<hotel>`; anything else is a 400.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "description": "Source of the place, e.g. `osm`",
+                    "examples": [
+                      "osm"
+                    ],
+                    "type": "string"
+                  },
+                  "id": {
+                    "description": "Id in that source, e.g. `node/6493733562`",
+                    "examples": [
+                      "node/6493733562"
+                    ],
+                    "type": "string"
+                  },
+                  "provider": {
+                    "pattern": "^[a-z][a-z0-9_-]{1,31}$",
+                    "description": "Provider of the listing, e.g. `google`, `foursquare`",
+                    "type": "string"
+                  },
+                  "providerPlaceId": {
+                    "nullable": true,
+                    "anyOf": [
+                      {
+                        "minLength": 1,
+                        "maxLength": 255,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "source",
+                  "id",
+                  "provider",
+                  "providerPlaceId"
+                ]
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "description": "Source of the place, e.g. `osm`",
+                    "examples": [
+                      "osm"
+                    ],
+                    "type": "string"
+                  },
+                  "id": {
+                    "description": "Id in that source, e.g. `node/6493733562`",
+                    "examples": [
+                      "node/6493733562"
+                    ],
+                    "type": "string"
+                  },
+                  "provider": {
+                    "pattern": "^[a-z][a-z0-9_-]{1,31}$",
+                    "description": "Provider of the listing, e.g. `google`, `foursquare`",
+                    "type": "string"
+                  },
+                  "providerPlaceId": {
+                    "nullable": true,
+                    "anyOf": [
+                      {
+                        "minLength": 1,
+                        "maxLength": 255,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "source",
+                  "id",
+                  "provider",
+                  "providerPlaceId"
+                ]
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "description": "Source of the place, e.g. `osm`",
+                    "examples": [
+                      "osm"
+                    ],
+                    "type": "string"
+                  },
+                  "id": {
+                    "description": "Id in that source, e.g. `node/6493733562`",
+                    "examples": [
+                      "node/6493733562"
+                    ],
+                    "type": "string"
+                  },
+                  "provider": {
+                    "pattern": "^[a-z][a-z0-9_-]{1,31}$",
+                    "description": "Provider of the listing, e.g. `google`, `foursquare`",
+                    "type": "string"
+                  },
+                  "providerPlaceId": {
+                    "nullable": true,
+                    "anyOf": [
+                      {
+                        "minLength": 1,
+                        "maxLength": 255,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "source",
+                  "id",
+                  "provider",
+                  "providerPlaceId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/places/listings/candidates": {
+      "get": {
+        "parameters": [
+          {
+            "description": "Source of the place, e.g. `osm`",
+            "examples": [
+              "osm"
+            ],
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "source",
+            "required": true
+          },
+          {
+            "description": "Id in that source, e.g. `node/6493733562`",
+            "examples": [
+              "node/6493733562"
+            ],
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "id",
+            "required": true
+          },
+          {
+            "description": "Provider of the listing, e.g. `google`, `foursquare`",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]{1,31}$"
+            },
+            "in": "query",
+            "name": "provider",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "q",
+            "required": false
+          }
+        ],
+        "operationId": "getPlacesListingsCandidates",
+        "tags": [
+          "Places"
+        ],
+        "summary": "Search nearby listings at one provider",
+        "description": "Listings within 500 m of the place, nearest first. `q` defaults to the place name.",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/places/booking-venues": {
+      "get": {
+        "parameters": [
+          {
+            "description": "Source of the place, e.g. `osm`",
+            "examples": [
+              "osm"
+            ],
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "source",
+            "required": true
+          },
+          {
+            "description": "Id in that source, e.g. `node/6493733562`",
+            "examples": [
+              "node/6493733562"
+            ],
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "operationId": "getPlacesBooking-venues",
+        "tags": [
+          "Places"
+        ],
+        "summary": "Get a place's venues on booking sites",
+        "description": "Venue ids on OpenTable, Resy, Booking.com and Expedia from the match store, keyed by provider, plus `unlisted`: sites a person marked as not listing the place. A booking page tagged on the place (`reservation:website`, `website:booking`, …) fills its site in on first request, unconfirmed.",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
     "/proxy/esri/{service}/{z}/{y}/{x}": {
       "get": {
         "operationId": "getProxyEsriByServiceByZByYByX",

@@ -441,6 +441,11 @@ export function mergePlaces(
         mergeAttributedValue(result.popularHours ?? null, place.popularHours) ??
         undefined
     }
+    if (place.placeActions) {
+      result.placeActions =
+        mergeAttributedValue(result.placeActions ?? null, place.placeActions) ??
+        undefined
+    }
 
     // Merge icon (keep first available)
     if (!result.icon && place.icon) {

@@ -42,6 +42,29 @@ export const schemaConfigs: Partial<Record<string, SchemaConfig>> = {
       },
     },
   },
+  serpapiSchema: {
+    fieldConfig: {
+      apiKey: {
+        label: 'API key',
+        description: 'From serpapi.com. Each price check is one search',
+        inputProps: { type: 'password', autocomplete: 'new-password' },
+      },
+    },
+  },
+  liteapiSchema: {
+    fieldConfig: {
+      apiKey: {
+        label: 'API key',
+        description: 'From Developer tools in the Nuitée Connect dashboard. A sandbox key prices without booking',
+        inputProps: { type: 'password', autocomplete: 'new-password' },
+      },
+      whitelabelUrl: {
+        label: 'White-label site',
+        description: 'Your booking site, where guests check out',
+        inputProps: { placeholder: 'https://book.example.com' },
+      },
+    },
+  },
   openrouterSchema: {
     fieldConfig: {
       apiKey: {
@@ -164,6 +187,15 @@ export const configSchemas: Record<
     clientId: z.string().min(1, 'Client ID is required'),
     clientSecret: z.string().optional(),
     redirectUri: z.string().url('Please enter a valid URL').optional(),
+  }),
+
+  serpapiSchema: z.object({
+    apiKey: z.string().min(1, 'API key is required'),
+  }),
+
+  liteapiSchema: z.object({
+    apiKey: z.string().min(1, 'API key is required'),
+    whitelabelUrl: z.string().url('Please enter a valid URL').startsWith('https://', 'Use an https URL'),
   }),
 
   openrouterSchema: z.object({

@@ -139,3 +139,23 @@ export const fetchWikidataBrandLogo = async (
     return null
   }
 }
+
+/** An item's claims for the given properties, or null when Wikidata can't be reached. */
+export const fetchWikidataClaims = async (
+  wikidataId: string,
+  properties: string[],
+): Promise<Record<string, any[]> | null> => {
+  if (!/^Q[1-9]\d*$/.test(wikidataId)) return null
+  try {
+    const response = await axios.get(WIKIDATA_API_BASE, {
+      params: { action: 'wbgetentities', ids: wikidataId, props: 'claims', format: 'json' },
+      headers: WIKI_HEADERS,
+      timeout: 10_000,
+    })
+    const claims = response.data?.entities?.[wikidataId]?.claims ?? {}
+    return Object.fromEntries(properties.filter((p) => claims[p]).map((p) => [p, claims[p]]))
+  } catch (error) {
+    logError('Error fetching Wikidata claims', error)
+    return null
+  }
+}

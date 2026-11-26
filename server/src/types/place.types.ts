@@ -478,6 +478,8 @@ export interface Place {
   popularity?: AttributedValue<number>
   // Typical busy hours, same shape as openingHours (e.g. Foursquare hours_popular).
   popularHours?: AttributedValue<OpeningHours>
+  /** Links to book or order from the place on third-party sites. */
+  placeActions?: AttributedValue<PlaceAction[]>
   transit?: AttributedValue<TransitStopInfo> | null
   relations?: AttributedValue<PlaceRelation[]> | null
 
@@ -536,4 +538,11 @@ export interface Place {
   // User-specific data
   bookmark?: Bookmark
   collectionIds?: string[]
+}
+
+export type PlaceActionKind = 'reservation' | 'delivery'
+
+export interface PlaceAction {
+  kind: PlaceActionKind
+  url: string
 }

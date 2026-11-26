@@ -557,6 +557,10 @@
           "name": "Compartir",
           "description": "Envía un enlace a este lugar"
         },
+        "book": {
+          "name": "Hacer una reserva",
+          "keywords": "reservar reserva mesa habitación hotel opentable resy expedia"
+        },
         "edit": {
           "name": "Sugerir un cambio",
           "description": "Corrige los datos en OpenStreetMap",
@@ -2712,6 +2716,64 @@
       "showMore": "Ver más",
       "showLess": "Ver menos"
     },
+    "booking": {
+      "title": {
+        "table": "Reservar mesa",
+        "stay": "Reservar habitación",
+        "ahead": "Reservar con antelación"
+      },
+      "policy": {
+        "yes": "Acepta reservas",
+        "recommended": "Se recomienda reservar",
+        "required": "Reserva obligatoria"
+      },
+      "providers": {
+        "venue": "Su web",
+        "opentable": "OpenTable",
+        "resy": "Resy",
+        "bookingcom": "Booking.com",
+        "hotelscom": "Hotels.com",
+        "tock": "Tock",
+        "sevenrooms": "SevenRooms",
+        "expedia": "Expedia",
+        "googleHotels": "Google Hotels",
+        "search": "Buscar en la web"
+      },
+      "party": "{n} persona | {n} personas",
+      "guests": "{n} huésped | {n} huéspedes",
+      "nights": "{n} noche | {n} noches",
+      "day": {
+        "tonight": "Esta noche",
+        "today": "Hoy",
+        "tomorrow": "Mañana"
+      },
+      "offers": {
+        "title": "Comparar precios",
+        "subtitle": "Por noche, con impuestos y tasas",
+        "freeCancellation": "Cancelación gratis",
+        "freeCancellationOnly": "Solo cancelación gratis",
+        "noneFree": "No hay cancelación gratis para estas fechas",
+        "allOptions": "Todas las opciones",
+        "official": "Sitio oficial",
+        "seePrice": "Ver precio",
+        "morePricesFrom": "Más precios desde {price}",
+        "morePrices": "{n} precios más",
+        "moreOnGoogleHotels": "Más en Google Hotels",
+        "inApp": "Reservar en la app"
+      },
+      "delivery": "Pedir a domicilio",
+      "searchOn": "Buscar en {site}",
+      "searchWeb": "Buscar en la web",
+      "seeTimes": "Ver horas para {party} {when}",
+      "seeRooms": "Ver habitaciones para {guests}, {nights}",
+      "notLinked": "Aún no hay página de reservas",
+      "when": {
+        "tonight": "esta noche",
+        "today": "hoy",
+        "tomorrow": "mañana",
+        "date": "el {date}"
+      }
+    },
     "details": {
       "address": "Dirección",
       "coordinates": "Coordenadas",
@@ -2934,6 +2996,22 @@
       "autoNote": "Si nadie lo añade antes de mañana, Parchment deja una nota a los mapeadores desde tu cuenta de OpenStreetMap.",
       "findOnWeb": "Buscar “{query}” en la web",
       "findOnWebHint": "Para lugares que aún no están en el mapa"
+    },
+    "listings": {
+      "title": "Fichas de negocio",
+      "none": "Sin ficha",
+      "notListed": "No aparece ahí",
+      "change": "Cambiar",
+      "pickerTitle": "Ficha de {provider}",
+      "pickerDescription": "Elige la ficha de este lugar. Todos verán tu elección.",
+      "search": "Buscar en {provider}",
+      "noneOption": "No está en {provider}",
+      "noCandidates": "No hay fichas cerca",
+      "saved": "Ficha actualizada",
+      "failed": "No se pudo actualizar la ficha",
+      "pasteUrl": "Pega el enlace de la página en {provider}",
+      "invalidUrl": "Eso no es la página de un local en {provider}",
+      "save": "Guardar"
     }
   },
   "settings": {
@@ -3541,7 +3619,9 @@
         "transitRouting": "Rutas de tránsito",
         "rideshareEstimate": "Viajes compartidos",
         "feedback": "Comentarios",
-        "languageModel": "Agentes"
+        "languageModel": "Agentes",
+        "hotelRates": "Precios de hotel",
+        "hotelPrices": "Comparación de precios de hotel"
       },
       "descriptions": {
         "google-maps": "Servicios completos de mapas y ubicación",
@@ -3570,7 +3650,9 @@
         "firms": "Detecciones de incendios activos por satélite (VIIRS/MODIS)",
         "esri": "World Imagery para el mapa satélite",
         "quackback": "Tableros de comentarios, votaciones y hoja de ruta para el formulario de comentarios",
-        "openrouter": "El modelo de lenguaje detrás de Preguntar"
+        "openrouter": "El modelo de lenguaje detrás de Preguntar",
+        "liteapi": "Precios de habitaciones en tiempo real, reservadas en tu sitio de marca blanca",
+        "serpapi": "El precio de cada vendedor de un hotel, de Google Hotels"
       },
       "scheme": {
         "endToEnd": {

@@ -44,7 +44,9 @@ function tellMappers() {
 
 <template>
   <div v-if="center" class="rounded-lg border border-dashed px-3 py-3">
-    <p class="text-sm font-medium">{{ t('place.unmapped.title') }}</p>
+    <p class="text-sm font-medium">
+      {{ place.unmapped?.opensSoon ? t('place.unmapped.opensSoonTitle') : t('place.unmapped.title') }}
+    </p>
     <p class="mt-0.5 text-sm text-muted-foreground">
       {{
         replaces?.formerName

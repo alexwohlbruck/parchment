@@ -3024,6 +3024,7 @@
     },
     "unmapped": {
       "title": "Not on the map yet",
+      "opensSoonTitle": "Opening soon, not on the map yet",
       "description": "Found on {site}. Add it so others can find it too.",
       "replacesDescription": "Found on {site}. The map still shows {former} at this address. Update it so others can find this place.",
       "add": "Add to map",

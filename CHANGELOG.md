@@ -2,8 +2,16 @@
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.27.2] - 2026-11-26
+
+### Added
+
 * Remove a single search or place from Recents with the **×** on its row, in search or on the home screen.
-* When a business isn't on the map, Ask can look it up on its own website, or its Facebook or Instagram page when it has none, straight from search results. The place card fills in as it reads, and its icon appears on the map as soon as the address is found. You can add the place to OpenStreetMap, updating the old entry when the map still shows a closed business at its address, or leave a note for mappers that lists every suggested tag. It picks out the right location of a business with several, finds addresses shown only in a site's logo or images, takes one you give it, and marks places that haven't opened yet.
+* When a business isn't on the map, Ask can look it up on its website or social pages straight from search results, fill in its place card, and help you add it to OpenStreetMap or leave a note for mappers.
 * If no one adds a place Ask found on the web within a day, Parchment leaves mappers a note about it from your OpenStreetMap account.
 * Ask now has a shortcut in the home screen's navigation on phones.
 * Attach up to 4 screenshots when you send feedback, or paste one straight into the form.

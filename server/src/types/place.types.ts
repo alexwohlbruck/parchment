@@ -509,7 +509,12 @@ export interface Place {
 
   // A business found on its own website that OSM doesn't have yet, with the
   // tags a new node for it would carry, all from that site
-  unmapped?: { tags: Record<string, string>; presetId: string | null }
+  unmapped?: {
+    tags: Record<string, string>
+    presetId: string | null
+    /** An element already on the map at the same address, with no business there now, to take over. */
+    replaces?: { type: 'node' | 'way'; id: number; formerName?: string }
+  }
 
   // IANA timezone resolved from coordinates (e.g. "America/New_York")
   timezone?: string

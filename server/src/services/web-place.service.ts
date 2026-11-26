@@ -28,6 +28,7 @@ import {
   typedName,
 } from '../lib/web-place/site-page'
 import { OverpassAdapter } from './integrations/adapters/overpass-adapter'
+import { isVacantAddress, replacementTags, sameAddress } from '../lib/web-place/address-match'
 import { forwardGeocode, reverseGeocode } from './geocoding.service'
 import { lookupPlacesByNameAndLocation } from './place.service'
 import type { Language } from '../lib/i18n/i18n.types'
@@ -39,6 +40,8 @@ import type { LatLng } from '../types/ask.types'
 const MAX_DISTANCE_KM = 60
 /** A mapped place this close with the same name is the one the site describes. */
 const SAME_PLACE_M = 300
+/** How far from the geocoded point an element with the same address can be. */
+const SAME_ADDRESS_M = 60
 const SITE_GEO_SLACK_KM = 2
 const FETCH_TIMEOUT_MS = 8000
 const MAX_REDIRECTS = 4
@@ -115,7 +118,8 @@ export async function findPlaceOnWeb(query: string, options: Options): Promise<W
   const mapped = await mappedNamesake(business.name, center, options)
   if (mapped) return { status: 'mapped', place: mapped }
 
-  const place = webPlace(business, siteRoot(url), center, options.language)
+  const vacant = await vacantAddress(business, center)
+  const place = webPlace(business, siteRoot(url), center, options.language, vacant)
   await webPlaces.get(place.externalIds[SOURCE.WEB], async () => place)
   return { status: 'found', place, corroboratedBy }
 }
@@ -419,6 +423,38 @@ export function addressPoint(results: Place[], business: SiteBusiness): LatLng |
   return center
 }
 
+/** A node or way at the business's address with no business on it now, nodes first, then nearest. */
+async function vacantAddress(business: SiteBusiness, center: LatLng): Promise<VacantElement | undefined> {
+  const street = business.address?.street
+  if (!street) return undefined
+  try {
+    const { results } = await reverseGeocode(center.lat, center.lng)
+    const metres = (place: Place) =>
+      distance([center.lng, center.lat], [place.geometry.value.center.lng, place.geometry.value.center.lat], { units: 'meters' })
+    return results
+      .flatMap((place): (VacantElement & { metres: number })[] => {
+        const [type, id] = (place.externalIds?.[SOURCE.OSM] ?? '').split('/')
+        const tags = place.tags ?? {}
+        if ((type !== 'node' && type !== 'way') || !Number(id) || !place.geometry?.value?.center) return []
+        if (!sameAddress(tags, street) || !isVacantAddress(tags) || metres(place) > SAME_ADDRESS_M) return []
+        return [{ type, id: Number(id), tags, metres: metres(place) }]
+      })
+      .sort((a, b) => Number(a.type !== 'node') - Number(b.type !== 'node') || a.metres - b.metres)[0]
+  } catch {
+    return undefined
+  }
+}
+
+interface VacantElement {
+  type: 'node' | 'way'
+  id: number
+  tags: Record<string, string>
+}
+
+function formerName(tags: Record<string, string>): string | undefined {
+  return tags.old_name ?? tags['disused:name'] ?? tags['was:name']
+}
+
 /** A mapped place nearby with the same name, so the site describes something OSM already has. */
 async function mappedNamesake(name: string, center: LatLng, options: Options): Promise<Place | undefined> {
   const results = await lookupPlacesByNameAndLocation(name, center, {
@@ -451,6 +487,7 @@ export function webPlace(
   website: string,
   center: LatLng,
   language?: Language,
+  vacant?: VacantElement,
 ): Place {
   const tags = businessTags(business, website)
   const id = createHash('sha256').update(`${website}|${business.name}`).digest('hex').slice(0, 16)
@@ -468,7 +505,8 @@ export function webPlace(
     tags,
     sources: [{ id: SOURCE.WEB, name: hostOf(website) ?? website, url: website }],
     unmapped: {
-      tags,
+      tags: vacant ? replacementTags(vacant.tags, tags) : tags,
+      ...(vacant && { replaces: { type: vacant.type, id: vacant.id, formerName: formerName(vacant.tags) } }),
       presetId: business.preset ?? (hasCategory(business) ? (matchTags(tags, 'point')?.preset.id ?? null) : null),
     },
   }

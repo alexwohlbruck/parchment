@@ -1,7 +1,7 @@
 import oh from 'opening_hours'
 import { getPresetById, getPresetFields, listPresets, type FieldDefinition } from '../osm-presets'
 
-const BUSINESS_KEYS = new Set(['amenity', 'shop', 'craft', 'office', 'tourism', 'leisure', 'healthcare', 'club'])
+export const BUSINESS_KEYS = new Set(['amenity', 'shop', 'craft', 'office', 'tourism', 'leisure', 'healthcare', 'club'])
 
 let businessPresets: string[] | null = null
 

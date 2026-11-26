@@ -22,6 +22,8 @@ export interface SiteBusiness {
   tags?: Record<string, string>
   /** Where the address came from when its pages' text doesn't give one. */
   addressFrom?: 'image' | 'you'
+  /** One location's own name, when the site lists several. */
+  branch?: string
   /** Its pages say it hasn't opened yet. */
   opensSoon?: boolean
 }

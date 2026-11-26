@@ -90,6 +90,7 @@ export function businessTags(business: SiteBusiness, website: string): Record<st
   Object.assign(tags, addressTags(business.address))
   if (business.phone) tags.phone = business.phone
   if (business.email) tags.email = business.email
+  if (business.branch && business.branch !== business.name) tags.branch = business.branch
   if (business.openingHours && isOsmHours(business.openingHours)) tags.opening_hours = business.openingHours
   if (business.cuisine?.length && SERVES_FOOD.has(category?.amenity ?? '')) {
     tags.cuisine = business.cuisine.map((item) => item.toLowerCase().replace(/[\s-]+/g, '_')).join(';')

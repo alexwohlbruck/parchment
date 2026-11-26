@@ -47,6 +47,15 @@ Open weekdays 7am – 2pm`
     expect(parseModelBusiness('{"name":"Moss Café","street":null}', page)?.name).toBe('Moss Café')
   })
 
+  test('keeps the branch of a business with several locations, when the page names it', () => {
+    const many = `${page}\nOur cafés\nGreenpoint\n9 Oak St`
+    expect(parseModelBusiness('{"name":"Moss Café","branch":"Greenpoint","street":"9 Oak St"}', many)).toMatchObject({
+      branch: 'Greenpoint',
+      address: { street: '9 Oak St' },
+    })
+    expect(parseModelBusiness('{"name":"Moss Café","branch":"Astoria"}', many)?.branch).toBeUndefined()
+  })
+
   test('notes a site that says it is opening soon', () => {
     expect(parseModelBusiness('{"name":"Moss Café","opens_soon":true}', page)?.opensSoon).toBe(true)
   })

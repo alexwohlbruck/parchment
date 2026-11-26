@@ -101,7 +101,7 @@ export async function findPlaceOnWeb(query: string, options: Options): Promise<W
 
   // "Frenchette, New York" names the business before the comma.
   const name = query.split(',')[0].trim()
-  const site = await readSite(website, name, options)
+  const site = await readSite(website, query, options)
   if (!site) return { status: 'not-found', reason: `${hostOf(website)} doesn't give an address.` }
   const { url } = site
   let { business } = site
@@ -208,7 +208,8 @@ export function siteName(names: string[], read: string, typed: string): string {
 }
 
 /** The site's own description of the business: its JSON-LD, else what the model reads off its pages. */
-async function readSite(website: string, name: string, options: Options) {
+async function readSite(website: string, query: string, options: Options) {
+  const name = query.split(',')[0].trim()
   options.progress?.('read', hostOf(website) ?? website)
   const home = await fetchPage(website, options.signal)
   if (!home) return null
@@ -224,7 +225,7 @@ async function readSite(website: string, name: string, options: Options) {
   const text = pagesText(pages)
   if (!business || !hasCategory(business)) {
     options.progress?.('classify', business ? 'Its structured data doesn’t say what kind of place it is' : 'It has no structured data')
-    const read = await readWithModel(text, options)
+    const read = await readWithModel(text, query, options)
     business = business && read ? { ...business, preset: read.preset } : (business ?? read ?? undefined)
   }
   if (business && !business.address?.street && !options.address) {
@@ -277,7 +278,10 @@ async function fetchPage(start: string, signal?: AbortSignal): Promise<Page | nu
 }
 
 const READ_BRIEF = `Read this business's own web pages and reply with one JSON object only:
-{"name","preset","street","city","region","postcode","country","phone","email","opening_hours","hours_quote","closed","opens_soon"}
+{"name","branch","preset","street","city","region","postcode","country","phone","email","opening_hours","hours_quote","closed","opens_soon"}
+- When the pages list several locations, describe only the one being looked for: the one its neighbourhood or city names, else the nearest to where it was searched. Its street, hours and phone must all be that location's.
+- name: the business's name without the location, e.g. "La Cabra"
+- branch: that location's own name when the pages list several, e.g. "Chelsea"; null when there is only one
 - preset: the OpenStreetMap preset that fits it best, copied exactly from the list below, or null if none fits
 - street: house number and street as the page writes them, e.g. "123 Main Street"
 - country: ISO 3166 two-letter code
@@ -288,12 +292,13 @@ const READ_BRIEF = `Read this business's own web pages and reply with one JSON o
 Copy only what the pages state; null for anything they don't. Never fill a value in from what is typical for this kind of place.
 Presets: `
 
-async function readWithModel(text: string, { model, signal }: Options): Promise<SiteBusiness | null> {
+async function readWithModel(text: string, query: string, { model, near, signal }: Options): Promise<SiteBusiness | null> {
   if (!model) return null
+  const wanted = `Looking for: ${query}, searched near ${near.lat.toFixed(4)}, ${near.lng.toFixed(4)}`
   const { message } = await model.complete({
     messages: [
       { role: 'system', content: READ_BRIEF + businessPresetIds().join(' ') },
-      { role: 'user', content: text },
+      { role: 'user', content: `${wanted}\n\n${text}` },
     ],
     maxTokens: READ_TOKENS,
     signal,
@@ -417,6 +422,7 @@ export function parseModelBusiness(reply: string, text: string): SiteBusiness | 
     openingHours: hours && hoursQuote && onPage(hoursQuote, text) && isOsmHours(hours) ? hours : undefined,
     closed: data.closed === true,
     ...(data.opens_soon === true && { opensSoon: true }),
+    ...(stated('branch') && { branch: stated('branch') }),
   }
 }
 

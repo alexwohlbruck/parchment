@@ -9,7 +9,7 @@ import { meterModel } from '../lib/ask/ask-usage'
 import { knownPlaces } from '../lib/ask/known-places'
 import { RoutingPreferencesSchema, TripModeTokenSchema, VehicleSchema } from '../types/directions-api.types'
 import { getAskPreferences } from '../services/user-preferences.service'
-import type { AskAccess, AskEvent } from '../types/ask.types'
+import { ASK_SKILLS, type AskAccess, type AskEvent } from '../types/ask.types'
 import type { Place } from '../types/place.types'
 import type { Vehicle } from '../types/trip.types'
 
@@ -79,7 +79,7 @@ const app = new Elysia()
           try {
             await runAsk(
               meter.model,
-              { question: body.question, history: body.history, origin, placeId: body.placeId, point: body.point },
+              { question: body.question, history: body.history, origin, placeId: body.placeId, point: body.point, skill: body.skill },
               {
                 userId: user.id,
                 language,
@@ -132,6 +132,11 @@ const app = new Elysia()
             }),
             { maxItems: 12 },
           ),
+        ),
+        skill: t.Optional(
+          t.UnionEnum(ASK_SKILLS, {
+            description: 'A task the app starts, e.g. "find-on-web". The question is then its subject, such as a business name, and the server writes the prompt.',
+          }),
         ),
         placeId: t.Optional(
           t.String({ description: 'A place the question is about, e.g. "osm/node/123". Its details and reviews are read first.' }),

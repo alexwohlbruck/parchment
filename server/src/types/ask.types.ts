@@ -16,6 +16,10 @@ export interface AskPoint extends LatLng {
 
 export type AskUnits = 'metric' | 'imperial'
 
+/** A task the app starts for the user, asked with a prompt the server writes. */
+export const ASK_SKILLS = ['find-on-web'] as const
+export type AskSkill = (typeof ASK_SKILLS)[number]
+
 /** A point Ask can name. A saved place reaches the model only by its name, never its coordinates. */
 export interface AskEndpoint extends LatLng {
   name?: string

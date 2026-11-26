@@ -14,7 +14,8 @@ import {
   type AskTool,
 } from './ask-tools'
 import { webTools } from './ask-web-tools'
-import type { AskCitation, AskPoint, AskTurn, LatLng } from '../../types/ask.types'
+import { skillQuestion } from './ask-skills'
+import type { AskCitation, AskPoint, AskSkill, AskTurn, LatLng } from '../../types/ask.types'
 import { classifyQuery } from '../query-intent.service'
 import { HERE } from '../../lib/ask/known-places'
 import { localDateTime } from '../../lib/ask/trip-summary'
@@ -36,9 +37,12 @@ export interface AskRequest {
   /** A place the question is about, looked up before the model starts. */
   placeId?: string
   point?: AskPoint
+  /** A task the app started; the question is then its subject, e.g. a business's name. */
+  skill?: AskSkill
 }
 
-function subjectQuestion({ question, point }: AskRequest): string {
+function subjectQuestion({ question: asked, point, skill }: AskRequest): string {
+  const question = skill ? skillQuestion(skill, asked) : asked
   if (!point) return question
   const at = `${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`
   return `${question}\n\nThe question is about ${point.name ? `${point.name}, at ${at}` : `the spot at ${at}`}.`
@@ -243,16 +247,14 @@ export async function runAsk(
       const answer = groundAnswer(parseArgs(answerCall), context.seen, context.reviews)
       if (!answer.unknownIds.length || last) {
         if (context.proposedTrip) context.emit(context.proposedTrip)
-        const intent = classifyQuery(request.question, {
-          language: context.language,
-        })
+        const intent = request.skill ? undefined : classifyQuery(request.question, { language: context.language })
         context.emit({
           type: 'answer',
           text: answer.text,
           places: answer.places,
           ...(answer.followUps.length && { followUps: answer.followUps }),
           ...(context.sources.size && { sources: [...context.sources.values()] }),
-          ...(intent.category ? { browse: intent } : {}),
+          ...(intent?.category ? { browse: intent } : {}),
         })
         return
       }

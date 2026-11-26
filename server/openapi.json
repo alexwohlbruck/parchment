@@ -121,7 +121,7 @@
           "Ask"
         ],
         "summary": "Answer a question about places",
-        "description": "Streams Server-Sent Events while a language model searches Parchment's place data. `step` events report each search as it runs (`running`, then `done` or `failed`); `reach` carries a travel-time polygon when the question implies one; `answer` carries a short text and the cited places, every one of which came from a search; `error` and then `done` close the stream. `history` holds earlier turns of the same conversation, oldest first. `here` and `places` give the model names (\"here\", \"home\") it can route between; their coordinates go to tools, never into the prompt. A `trip` event carries the trip the answer recommends, for opening in Directions; `route` and `canvas` events name a route or canvas saved to the user's library. Every question counts toward the user's monthly usage; on the system key, a used-up allowance returns 429 with `reason: quota-exceeded` and `resetsAt`.",
+        "description": "Streams Server-Sent Events while a language model searches Parchment's place data. `step` events report each search as it runs (`running`, then `done` or `failed`); `reach` carries a travel-time polygon when the question implies one; `draft` carries a place a web lookup is still reading, keyed by lookup, with no `geometry` until its address is placed, or `null` when that page fell through; `answer` carries a short text and the cited places, every one of which came from a search; `error` and then `done` close the stream. `history` holds earlier turns of the same conversation, oldest first. `here` and `places` give the model names (\"here\", \"home\") it can route between; their coordinates go to tools, never into the prompt. A `trip` event carries the trip the answer recommends, for opening in Directions; `route` and `canvas` events name a route or canvas saved to the user's library. Every question counts toward the user's monthly usage; on the system key, a used-up allowance returns 429 with `reason: quota-exceeded` and `resetsAt`.",
         "requestBody": {
           "required": true,
           "content": {
@@ -162,6 +162,14 @@
                         "content"
                       ]
                     }
+                  },
+                  "skill": {
+                    "default": "find-on-web",
+                    "description": "A task the app starts, e.g. \"find-on-web\". The question is then its subject, such as a business name, and the server writes the prompt.",
+                    "type": "string",
+                    "enum": [
+                      "find-on-web"
+                    ]
                   },
                   "placeId": {
                     "description": "A place the question is about, e.g. \"osm/node/123\". Its details and reviews are read first.",
@@ -525,6 +533,14 @@
                       ]
                     }
                   },
+                  "skill": {
+                    "default": "find-on-web",
+                    "description": "A task the app starts, e.g. \"find-on-web\". The question is then its subject, such as a business name, and the server writes the prompt.",
+                    "type": "string",
+                    "enum": [
+                      "find-on-web"
+                    ]
+                  },
                   "placeId": {
                     "description": "A place the question is about, e.g. \"osm/node/123\". Its details and reviews are read first.",
                     "type": "string"
@@ -886,6 +902,14 @@
                         "content"
                       ]
                     }
+                  },
+                  "skill": {
+                    "default": "find-on-web",
+                    "description": "A task the app starts, e.g. \"find-on-web\". The question is then its subject, such as a business name, and the server writes the prompt.",
+                    "type": "string",
+                    "enum": [
+                      "find-on-web"
+                    ]
                   },
                   "placeId": {
                     "description": "A place the question is about, e.g. \"osm/node/123\". Its details and reviews are read first.",
@@ -15691,6 +15715,10 @@
                   },
                   "text": {
                     "type": "string"
+                  },
+                  "webPlaceId": {
+                    "description": "The place found on the web this note is about, so it gets no automatic note",
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -15712,6 +15740,10 @@
                   },
                   "text": {
                     "type": "string"
+                  },
+                  "webPlaceId": {
+                    "description": "The place found on the web this note is about, so it gets no automatic note",
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -15732,6 +15764,10 @@
                     "type": "number"
                   },
                   "text": {
+                    "type": "string"
+                  },
+                  "webPlaceId": {
+                    "description": "The place found on the web this note is about, so it gets no automatic note",
                     "type": "string"
                   }
                 },
@@ -16478,7 +16514,7 @@
           "OSM"
         ],
         "summary": "Submit a quick edit to OpenStreetMap",
-        "description": "Creates a changeset, uploads the change, and closes the changeset using the user's connected OSM account.",
+        "description": "Creates a changeset, uploads the change, and closes the changeset using the user's connected OSM account. With `webPlaceId`, the place found on the web is marked added, so it won't get an automatic note when its listing expires.",
         "requestBody": {
           "required": true,
           "content": {
@@ -16551,6 +16587,10 @@
                       "type",
                       "tags"
                     ]
+                  },
+                  "webPlaceId": {
+                    "description": "The place found on the web this edit adds, so it gets no automatic note",
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -16629,6 +16669,10 @@
                       "type",
                       "tags"
                     ]
+                  },
+                  "webPlaceId": {
+                    "description": "The place found on the web this edit adds, so it gets no automatic note",
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -16707,6 +16751,10 @@
                       "type",
                       "tags"
                     ]
+                  },
+                  "webPlaceId": {
+                    "description": "The place found on the web this edit adds, so it gets no automatic note",
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -17071,6 +17119,10 @@
                 {
                   "const": "overture",
                   "type": "string"
+                },
+                {
+                  "const": "web",
+                  "type": "string"
                 }
               ]
             },
@@ -17132,7 +17184,7 @@
           "Places"
         ],
         "summary": "Get place details by ID, name/location, or coordinates",
-        "description": "Lookup and enrich place data. Supports ID-based lookup (source+id), name-based lookup (name+lat+lng), or coordinate-based lookup (lat+lng). Coordinate-based lookups reverse geocode; when the coordinate lands on a named place, that place is returned fully enriched with its center pinned to the coordinate, otherwise the coordinate itself with its address.",
+        "description": "Lookup and enrich place data. Supports ID-based lookup (source+id; source `web` is a business Ask found on its own website, kept for a day), name-based lookup (name+lat+lng), or coordinate-based lookup (lat+lng). Coordinate-based lookups reverse geocode; when the coordinate lands on a named place, that place is returned fully enriched with its center pinned to the coordinate, otherwise the coordinate itself with its address.",
         "responses": {
           "200": {}
         }

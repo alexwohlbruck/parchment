@@ -3077,7 +3077,8 @@
     },
     "listings": {
       "title": "Business listings",
-      "none": "No listing",
+      "none": "No listing yet",
+      "notListed": "Not listed there",
       "change": "Change",
       "pickerTitle": "{provider} listing",
       "pickerDescription": "Pick the listing for this place. Everyone sees your choice.",

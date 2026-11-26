@@ -62,12 +62,16 @@ async function onSaved() {
       :key="listing.provider"
       class="flex items-center gap-3 py-1"
     >
-      <div class="min-w-0 flex-1">
-        <div class="truncate text-sm font-medium">
-          {{ listing.listing ? (listing.listing.name ?? listing.listing.id) : t('place.listings.none') }}
-        </div>
+      <div v-if="listing.listing" class="min-w-0 flex-1">
+        <div class="truncate text-sm font-medium">{{ listing.listing.name ?? listing.listing.id }}</div>
         <div class="truncate text-xs text-muted-foreground">
-          {{ [listingProviderName(listing.provider), listing.listing?.address].filter(Boolean).join(' · ') }}
+          {{ [listingProviderName(listing.provider), listing.listing.address].filter(Boolean).join(' · ') }}
+        </div>
+      </div>
+      <div v-else class="min-w-0 flex-1">
+        <div class="truncate text-sm font-medium">{{ listingProviderName(listing.provider) }}</div>
+        <div class="truncate text-xs text-muted-foreground">
+          {{ t(listing.confirmed ? 'place.listings.notListed' : 'place.listings.none') }}
         </div>
       </div>
       <Button variant="ghost" size="sm" @click="edit(listing)">

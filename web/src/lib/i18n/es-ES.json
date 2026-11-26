@@ -2974,6 +2974,7 @@
     "listings": {
       "title": "Fichas de negocio",
       "none": "Sin ficha",
+      "notListed": "No aparece ahí",
       "change": "Cambiar",
       "pickerTitle": "Ficha de {provider}",
       "pickerDescription": "Elige la ficha de este lugar. Todos verán tu elección.",

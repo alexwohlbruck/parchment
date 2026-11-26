@@ -232,6 +232,7 @@ async function handleSubmit(comment: string) {
   submitting.value = true
   try {
     const result = await quickEditService.submitEdit({
+      webPlaceId: typeof route.query.place === 'string' ? route.query.place : undefined,
       comment:
         comment ||
         t('quickEdit.defaultEditComment', { name: displayName.value }),

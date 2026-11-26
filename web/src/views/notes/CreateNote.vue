@@ -27,6 +27,7 @@ const lat = ref(Number(route.query.lat))
 const lng = ref(Number(route.query.lng))
 const isSubmitting = ref(false)
 const initialText = typeof route.query.text === 'string' ? route.query.text : ''
+const webPlaceId = typeof route.query.place === 'string' ? route.query.place : undefined
 
 const integrationsStore = useIntegrationsStore()
 const osmConnected = computed(() =>
@@ -62,7 +63,7 @@ function placeMarker() {
 async function handleSubmit(text: string) {
   isSubmitting.value = true
   try {
-    const note = await notesService.createNote(lat.value, lng.value, text)
+    const note = await notesService.createNote(lat.value, lng.value, text, webPlaceId)
     toast.success(t('notes.noteCreated'))
     // Refresh notes layer markers
     await notesService.refreshNotes()

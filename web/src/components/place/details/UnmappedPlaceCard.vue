@@ -5,7 +5,8 @@ import { useI18n } from 'vue-i18n'
 import { MapPinPlusIcon, MessageSquarePlusIcon } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { AppRoute } from '@/router'
-import { unmappedNoteText } from '@/lib/place/unmapped-note'
+import { useIntegrationsStore } from '@/stores/integrations.store'
+import { IntegrationId } from '@/types/integrations.types'
 import type { Place } from '@/types/place.types'
 
 const props = defineProps<{ place: Partial<Place> }>()
@@ -23,6 +24,9 @@ function at() {
 
 const replaces = computed(() => props.place.unmapped?.replaces)
 
+const integrationsStore = useIntegrationsStore()
+const osmConnected = computed(() => Boolean(integrationsStore.getIntegrationConfig(IntegrationId.OPENSTREETMAP_ACCOUNT)))
+
 function addToMap() {
   const query = { place: props.place.id }
   if (replaces.value) {
@@ -34,23 +38,10 @@ function addToMap() {
 }
 
 function tellMappers() {
-  const unmapped = props.place.unmapped
-  const name = props.place.name?.value ?? ''
-  const former = replaces.value
-  const text = unmapped
-    ? unmappedNoteText(unmapped, {
-        intro: t('place.unmapped.noteIntro', { name }),
-        opensSoon: t('place.unmapped.noteOpensSoon'),
-        replaces: former
-          ? t(former.formerName ? 'place.unmapped.noteReplacesNamed' : 'place.unmapped.noteReplaces', {
-              element: `${former.type} ${former.id}`,
-              former: former.formerName ?? '',
-            })
-          : undefined,
-        tagsHeading: t('place.unmapped.noteTags'),
-      })
-    : t('place.unmapped.noteIntro', { name })
-  router.push({ name: AppRoute.NOTE_CREATE, query: { ...at(), text } })
+  router.push({
+    name: AppRoute.NOTE_CREATE,
+    query: { ...at(), text: props.place.unmapped?.noteText ?? '', place: props.place.id },
+  })
 }
 </script>
 
@@ -74,5 +65,8 @@ function tellMappers() {
         {{ t('place.unmapped.note') }}
       </Button>
     </div>
+    <p v-if="osmConnected" class="mt-2 text-xs text-muted-foreground">
+      {{ t('place.unmapped.autoNote') }}
+    </p>
   </div>
 </template>

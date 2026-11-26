@@ -2931,11 +2931,7 @@
       "add": "Añadir al mapa",
       "update": "Actualizar mapa",
       "note": "Avisar a los mapeadores",
-      "noteIntro": "{name} no aparece en el mapa.",
-      "noteOpensSoon": "Su sitio web dice que aún no ha abierto, así que está etiquetado como en construcción.",
-      "noteReplaces": "Reemplaza a {element}, que ahora no tiene ningún negocio.",
-      "noteReplacesNamed": "Reemplaza a {element} ({former}), que ha cerrado.",
-      "noteTags": "Etiquetas sugeridas:",
+      "autoNote": "Si nadie lo añade antes de mañana, Parchment deja una nota a los mapeadores desde tu cuenta de OpenStreetMap.",
       "findOnWeb": "Buscar “{query}” en la web",
       "findOnWebHint": "Para lugares que aún no están en el mapa"
     }

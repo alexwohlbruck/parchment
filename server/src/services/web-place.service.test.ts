@@ -116,6 +116,7 @@ describe('webPlace', () => {
         opening_hours: 'Mo-Fr 07:00-14:00',
       },
       presetId: 'amenity/cafe',
+      noteText: expect.stringContaining('Moss Café is missing from the map.\nFound on mosscafe.example with Parchment.'),
     })
   })
 })

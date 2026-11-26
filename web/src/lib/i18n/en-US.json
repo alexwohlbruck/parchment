@@ -3039,11 +3039,7 @@
       "add": "Add to map",
       "update": "Update map",
       "note": "Tell mappers",
-      "noteIntro": "{name} is missing from the map.",
-      "noteOpensSoon": "Its website says it hasn't opened yet, so it's tagged as under construction.",
-      "noteReplaces": "It takes over {element}, which has no business on it now.",
-      "noteReplacesNamed": "It takes over {element} ({former}), which has closed.",
-      "noteTags": "Suggested tags:",
+      "autoNote": "If no one adds it by tomorrow, Parchment leaves mappers a note from your OpenStreetMap account.",
       "findOnWeb": "Find “{query}” on the web",
       "findOnWebHint": "For places that aren't on the map yet"
     }

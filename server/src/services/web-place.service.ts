@@ -37,7 +37,9 @@ import { OverpassAdapter } from './integrations/adapters/overpass-adapter'
 import { isVacantAddress, replacementTags, sameAddress } from '../lib/web-place/address-match'
 import { forwardGeocode, reverseGeocode } from './geocoding.service'
 import { lookupPlacesByNameAndLocation } from './place.service'
-import type { Language } from '../lib/i18n/i18n.types'
+import { DEFAULT_LANGUAGE, type Language } from '../lib/i18n/i18n.types'
+import { translate } from '../lib/i18n/translate'
+import { unmappedNoteText } from '../lib/web-place/unmapped-note'
 import type { ChatMessage, LanguageModelCapability } from '../types/language-model.types'
 import type { Place, PlaceDraft, WebPlaceLookup } from '../types/place.types'
 import type { LatLng } from '../types/ask.types'
@@ -78,7 +80,7 @@ export function getWebPlace(id: string): Promise<Place | null> {
 /** A stage of a lookup, as it starts or learns more, so a caller can show the work. */
 export type WebPlaceStage = 'site' | 'read' | 'classify' | 'images' | 'fields' | 'locate' | 'map'
 
-interface Options {
+export interface WebPlaceOptions {
   near: LatLng
   progress?: (stage: WebPlaceStage, detail?: string) => void
   /** The place as read so far, without a location until the address is placed; null when that site fell through. */
@@ -96,7 +98,7 @@ interface Options {
  * Find a business the map doesn't have from its own website: the web only
  * points at the site, and everything shown or offered to OSM comes from it.
  */
-export async function findPlaceOnWeb(query: string, options: Options): Promise<WebPlaceLookup> {
+export async function findPlaceOnWeb(query: string, options: WebPlaceOptions): Promise<WebPlaceLookup> {
   const located = options.website
     ? { websites: [options.website], corroboratedBy: [] }
     : await findOfficialSites(query, options)
@@ -115,7 +117,7 @@ async function lookUpSite(
   website: string,
   query: string,
   corroboratedBy: string[],
-  options: Options,
+  options: WebPlaceOptions,
 ): Promise<WebPlaceLookup> {
   if (isListingSite(website)) {
     return { status: 'not-found', reason: 'Only review and delivery sites list it.' }
@@ -181,7 +183,7 @@ const SITE_BRIEF =
 /** The business's website and its own social pages, each tried in turn. */
 const MAX_SITES = 3
 
-async function findOfficialSites(query: string, { model, near, signal, progress }: Options) {
+async function findOfficialSites(query: string, { model, near, signal, progress }: WebPlaceOptions) {
   if (!model) throw new WebPlaceError('Web search is not available here. Pass the business website instead.')
   const area = query.includes(',') ? undefined : await areaName(near)
   progress?.('site', area ? `${query}, ${area}` : query)
@@ -274,7 +276,7 @@ function signCase(name: string): string {
 
 /** The site's own description of the business: its JSON-LD, else what the model reads off its pages. */
 /** A place for the business as read so far, placed only once its address is. */
-function draftPlace(business: SiteBusiness, url: string, center: LatLng | undefined, options: Options): PlaceDraft {
+function draftPlace(business: SiteBusiness, url: string, center: LatLng | undefined, options: WebPlaceOptions): PlaceDraft {
   const { geometry, ...place } = webPlace(business, socialPage(url) ?? siteRoot(url), center ?? options.near, options.language)
   return center ? { ...place, geometry } : place
 }
@@ -282,7 +284,7 @@ function draftPlace(business: SiteBusiness, url: string, center: LatLng | undefi
 async function readSite(
   website: string,
   query: string,
-  options: Options,
+  options: WebPlaceOptions,
   seen: (business: SiteBusiness, url: string, names: string[]) => void = () => {},
 ) {
   const social = socialPage(website)
@@ -383,7 +385,7 @@ const READ_BRIEF = `Read this business's own web pages and reply with one JSON o
 Copy only what the pages state; null for anything they don't. Never fill a value in from what is typical for this kind of place.
 Presets: `
 
-async function readWithModel(text: string, query: string, { model, near, signal }: Options): Promise<SiteBusiness | null> {
+async function readWithModel(text: string, query: string, { model, near, signal }: WebPlaceOptions): Promise<SiteBusiness | null> {
   if (!model) return null
   const wanted = `Looking for: ${query}, searched near ${near.lat.toFixed(4)}, ${near.lng.toFixed(4)}`
   const { message } = await model.complete({
@@ -409,7 +411,7 @@ export function inArea(business: SiteBusiness, query: string): boolean {
 const BRANCH_BRIEF = `These are the links on a business's website. Reply with only the URL of the page for the one location being looked for: the one in the area the search names, else the nearest to where it was searched. Reply NONE if no link is a single location's own page.`
 
 /** The page of the one location the search names, when the pages read so far only list the locations. */
-async function readBranchPage(pages: Page[], query: string, options: Options): Promise<SiteBusiness | null> {
+async function readBranchPage(pages: Page[], query: string, options: WebPlaceOptions): Promise<SiteBusiness | null> {
   if (!options.model) return null
   const read = new Set(pages.map((page) => page.url))
   const directory = contactLinks(pages[0].html, pages[0].url).find((url) => !read.has(url) && LOCATIONS_PAGE.test(url))
@@ -456,7 +458,7 @@ const IMAGE_BRIEF = `These images are from a business's own website. If one show
 If none shows a street address, reply {"street":null}. Never guess one.`
 
 /** An address the site shows only in its logo or other images, read by a model that can see them. */
-async function readImageAddress(pages: Page[], options: Options): Promise<SiteBusiness['address'] | undefined> {
+async function readImageAddress(pages: Page[], options: WebPlaceOptions): Promise<SiteBusiness['address'] | undefined> {
   if (!options.model) return undefined
   const sources = pages.flatMap((page) => addressImages(page.html).map((src) => ({ src, page }))).slice(0, 2)
   if (!sources.length) return undefined
@@ -613,7 +615,7 @@ function fieldsSummary(preset: string, specs: FieldSpec[], tags: Record<string, 
 }
 
 /** Fills the preset's other fields from the pages, keeping only what the schema allows and the pages quote. */
-async function readFields(business: SiteBusiness, text: string, { model, signal, progress }: Options): Promise<SiteBusiness> {
+async function readFields(business: SiteBusiness, text: string, { model, signal, progress }: WebPlaceOptions): Promise<SiteBusiness> {
   const category = categoryTags(business)
   const preset = business.preset ?? (category && matchTags(category, 'point')?.preset.id)
   const specs = preset ? presetFieldSpecs(preset) : []
@@ -746,7 +748,7 @@ function formerName(tags: Record<string, string>): string | undefined {
 }
 
 /** A mapped place nearby with the same name, so the site describes something OSM already has. */
-async function mappedNamesake(name: string, center: LatLng, options: Options): Promise<Place | undefined> {
+export async function mappedNamesake(name: string, center: LatLng, options: WebPlaceOptions): Promise<Place | undefined> {
   const results = await lookupPlacesByNameAndLocation(name, center, {
     radius: SAME_PLACE_M,
     language: options.language,
@@ -790,17 +792,19 @@ export function webPlace(
     ),
     SOURCE.WEB,
   )
+  const site = hostOf(website) ?? website
+  const unmapped = {
+    tags: vacant ? replacementTags(vacant.tags, osmTags) : osmTags,
+    ...(business.opensSoon && { opensSoon: true }),
+    ...(vacant && { replaces: { type: vacant.type, id: vacant.id, formerName: formerName(vacant.tags) } }),
+    presetId: business.preset ?? (hasCategory(business) ? (matchTags(tags, 'point')?.preset.id ?? null) : null),
+  }
   return {
     ...place,
     externalIds: { [SOURCE.WEB]: id },
     tags,
-    sources: [{ id: SOURCE.WEB, name: hostOf(website) ?? website, url: website }],
-    unmapped: {
-      tags: vacant ? replacementTags(vacant.tags, osmTags) : osmTags,
-      ...(business.opensSoon && { opensSoon: true }),
-      ...(vacant && { replaces: { type: vacant.type, id: vacant.id, formerName: formerName(vacant.tags) } }),
-      presetId: business.preset ?? (hasCategory(business) ? (matchTags(tags, 'point')?.preset.id ?? null) : null),
-    },
+    sources: [{ id: SOURCE.WEB, name: site, url: website }],
+    unmapped: { ...unmapped, noteText: unmappedNoteText(business.name, site, unmapped, translate(language ?? DEFAULT_LANGUAGE)) },
   }
 }
 

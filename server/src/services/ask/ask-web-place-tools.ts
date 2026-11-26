@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { summarizePlace } from '../../lib/ask/place-summary'
+import { listWebPlace } from '../web-place-listings.service'
+import { logError } from '../../lib/logger'
 import { findPlaceOnWeb, WebPlaceError, type WebPlaceStage } from '../web-place.service'
 import type { PlaceDraft } from '../../types/place.types'
 import { mentionsAddress } from '../../lib/web-place/address-match'
@@ -113,6 +115,9 @@ const findPlaceOnWebTool: AskTool<{ query: string; near?: PointArg; website?: st
     const { place } = lookup
     steps.draft(place)
     context.seen.set(place.id, place)
+    if (lookup.status === 'found') {
+      listWebPlace(place, context.userId).catch((error) => logError('Failed to list a web place', error))
+    }
     const summary = summarizePlace(place, { now: context.now, origin, units: context.units })
     return lookup.status === 'mapped'
       ? { status: 'on-map', place: summary }

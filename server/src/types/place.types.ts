@@ -519,6 +519,8 @@ export interface Place {
     opensSoon?: boolean
     /** An element already on the map at the same address, with no business there now, to take over. */
     replaces?: { type: 'node' | 'way'; id: number; formerName?: string }
+    /** A note for mappers carrying every tag, ready to post as it is. */
+    noteText: string
   }
 
   // IANA timezone resolved from coordinates (e.g. "America/New_York")

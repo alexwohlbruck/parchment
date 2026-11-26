@@ -18,8 +18,32 @@ const LISTING_HOSTS = new Set(['x.com', 'hotels.com', 'goo.gl', 'maps.app.goo.gl
 export function isListingSite(url: string): boolean {
   const host = hostOf(url)
   if (!host) return true
+  if (facebookPage(url)) return false
   if (LISTING_HOSTS.has(host)) return true
   return host.split('.').slice(0, -1).some((label) => LISTING_SITES.has(label))
+}
+
+const NOT_A_PAGE = /^(?:groups|events|marketplace|search|watch|places|login|share|sharer|hashtag|reel|story|photo|people|help|policies|business)$/i
+
+/**
+ * A business's own Facebook page, as its canonical url: what the business says of itself,
+ * which is all a business without a website publishes. Facebook's directories and searches aren't pages.
+ */
+export function facebookPage(url: string): string | undefined {
+  try {
+    const { hostname, pathname, searchParams } = new URL(url)
+    if (!/^(?:(?:www|m|web)\.)?facebook\.com$/i.test(hostname)) return undefined
+    const parts = pathname.split('/').filter(Boolean)
+    if (parts[0] === 'profile.php') {
+      const id = searchParams.get('id')
+      return id && /^\d+$/.test(id) ? `https://www.facebook.com/profile.php?id=${id}` : undefined
+    }
+    const page = parts[0] === 'p' || parts[0] === 'pages' ? parts.slice(0, parts[0] === 'p' ? 2 : 3) : parts.slice(0, 1)
+    if (!page.length || page.length < (parts[0] === 'p' ? 2 : parts[0] === 'pages' ? 3 : 1) || NOT_A_PAGE.test(page[0])) return undefined
+    return `https://www.facebook.com/${page.join('/')}`
+  } catch {
+    return undefined
+  }
 }
 
 export function hostOf(url: string): string | undefined {
@@ -71,7 +95,7 @@ export function attribute(tag: string, name: string): string | undefined {
 const TAGLINE = /\s+[|–—·:]\s+|\s+-\s+/
 /** "Bakery in New York, NY": a title describing the place rather than naming it. */
 const WHERE = /\s+in\s+[^,]+,\s*[A-Z]{2}$/
-const NOT_A_NAME = /^(?:home|homepage|welcome|logo|menu|main)$/i
+const NOT_A_NAME = /^(?:home|homepage|welcome|logo|menu|main|facebook|log in)$/i
 /** A country or company form a site appends to its name, "La Cabra USA" or "Joe's Pizza LLC", that the place itself isn't called. */
 const ENTITY_SUFFIX = /,?\s+(?:USA|US|UK|NYC|Inc\.?|LLC|L\.L\.C\.|Ltd\.?|Corp\.?|GmbH|ApS|AB|AS|BV|SA|S\.A\.|Pty)$/
 

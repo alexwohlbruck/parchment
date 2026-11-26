@@ -1,18 +1,33 @@
 import { describe, expect, test } from 'bun:test'
-import { contactLinks, isListingSite, pageText, sameName, siteNames, typedName } from './site-page'
+import { contactLinks, facebookPage, isListingSite, pageText, sameName, siteNames, typedName } from './site-page'
 
 describe('isListingSite', () => {
   test.each([
     ['https://www.yelp.com/biz/joes-pizza', true],
-    ['https://m.facebook.com/joespizza', true],
+    ['https://m.facebook.com/joespizza', false],
     ['https://www.tripadvisor.co.uk/Restaurant', true],
     ['https://x.com/joespizza', true],
     ['https://maps.app.goo.gl/abc', true],
     ['not a url', true],
     ['https://joespizzanyc.com/', false],
     ['https://www.thegooglyeyes.com/', false],
+    ['https://www.facebook.com/ElCerrito2024/', false],
+    ['https://www.facebook.com/search/top?q=cerrito', true],
   ])('%s', (url, listing) => {
     expect(isListingSite(url)).toBe(listing)
+  })
+})
+
+describe('facebookPage', () => {
+  test.each<[string, string | undefined]>([
+    ['https://m.facebook.com/ElCerrito2024?ref=bookmarks', 'https://www.facebook.com/ElCerrito2024'],
+    ['https://www.facebook.com/p/El-Cerrito-100063/photos', 'https://www.facebook.com/p/El-Cerrito-100063'],
+    ['https://www.facebook.com/profile.php?id=123&sk=about', 'https://www.facebook.com/profile.php?id=123'],
+    ['https://www.facebook.com/groups/brooklynfood', undefined],
+    ['https://www.facebook.com/', undefined],
+    ['https://elcerrito.example/', undefined],
+  ])('%s', (url, page) => {
+    expect<string | undefined>(facebookPage(url)).toBe(page)
   })
 })
 

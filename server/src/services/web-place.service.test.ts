@@ -146,6 +146,11 @@ describe('addressMatch', () => {
   })
 })
 
+test('keeps the site’s casing of a word the geocoder lower-cases', () => {
+  const match = { address: { value: { street1: '2024 Mcdonald Avenue' } } } as unknown as Place
+  expect(geocodedAddress({ street: '2024 McDonald Ave.' }, match)?.street).toBe('2024 McDonald Avenue')
+})
+
 test('spells the address the way the geocoder does, keeping the unit', () => {
   const match = {
     name: { value: '215 Union Street' },

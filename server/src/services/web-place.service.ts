@@ -26,6 +26,7 @@ import {
   hostOf,
   isListingSite,
   pageText,
+  facebookPage,
   siteLinks,
   siteNames,
   sameName,
@@ -138,13 +139,13 @@ export async function findPlaceOnWeb(query: string, options: Options): Promise<W
   if (mapped) return { status: 'mapped', place: mapped }
 
   const vacant = await vacantAddress(business, center)
-  const place = webPlace(business, siteRoot(url), center, options.language, vacant)
+  const place = webPlace(business, facebookPage(url) ?? siteRoot(url), center, options.language, vacant)
   await webPlaces.get(place.externalIds[SOURCE.WEB], async () => place)
   return { status: 'found', place, corroboratedBy }
 }
 
 const SITE_BRIEF =
-  "Find the business's own official website. Reply with only its URL, or NONE if it has no site of its own or you can't confirm the business exists. Never a directory, map, review, booking, delivery or social media page."
+  "Find the business's own official website. Reply with only its URL, or NONE if it has no site of its own or you can't confirm the business exists. Never a directory, map, review, booking, delivery or social media page, except the business's own Facebook page when it has no website."
 
 async function findOfficialSite(query: string, { model, near, signal, progress }: Options) {
   if (!model) throw new WebPlaceError('Web search is not available here. Pass the business website instead.')
@@ -235,12 +236,15 @@ function signCase(name: string): string {
 
 /** The site's own description of the business: its JSON-LD, else what the model reads off its pages. */
 async function readSite(website: string, query: string, options: Options) {
-  options.progress?.('read', hostOf(website) ?? website)
+  const social = facebookPage(website)
+  options.progress?.('read', social?.replace(/^https:\/\/www\./, '') ?? hostOf(website) ?? website)
   const home = await fetchPage(website, options.signal)
   if (!home) return null
   const pages = [home]
   let business = pickBusiness(readSiteBusinesses(home.html), query, options.near)
-  for (const link of contactLinks(home.html, home.url).slice(0, MAX_CONTACT_PAGES)) {
+  // A Facebook page's own links lead around Facebook, not the business.
+  const links = social ? [] : contactLinks(home.html, home.url)
+  for (const link of links.slice(0, MAX_CONTACT_PAGES)) {
     if (business?.address) break
     const page = await fetchPage(link, options.signal)
     if (!page) continue
@@ -253,11 +257,11 @@ async function readSite(website: string, query: string, options: Options) {
     const read = await readWithModel(text, query, options)
     business = business && read ? { ...business, preset: read.preset } : (business ?? read ?? undefined)
   }
-  if (business && !options.address && !inArea(business, query)) {
+  if (business && !social && !options.address && !inArea(business, query)) {
     const branch = await readBranchPage(pages, query, options)
     if (branch?.address?.street) business = { ...branch, preset: branch.preset ?? business.preset }
   }
-  if (business && !business.address?.street && !options.address) {
+  if (business && !social && !business.address?.street && !options.address) {
     const address = await readImageAddress(pages, options)
     if (address) business = { ...business, address, addressFrom: 'image' }
   }
@@ -632,12 +636,23 @@ export function geocodedAddress(address: SiteBusiness['address'], match: Place):
   const unit = address?.street?.split(',').slice(1).map((part) => part.trim()).filter(Boolean) ?? []
   return {
     ...address,
-    street: [street, ...unit].join(', '),
+    street: [siteCasing(street, address?.street ?? ''), ...unit].join(', '),
     // The site's own city: New York's geocoder says "New York" where OSM writes "Brooklyn".
     locality: address?.locality ? titleCase(address.locality) : found?.locality,
     region: found?.region ?? address?.region,
     postalCode: found?.postalCode ?? address?.postalCode,
   }
+}
+
+/** The geocoder's "Mcdonald Avenue" with the site's "McDonald", where the site writes the word in mixed case. */
+function siteCasing(street: string, site: string): string {
+  const own = new Map(
+    site
+      .split(/[\s,]+/)
+      .filter((word) => word !== word.toUpperCase() && word !== word.toLowerCase())
+      .map((word) => [word.toLowerCase(), word]),
+  )
+  return street.replace(/\p{L}+/gu, (word) => own.get(word.toLowerCase()) ?? word)
 }
 
 /** "BROOKLYN" as "Brooklyn"; anything already in mixed case stays as written. */

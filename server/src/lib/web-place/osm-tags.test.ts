@@ -38,6 +38,12 @@ describe('businessTags', () => {
   })
 })
 
+test('credits a business without a website to its Facebook page', () => {
+  const tags = businessTags({ name: 'El Cerrito', types: ['Restaurant'] }, 'https://www.facebook.com/ElCerrito2024')
+  expect(tags['contact:facebook']).toBe('https://www.facebook.com/ElCerrito2024')
+  expect(tags.website).toBeUndefined()
+})
+
 describe('splitStreet', () => {
   test.each([
     ['123 Main Street', { 'addr:housenumber': '123', 'addr:street': 'Main Street' }],

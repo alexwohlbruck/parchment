@@ -61,6 +61,18 @@ export function readSiteBusinesses(html: string): SiteBusiness[] {
   return found
 }
 
+const NAMED_TYPES = /^(?:WebSite|Organization)$/
+
+/** The names the page's JSON-LD gives the site and its organisation. */
+export function declaredNames(html: string): string[] {
+  return [...html.matchAll(SCRIPT)].flatMap(([, body]) =>
+    flatten(parseJson(body))
+      .filter((node) => typesOf(node).some((type) => NAMED_TYPES.test(type)))
+      .flatMap((node) => [text(node.name), text(node.legalName)])
+      .filter((name): name is string => !!name),
+  )
+}
+
 function parseJson(text: string): unknown {
   try {
     return JSON.parse(text.trim())
@@ -89,7 +101,7 @@ function typesOf(node: Json): string[] {
 function toBusiness(node: Json): SiteBusiness | null {
   const types = typesOf(node)
   if (!types.length || types.every((type) => NOT_A_BUSINESS.has(type))) return null
-  const name = text(node.name)
+  const name = text(node.name) ?? text(node.legalName)
   const address = readAddress(node.address)
   const geo = readGeo(node.geo)
   if (!name || (!address && !geo)) return null
@@ -164,23 +176,44 @@ function readHours(node: Json): string | undefined {
   const spec = node.openingHoursSpecification
   if (spec) return specificationToOsm(Array.isArray(spec) ? spec : [spec])
   const lines = list(node.openingHours).filter((line) => /^[A-Za-z0-9 ,:;\-+/]+$/.test(line))
-  return lines.length ? lines.join('; ') : undefined
+  return lines.length ? compactHours(lines.join('; ')) : undefined
 }
 
-/** schema.org OpeningHoursSpecification entries as an OSM opening_hours value. */
-export function specificationToOsm(entries: Json[]): string | undefined {
+const DAY = '(?:Mo|Tu|We|Th|Fr|Sa|Su)'
+const RANGE = '\\d{2}:\\d{2}-\\d{2}:\\d{2}'
+const DAY_RULE = new RegExp(`^(${DAY}(?:-${DAY})?(?:,${DAY}(?:-${DAY})?)*) (${RANGE}(?:,${RANGE})*)$`)
+
+/**
+ * "Mo 08:00-17:00; Tu 08:00-17:00; …" as "Mo-Su 08:00-17:00". A later rule for the same days
+ * replaces them in OSM, so one whose times don't overlap is taken as a second sitting and added.
+ * Anything but plain day rules is left alone.
+ */
+export function compactHours(hours: string): string {
   const byDay: string[][] = DAYS.map(() => [])
-  for (const entry of entries) {
-    if (entry?.validFrom || entry?.validThrough) continue
-    const opens = clock(entry?.opens)
-    const closes = clock(entry?.closes, true)
-    if (!opens || !closes || opens === closes) continue
-    for (const day of list(entry.dayOfWeek)) {
-      const index = DAY_NAMES[day.split('/').pop()!.toLowerCase()]
-      if (index !== undefined) byDay[index].push(`${opens}-${closes}`)
+  for (const rule of hours.split(';').map((part) => part.trim())) {
+    const match = rule.match(DAY_RULE)
+    if (!match) return hours
+    const ranges = match[2].split(',')
+    for (const span of match[1].split(',')) {
+      const [from, to] = span.split('-').map((day) => DAYS.indexOf(day as never))
+      if ((to ?? from) < from) return hours
+      for (let day = from; day <= (to ?? from); day++) {
+        byDay[day] = byDay[day].some((open) => ranges.some((range) => rangesOverlap(open, range)))
+          ? ranges
+          : [...byDay[day], ...ranges]
+      }
     }
   }
-  const spans = byDay.map((ranges) => [...new Set(ranges)].sort().join(','))
+  return dayRules(byDay.map((ranges) => [...new Set(ranges)].sort().join(','))) ?? hours
+}
+
+function rangesOverlap(a: string, b: string): boolean {
+  const [aOpen, aClose] = a.split('-')
+  const [bOpen, bClose] = b.split('-')
+  return aOpen < bClose && bOpen < aClose
+}
+
+function dayRules(spans: string[]): string | undefined {
   if (spans.every((span) => span === '00:00-24:00')) return '24/7'
   const rules: string[] = []
   for (let start = 0; start < DAYS.length; ) {
@@ -193,6 +226,24 @@ export function specificationToOsm(entries: Json[]): string | undefined {
     start = end + 1
   }
   return rules.length ? rules.join('; ') : undefined
+}
+
+/** schema.org OpeningHoursSpecification entries as an OSM opening_hours value. */
+export function specificationToOsm(entries: Json[]): string | undefined {
+  const byDay: string[][] = DAYS.map(() => [])
+  for (const entry of entries) {
+    if (entry?.validFrom || entry?.validThrough) continue
+    const opens = clock(entry?.opens)
+    // Opening and closing at the same time, usually 00:00, is how schema.org marks a closed day.
+    if (!opens || opens === clock(entry?.closes)) continue
+    const closes = clock(entry?.closes, true)
+    if (!closes) continue
+    for (const day of list(entry.dayOfWeek)) {
+      const index = DAY_NAMES[day.split('/').pop()!.toLowerCase()]
+      if (index !== undefined) byDay[index].push(`${opens}-${closes}`)
+    }
+  }
+  return dayRules(byDay.map((ranges) => [...new Set(ranges)].sort().join(',')))
 }
 
 function clock(value: unknown, closing = false): string | undefined {

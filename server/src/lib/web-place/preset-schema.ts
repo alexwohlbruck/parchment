@@ -104,7 +104,7 @@ export function checkClaims(claims: Record<string, Claim | null>, specs: FieldSp
     }
     const tags = fieldTags(spec, value, quote)
     if (!tags) {
-      reject(`"${value}" is not a value the schema allows`)
+      reject(spec.options?.some((option) => value.split(';').includes(option)) ? `the quote doesn't say "${value}"` : `"${value}" is not a value the schema allows`)
       continue
     }
     Object.assign(result.tags, tags)
@@ -117,7 +117,9 @@ function fieldTags(spec: FieldSpec, value: string, quote: string): Record<string
   const known = (part: string) => !!spec.options?.includes(part)
   // A list field names things, so each one has to be named in the quote, whether or not the schema lists it.
   const named = (part: string) =>
-    [part.replace(/_/g, ' '), spec.optionLabels?.[part]].some((words) => words && quote.includes(plain(words)))
+    [part.replace(/_/g, ' '), spec.optionLabels?.[part], known(part) ? part.replace(/_shop$/, '') : undefined].some(
+      (words) => words && quote.includes(plain(words)),
+    )
   switch (spec.type) {
     case 'check':
     case 'defaultCheck':

@@ -75,12 +75,14 @@ test('cherries blossom on bare wood before they leaf', () => {
 describe('with seasons off', () => {
   const held = seasonRamps('light', false)
 
-  test('cherries stay in full bloom all year', () => {
-    for (const month of [1, 4, 7, 11]) {
-      const { color, leaf } = rampAt(held.blossom, on(month))
-      expect(leaf).toBe(1)
-      expect(color[0]).toBeGreaterThan(color[1])
-    }
+  test('cherries stay in full pink bloom all year, every one of them', () => {
+    for (const month of [1, 4, 7, 11])
+      for (const tint of [0, 0.5, 1]) {
+        const { color: [r, g, b], leaf } = rampAt(held.blossom, on(month), tint)
+        expect(leaf).toBe(1)
+        expect(r - g, 'pink, not white').toBeGreaterThan(0.2)
+        expect(b).toBeGreaterThan(g)
+      }
   })
 
   test('every other plant stays in high summer', () => {

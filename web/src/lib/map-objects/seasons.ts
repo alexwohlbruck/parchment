@@ -163,12 +163,17 @@ function resample(keys: Key[], flavor: FlavorId, held?: number): SeasonRamp {
   return ramp
 }
 
-/** With seasons off, the day each role is held at: cherries in full bloom, everything else in high summer. */
-const SIGNATURE_DAY: Record<string, number> = { blossom: 104 }
+/** With seasons off, the year a role holds instead of high summer: cherries all in pink blossom. */
+const HELD: Record<string, Key[]> = {
+  blossom: [[0, [[0.98, 0.72, 0.84], [0.96, 0.64, 0.78]], 1]],
+}
 
 function ramps(flavor: FlavorId, seasonal: boolean): Record<string, SeasonRamp> {
   return Object.fromEntries(
-    Object.entries(KEYS).map(([role, keys]) => [role, resample(keys, flavor, seasonal ? undefined : (SIGNATURE_DAY[role] ?? MIDSUMMER * 365))]),
+    Object.entries(KEYS).map(([role, keys]) => [
+      role,
+      seasonal ? resample(keys, flavor) : HELD[role] ? resample(HELD[role], flavor) : resample(keys, flavor, MIDSUMMER * 365),
+    ]),
   )
 }
 

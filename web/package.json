@@ -84,7 +84,7 @@
     "lucide-vue-next": "0.475.0",
     "mapbox-gl": "^3.27.0",
     "mapillary-js": "^4.1.2",
-    "maplibre-gl": "github:alexwohlbruck/maplibre-gl-js#v6.19.0-transit.1-terrain.11",
+    "maplibre-gl": "github:alexwohlbruck/maplibre-gl-js#v6.19.0-transit.1-terrain.12",
     "mitt": "^3.0.1",
     "modern-screenshot": "^4.7.0",
     "mousetrap": "^1.6.5",

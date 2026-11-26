@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test'
-import { boardingCandidates, earliestDeparture, latestDeparture, sameRun, sampleStops, withPositions, type BoardDeparture } from './boarding-candidates'
+import { boardingCandidates, earliestDeparture, latestDeparture, sampleStops, withPositions, type BoardDeparture } from './boarding-candidates'
 
 const T = Date.parse('2026-10-15T19:00:00Z')
 const at = (min: number) => new Date(T + min * 60_000).toISOString()
@@ -87,11 +87,6 @@ describe('boardingCandidates', () => {
 })
 
 describe('positions', () => {
-  test('matches a vehicle by the trip id inside the timetable id', () => {
-    expect(sameRun('20261015_19:00_5_A123', '5_A123')).toBe(true)
-    expect(sameRun('20261015_19:00_5_A123', '5_A12')).toBe(false)
-  })
-
   test('attaches the live position of the matching run', () => {
     const [candidate] = boardingCandidates({ board: [{ departures: [run('20261015_19:00_5_A1', '3', 0)] }], later: [], plannedMs: T, routes: ['3'] })
     const [placed] = withPositions([candidate], [{ tripId: '5_A1', position: { lat: 1, lng: 2 }, timestamp: at(1) }])

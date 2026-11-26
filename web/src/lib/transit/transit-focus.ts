@@ -7,6 +7,7 @@
  * the ones the rider is actually catching.
  */
 
+import { sameRun } from '@server/lib/transit/same-run'
 import { splitFeedId } from '@/lib/transit/transit-alerts'
 import type { TransitVehiclePosition } from '@/types/multimodal.types'
 
@@ -147,9 +148,9 @@ export function yourVehicleIds(
   return out
 }
 
-/** A planner run id (`{date}_{time}_{feed}_{trip}`, feed prefix stripped) and a vehicle's trip name the same run. */
 function isRun(tripId: string, vehicle: TransitVehiclePosition): boolean {
-  return tripId === localTripId(vehicle) || (!!vehicle.tripId && tripId.endsWith(`_${vehicle.tripId}`))
+  const local = localTripId(vehicle)
+  return !!local && (sameRun(tripId, local) || sameRun(tripId, vehicle.tripId!))
 }
 
 /** A board's run id (`{yyyymmdd}_{hh:mm}_{feed}_{trip}`) as the feed's own trip id, which trip updates and vehicles carry. */

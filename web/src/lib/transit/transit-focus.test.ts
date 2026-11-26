@@ -156,6 +156,17 @@ describe('yourVehicleIds', () => {
     expect(ids).toEqual(new Set(['mine']))
   })
 
+  it('matches a subway train, whose live trip drops the shape suffix', () => {
+    const legs = focusedLegs({
+      segments: [transitSegment({ route: { id: '5_A' }, trip: { id: '20261126_09:05_5_054550_A..S57R' } })],
+    })
+    const ids = yourVehicleIds(legs, [
+      vehicle({ vehicleId: 'mine', feedId: '5', tripId: '5_054550_A..S' }),
+      vehicle({ vehicleId: 'other', feedId: '5', tripId: '5_055900_A..S' }),
+    ])
+    expect(ids).toEqual(new Set(['mine']))
+  })
+
   it('follows the run guidance moved the leg to', () => {
     const moved = { ...transitSegment({ trip: { id: 'f1_trip-7' } }), tripId: 'f1_trip-9' }
     const ids = yourVehicleIds(focusedLegs({ segments: [moved] }), [

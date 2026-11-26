@@ -12,11 +12,14 @@
 
 * Press Enter in search to see all results right away, without waiting for suggestions. When a search clearly means one place or address, it opens straight away, and Back shows the full results.
 * Searching for a kind of place or a chain, like "coffee" or "Starbucks", opens that browse straight away, and a question opens Ask.
+* With Day & Night on, the globe's night side now shows city lights and a deep blue sky on the standard map, with a sunset glow around the Earth's edge and a brighter sun.
 
 ### Fixed
 
 * Editing a place offers every detail its type supports, such as wheelchair access, email and payment methods for shops.
 * Places from Foursquare no longer show “Moving Target” or “unknown” as their type.
+* NYC subway trains now show on a line's map and follow your own train during navigation.
+* Shadows of lampposts, benches, picnic tables and bins now start at their base, and small objects cast them at all.
 
 ## [0.27.1] - 2026-11-25
 

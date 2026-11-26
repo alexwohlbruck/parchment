@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
 import { Button } from '@/components/ui/button'
@@ -19,7 +19,12 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
+const MIN_ROWS = 4
+const MAX_ROWS = 20
+
 const text = ref(props.initialText ?? '')
+/** Tall enough to show a prefilled note, such as a list of suggested tags, with room for its lines to wrap. */
+const rows = computed(() => Math.min(MAX_ROWS, Math.max(MIN_ROWS, text.value.split('\n').length + 3)))
 </script>
 
 <template>
@@ -53,7 +58,7 @@ const text = ref(props.initialText ?? '')
       <Textarea
         v-model="text"
         :placeholder="t('notes.createPlaceholder')"
-        :rows="4"
+:rows="rows"
         class="resize-none"
       />
       <Button

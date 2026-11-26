@@ -176,6 +176,16 @@ function onMarkerClick(event: Event) {
   if (place?.id) openPlace(place)
 }
 
+watch(
+  () => askStore.current?.status,
+  (status, before) => {
+    const exchange = askStore.current
+    if (status !== 'done' || before !== 'running' || exchange?.places.length !== 1) return
+    const lookedUp = exchange.steps.some(step => step.tool === 'find_place_on_web' && step.status === 'done')
+    if (lookedUp) openPlace(exchange.places[0].place)
+  },
+)
+
 const citedPlaces = computed(() =>
   askStore.current?.places.map(({ place }) => place) ?? [],
 )

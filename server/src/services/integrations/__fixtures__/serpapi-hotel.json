@@ -1,0 +1,183 @@
+{
+  "search_metadata": {
+    "status": "Success"
+  },
+  "type": "hotel",
+  "name": "EVEN Hotel Brooklyn by IHG",
+  "property_token": "ChoIp8bW2tGU-6vDARoNL2cvMTFmMHR0Z2ZzdBAB",
+  "address": "46 Nevins St, Brooklyn, NY 11217",
+  "gps_coordinates": {
+    "latitude": 40.6884,
+    "longitude": -73.9809
+  },
+  "featured_prices": [
+    {
+      "source": "EVEN Hotel Brooklyn by IHG",
+      "link": "https://www.google.com/aclk?sa=l&ai=DChsS&adurl",
+      "official": true,
+      "num_guests": 2,
+      "rate_per_night": {
+        "lowest": "$249",
+        "extracted_lowest": 249,
+        "before_taxes_fees": "$249",
+        "extracted_before_taxes_fees": 249,
+        "after_taxes_fees": "$289",
+        "extracted_after_taxes_fees": 289
+      },
+      "total_rate": {
+        "lowest": "$289",
+        "extracted_lowest": 289,
+        "before_taxes_fees": "$249",
+        "extracted_before_taxes_fees": 249,
+        "after_taxes_fees": "$289",
+        "extracted_after_taxes_fees": 289
+      },
+      "rooms": [
+        {
+          "name": "Standard King",
+          "num_guests": 2
+        }
+      ]
+    },
+    {
+      "source": "Expedia.com",
+      "link": "https://www.google.com/aclk?sa=l&ai=EXP&adurl",
+      "logo": "https://www.gstatic.com/travel-hotels/branding/ac238c97-1652-4830-8da8-bb8d8883af88.png",
+      "num_guests": 2,
+      "rate_per_night": {
+        "lowest": "$249",
+        "extracted_lowest": 249,
+        "before_taxes_fees": "$249",
+        "extracted_before_taxes_fees": 249,
+        "after_taxes_fees": "$289",
+        "extracted_after_taxes_fees": 289
+      },
+      "total_rate": {
+        "lowest": "$289",
+        "extracted_lowest": 289,
+        "before_taxes_fees": "$249",
+        "extracted_before_taxes_fees": 249,
+        "after_taxes_fees": "$289",
+        "extracted_after_taxes_fees": 289
+      }
+    }
+  ],
+  "prices": [
+    {
+      "source": "EVEN Hotel Brooklyn by IHG",
+      "link": "https://www.google.com/travel/lodging/clk?pc=AA80Osx&pcurl=https://www.ihg.com/evenhotels/hotels/us/en/brooklyn/nycev/hoteldetail?qCiD%3D25%26qCoD%3D26%26qAdlt%3D2&s=AD1XQ&ap=1",
+      "num_guests": 2,
+      "rate_per_night": {
+        "lowest": "$289",
+        "extracted_lowest": 289,
+        "before_taxes_fees": "$249",
+        "extracted_before_taxes_fees": 249,
+        "after_taxes_fees": "$289",
+        "extracted_after_taxes_fees": 289
+      },
+      "total_rate": {
+        "lowest": "$289",
+        "extracted_lowest": 289,
+        "before_taxes_fees": "$249",
+        "extracted_before_taxes_fees": 249,
+        "after_taxes_fees": "$289",
+        "extracted_after_taxes_fees": 289
+      },
+      "official": true
+    },
+    {
+      "source": "Expedia.com",
+      "link": "https://www.google.com/travel/lodging/clk?pc=AA80Osx&pcurl=https://www.expedia.com/Brooklyn-Hotels-EVEN-Hotel-Brooklyn.h12345.Hotel-Information?chkin%3D2026-11-25%26chkout%3D2026-11-26%26rm1%3Da2&s=AD1XQ&ap=1",
+      "logo": "https://www.gstatic.com/travel-hotels/branding/ac238c97-1652-4830-8da8-bb8d8883af88.png",
+      "num_guests": 2,
+      "rate_per_night": {
+        "lowest": "$289",
+        "extracted_lowest": 289,
+        "before_taxes_fees": "$249",
+        "extracted_before_taxes_fees": 249,
+        "after_taxes_fees": "$289",
+        "extracted_after_taxes_fees": 289
+      },
+      "total_rate": {
+        "lowest": "$289",
+        "extracted_lowest": 289,
+        "before_taxes_fees": "$249",
+        "extracted_before_taxes_fees": 249,
+        "after_taxes_fees": "$289",
+        "extracted_after_taxes_fees": 289
+      },
+      "free_cancellation": true,
+      "free_cancellation_until_date": "Nov 24",
+      "free_cancellation_until_time": "11:59 PM"
+    },
+    {
+      "source": "Booking.com",
+      "link": "https://www.google.com/travel/lodging/clk?pc=AA80Osx&pcurl=https://www.booking.com/hotel/us/even-brooklyn.html?checkin%3D2026-11-25%26checkout%3D2026-11-26%26group_adults%3D2&s=AD1XQ&ap=1",
+      "logo": "https://www.gstatic.com/travel-hotels/branding/icon_184.png",
+      "num_guests": 2,
+      "rate_per_night": {
+        "lowest": "$289",
+        "extracted_lowest": 289,
+        "before_taxes_fees": "$249",
+        "extracted_before_taxes_fees": 249,
+        "after_taxes_fees": "$289",
+        "extracted_after_taxes_fees": 289
+      },
+      "total_rate": {
+        "lowest": "$289",
+        "extracted_lowest": 289,
+        "before_taxes_fees": "$249",
+        "extracted_before_taxes_fees": 249,
+        "after_taxes_fees": "$289",
+        "extracted_after_taxes_fees": 289
+      },
+      "free_cancellation": true,
+      "free_cancellation_until_date": "Nov 24",
+      "free_cancellation_until_time": "11:59 PM"
+    },
+    {
+      "source": "Super.com",
+      "link": "https://www.google.com/travel/lodging/clk?pc=AA80OswtHBr0Afsk3N8RIENQ9-K4OuwkBX87z790c_Ey4taUAN-MjPMqNUXLmXUg9zQQfV54Y4NS7scF2W95_x3j6yPniW89xwoPMf9_UQH3TGYajflD8mD7LlV58WtAeBir28II36P1y-pCnlaXUcGMB9Ko-ll3bUT8ft6MSbsUAxpxCExaCajhsQvCHQ&pcurl=https://www.super.com/travel/transition/?data%3Dprice%3D300.35%2526total_price%3D338.66%2526retail_price%3D325.71%2526retail_total_price%3D367.26%2526request_id%3D11393634056982990848%2526ps%3D1642246410%2526pb%3D0-slAkZlDjP06IhVxwa_7B5dba6C8EzasEC9AaZcXLLLuhOPaFE6aJzGoJVEpOqGObkpfDqqGZJ1dsRZquCHjOtFk1aIdHdGKRNrSF3A0DORGNpW-aqGWTIo3SgzG2D9JSt51_-JfOWkCI_Q3lSccg%25253D%25253D%2526gha_pull_request%3DTrue%2526alwd_rand%3Dfalse%2526gt%3D1789641593%2526sg%3D27Vh6%2526sid%3DGHA_MD8%2526cmab_id%3D33%2526ib%3Dfalse%2526s2d%3Dc2%2526all_inclusive%3Dfalse%26utm_source%3Dgha%26utm_content%3Dlocaluniversal%26currency%3DUSD%26user_country%3DUS%26verification%3Dfalse%26rate_rule_ids%3D%26date_type%3Dselected%26rate_rule_id%3Dsignedout_desktop%26display_currency%3DUSD%26display_all_inclusive_price%3D338.66%26checkin_at%3D2026-10-18%26checkout_at%3D2026-10-20%26provider_hotel_id%3D10008340584%26provider%3Dhtl%26num_adults%3D2%26children%3D%5B%5D%26hotel_campaign%3D%26utm_campaign%3D%26user_locale%3Den-US%26user_list_id%3D%26utm_medium%3Dorganic%26utm_id%3Dgha_organic&s=AD1XQnkRU9KVnrxdc2m6mCNc5YJn&ap=1",
+      "logo": "https://www.gstatic.com/travel-hotels/branding/cfa60c4a-13cd-46d3-9354-ec90c89ec855.png",
+      "num_guests": 2,
+      "rate_per_night": {
+        "lowest": "$219",
+        "extracted_lowest": 219,
+        "before_taxes_fees": "$188",
+        "extracted_before_taxes_fees": 188,
+        "after_taxes_fees": "$219",
+        "extracted_after_taxes_fees": 219
+      },
+      "total_rate": {
+        "lowest": "$219",
+        "extracted_lowest": 219,
+        "before_taxes_fees": "$188",
+        "extracted_before_taxes_fees": 188,
+        "after_taxes_fees": "$219",
+        "extracted_after_taxes_fees": 219
+      }
+    },
+    {
+      "source": "Sketchy.example",
+      "link": "https://www.google.com/travel/lodging/clk?pc=AA80Osx&pcurl=javascript:alert(1)&s=AD1XQ&ap=1",
+      "logo": null,
+      "num_guests": 2,
+      "rate_per_night": {
+        "lowest": "$170",
+        "extracted_lowest": 170,
+        "before_taxes_fees": "$150",
+        "extracted_before_taxes_fees": 150,
+        "after_taxes_fees": "$170",
+        "extracted_after_taxes_fees": 170
+      },
+      "total_rate": {
+        "lowest": "$170",
+        "extracted_lowest": 170,
+        "before_taxes_fees": "$150",
+        "extracted_before_taxes_fees": 150,
+        "after_taxes_fees": "$170",
+        "extracted_after_taxes_fees": 170
+      }
+    }
+  ]
+}

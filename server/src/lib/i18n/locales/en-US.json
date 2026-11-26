@@ -36,9 +36,11 @@
       "invalidParams": "Please provide either source+id, name+lat+lng, or lat+lng",
       "invalidOsmType": "Invalid OSM type. Format should be \"type/id\" where type is node, way, or relation.",
       "listingUnsupported": "Listings can only be changed for OpenStreetMap places.",
+      "listingInvalid": "That link isn't a venue page on this site.",
       "notFoundWithParams": "Place not found with the provided parameters",
       "retrievalError": "Error retrieving place data",
-      "coordinatesRequired": "lat and lng are required"
+      "coordinatesRequired": "lat and lng are required",
+      "invalidStay": "Choose a stay of 1 to 30 nights starting today or later"
     },
     "server": {
       "internal": "An internal server error occurred",

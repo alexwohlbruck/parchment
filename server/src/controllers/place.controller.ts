@@ -13,6 +13,10 @@ import { SOURCE } from '../lib/constants.js'
 import { WidgetType } from '../types/place.types'
 import { fetchWidgetData } from '../services/widget.service'
 import { fetchNearestStreetImage } from '../services/street-imagery.service'
+import { getStayOffers } from '../services/stay.service'
+import { isValidStay, MAX_STAY_ADULTS } from '../lib/place/stay-dates'
+import { isVenueId, isVenueProvider } from '../lib/place/booking-venues'
+import { getBookingVenues } from '../services/place/booking-venues.service'
 import { logError, logger } from '../lib/logger'
 import { i18nPlugin } from '../lib/i18n/plugin'
 import type { Source } from '../lib/constants'
@@ -278,6 +282,47 @@ app.get(
   },
 )
 
+// Every seller's price for the hotel at a place, for one set of dates and guests.
+app.get(
+  '/stay-offers',
+  async (ctx) => {
+    const { query, status, t } = ctx
+    if (!isValidStay(query.checkin, query.checkout)) {
+      return status(400, { message: t('errors.place.invalidStay') })
+    }
+    try {
+      const offers = await getStayOffers(query.source as Source, query.id, {
+        checkin: query.checkin,
+        checkout: query.checkout,
+        adults: query.adults ?? 2,
+        currency: query.currency?.toUpperCase() ?? 'USD',
+        guestNationality: query.nationality?.toUpperCase() ?? 'US',
+      })
+      return { offers }
+    } catch (err) {
+      logError('Error fetching stay offers', err)
+      return status(502, { message: err instanceof Error ? err.message : 'Error fetching stay offers' })
+    }
+  },
+  {
+    query: t.Object({
+      source: t.String({ minLength: 1, description: 'Place source, e.g. osm' }),
+      id: t.String({ minLength: 1, description: 'Place id within its source, e.g. node/4176535246' }),
+      checkin: t.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'YYYY-MM-DD' }),
+      checkout: t.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'YYYY-MM-DD' }),
+      adults: t.Optional(t.Numeric({ minimum: 1, maximum: MAX_STAY_ADULTS, default: 2 })),
+      currency: t.Optional(t.String({ pattern: '^[A-Za-z]{3}$', description: 'ISO 4217, default USD' })),
+      nationality: t.Optional(t.String({ pattern: '^[A-Za-z]{2}$', description: 'ISO 3166-1 alpha-2, default US' })),
+    }),
+    detail: {
+      tags: ['Places'],
+      summary: "Compare sellers' prices for a hotel",
+      description:
+        'One offer per seller from Google Hotels (SerpApi) and from our booking partner (LiteAPI, `bookHere`), each with its nightly price before taxes, the stay total with taxes and fees, free cancellation, and a link to that seller\'s page for these dates. The hotel is matched to each source once, by name within 250 m, and stored in the match store (`google_hotels`, `liteapi`), a miss included. `offers` is null when no source is configured or none lists the hotel. Stays run 1 to 30 nights. Cached for 30 minutes.',
+    },
+  },
+)
+
 const placeKey = {
   source: t.String({ description: 'Source of the place, e.g. `osm`', examples: ['osm'] }),
   id: t.String({ description: 'Id in that source, e.g. `node/6493733562`', examples: ['node/6493733562'] }),
@@ -326,6 +371,9 @@ app.group('/listings', (listings) =>
     .put(
       '/',
       async ({ body, status, t }) => {
+        if (body.providerPlaceId && isVenueProvider(body.provider) && !isVenueId(body.provider, body.providerPlaceId)) {
+          return status(400, { message: t('errors.place.listingInvalid') })
+        }
         const stored = await correctListing(body.source as Source, body.id, body.provider, body.providerPlaceId)
         if (!stored) return status(400, { message: t('errors.place.listingUnsupported') })
         return { ok: true }
@@ -340,10 +388,33 @@ app.group('/listings', (listings) =>
           tags: ['Places'],
           summary: 'Correct the listing a place is matched to',
           description:
-            'Sets the listing for one provider, or `providerPlaceId: null` for none. Stored as a confirmed match that automatic matching never replaces. OSM places only.',
+            'Sets the listing for one provider, or `providerPlaceId: null` for none. Stored as a confirmed match that automatic matching never replaces. OSM places only. Booking sites (`opentable`, `resy`, `booking`, `expedia`) take the venue id parsed from its page URL, e.g. `r/<slug>` or `us/<hotel>`; anything else is a 400.',
         },
       },
     ),
 )
+
+// The place's own page on each booking site, so links open the venue rather than a search.
+app.get(
+  '/booking-venues',
+  async ({ query, status }) => {
+    try {
+      return await getBookingVenues(query.source as Source, query.id)
+    } catch (err) {
+      logError('Error fetching booking venues', err)
+      return status(502, { message: err instanceof Error ? err.message : 'Error fetching booking venues' })
+    }
+  },
+  {
+    query: t.Object(placeKey),
+    detail: {
+      tags: ['Places'],
+      summary: "Get a place's venues on booking sites",
+      description:
+        'Venue ids on OpenTable, Resy, Booking.com and Expedia from the match store, keyed by provider, plus `unlisted`: sites a person marked as not listing the place. A booking page tagged on the place (`reservation:website`, `website:booking`, …) fills its site in on first request, unconfirmed.',
+    },
+  },
+)
+
 
 export default app

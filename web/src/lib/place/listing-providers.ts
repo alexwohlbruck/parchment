@@ -1,4 +1,4 @@
-import { capitalize } from '@/lib/string'
+import { capitalize, formatWord } from '@/lib/string'
 
 const PROVIDER_NAMES: Record<string, string> = {
   google: 'Google',
@@ -7,9 +7,13 @@ const PROVIDER_NAMES: Record<string, string> = {
   resy: 'Resy',
   yelp: 'Yelp',
   tripadvisor: 'Tripadvisor',
-  booking: 'Booking.com',
+  tock: 'Tock',
+  sevenrooms: 'SevenRooms',
+  bookingcom: 'Booking.com',
   expedia: 'Expedia',
+  hotelscom: 'Hotels.com',
   liteapi: 'LiteAPI',
+  google_hotels: 'Google Hotels',
 }
 
 /** Brand name for a listing provider key; unknown providers read as their capitalised key. */
@@ -21,4 +25,12 @@ export function listingProviderName(provider: string): string {
 export function listingPlaceId(externalIds: Record<string, string> | undefined): string | null {
   const id = externalIds?.osm
   return id && /^(node|way|relation)\/[1-9]\d*$/.test(id) ? id : null
+}
+
+/** A listing's name, or its id read as words when the id is a page slug; null for opaque ids. */
+export function listingTitle(listing: { id: string; name: string | null }): string | null {
+  if (listing.name) return listing.name
+  const slug = listing.id.split('/').pop() ?? ''
+  const isSlug = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/.test(slug) && (slug.includes('-') || listing.id.includes('/'))
+  return isSlug ? formatWord(slug) : null
 }

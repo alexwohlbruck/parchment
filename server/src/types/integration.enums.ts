@@ -37,6 +37,10 @@ export enum IntegrationId {
   QUACKBACK = 'quackback',
   /** OpenRouter — the language model behind Ask. System key or a user's own. */
   OPENROUTER = 'openrouter',
+  /** LiteAPI (Nuitée) — live hotel room rates and a white-label booking site. */
+  LITEAPI = 'liteapi',
+  /** SerpApi — Google Hotels prices from every seller of a hotel. */
+  SERPAPI = 'serpapi',
 }
 
 export enum IntegrationCapabilityId {
@@ -64,4 +68,6 @@ export enum IntegrationCapabilityId {
   FEEDBACK = 'feedback',
   TTS = 'tts',
   LANGUAGE_MODEL = 'languageModel',
+  HOTEL_RATES = 'hotelRates',
+  HOTEL_PRICES = 'hotelPrices',
 }

@@ -25,6 +25,8 @@ describe('facebookPage', () => {
     ['https://m.facebook.com/ElCerrito2024?ref=bookmarks', 'https://www.facebook.com/ElCerrito2024'],
     ['https://www.facebook.com/p/El-Cerrito-100063/photos', 'https://www.facebook.com/p/El-Cerrito-100063'],
     ['https://www.facebook.com/profile.php?id=123&sk=about', 'https://www.facebook.com/profile.php?id=123'],
+    ['https://www.facebook.com/people/Joes-Pizza-NYC/61551790701626/', 'https://www.facebook.com/people/Joes-Pizza-NYC/61551790701626'],
+    ['https://www.facebook.com/people/', undefined],
     ['https://www.facebook.com/groups/brooklynfood', undefined],
     ['https://www.facebook.com/', undefined],
     ['https://elcerrito.example/', undefined],

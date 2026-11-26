@@ -38,8 +38,10 @@ export function facebookPage(url: string): string | undefined {
       const id = searchParams.get('id')
       return id && /^\d+$/.test(id) ? `https://www.facebook.com/profile.php?id=${id}` : undefined
     }
-    const page = parts[0] === 'p' || parts[0] === 'pages' ? parts.slice(0, parts[0] === 'p' ? 2 : 3) : parts.slice(0, 1)
-    if (!page.length || page.length < (parts[0] === 'p' ? 2 : parts[0] === 'pages' ? 3 : 1) || NOT_A_PAGE.test(page[0])) return undefined
+    // "/p/Name-123", "/pages/Name/123" and "/people/Name/123" name a page across several segments.
+    const segments = { p: 2, pages: 3, people: 3 }[parts[0]] ?? 1
+    const page = parts.slice(0, segments)
+    if (page.length < segments || (segments === 1 && NOT_A_PAGE.test(page[0]))) return undefined
     return `https://www.facebook.com/${page.join('/')}`
   } catch {
     return undefined

@@ -57,7 +57,7 @@ const MAX_CONTACT_PAGES = 2
 const MAX_BRANCH_LINKS = 300
 const LOCATIONS_PAGE = /locations?|stores?|cafes|shops|visit|find-?us/i
 /** Reasoning models spend most of these thinking before they answer. */
-const SITE_TOKENS = 1000
+const SITE_TOKENS = 2500
 const READ_TOKENS = 3000
 const FIELD_TOKENS = 4000
 const IMAGE_TOKENS = 1000
@@ -178,7 +178,7 @@ async function lookUpSite(
 }
 
 const SITE_BRIEF =
-  "Find this business's own pages, at the place named. Reply with only URLs, one per line: its official website first, then its own Facebook page and Instagram profile if it has them. Reply NONE if you can't confirm the business exists there. Never a directory, map, review, booking or delivery page, or a namesake elsewhere."
+  "Find this business's own pages. Reply with only URLs, one per line: its official website first, then its own Facebook page and Instagram profile if it has them. A place after a comma is where the business is. \"Searched from\" is only where the person is: when several businesses share the name, pick the one nearest there, but the business can be anywhere in that region. Reply NONE only if you can't find the business at all. Never a directory, map, review, booking or delivery page."
 
 /** The business's website and its own social pages, each tried in turn. */
 const MAX_SITES = 3
@@ -186,11 +186,11 @@ const MAX_SITES = 3
 async function findOfficialSites(query: string, { model, near, signal, progress }: WebPlaceOptions) {
   if (!model) throw new WebPlaceError('Web search is not available here. Pass the business website instead.')
   const area = query.includes(',') ? undefined : await areaName(near)
-  progress?.('site', area ? `${query}, ${area}` : query)
+  progress?.('site', area ? `${query}, near ${area}` : query)
   const { message, citations = [] } = await model.complete({
     messages: [
       { role: 'system', content: SITE_BRIEF },
-      { role: 'user', content: area ? `${query}, ${area}` : query },
+      { role: 'user', content: area ? `${query}\nSearched from: ${area}` : query },
     ],
     webSearch: { maxResults: 5 },
     maxTokens: SITE_TOKENS,

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { isVacantAddress, replacementTags, sameAddress } from './address-match'
+import { isVacantAddress, mentionsAddress, replacementTags, sameAddress } from './address-match'
 
 const coogans = {
   'addr:housenumber': '4015',
@@ -45,5 +45,15 @@ test('replaces the former tenant and keeps the address as mapped', () => {
     'addr:street': 'Broadway',
     'addr:city': 'New York',
     'nycdoitt:bin': '1063260',
+  })
+})
+
+describe('mentionsAddress', () => {
+  test.each([
+    ['find Cafe Wands, 215 union street brooklyn', '215 Union St, Brooklyn', true],
+    ['Leland Eating and Drinking House', '755 Dean St, Brooklyn', false],
+    ['it is at 755 Bergen St', '755 Dean St', false],
+  ])('%s', (text, address, expected) => {
+    expect(mentionsAddress(text, address)).toBe(expected)
   })
 })

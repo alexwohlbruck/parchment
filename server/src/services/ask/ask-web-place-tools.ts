@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { summarizePlace } from '../../lib/ask/place-summary'
 import { findPlaceOnWeb, WebPlaceError, type WebPlaceStage } from '../web-place.service'
+import { mentionsAddress } from '../../lib/web-place/address-match'
 import {
   AskToolError,
   cached,
@@ -68,6 +69,9 @@ const findPlaceOnWebTool: AskTool<{ query: string; near?: PointArg; website?: st
   label: () => 'Looking it up on the web',
   detail: ({ query }) => query,
   async run({ query, near, website, address }, context) {
+    if (address && context.userText !== undefined && !mentionsAddress(context.userText, address)) {
+      throw new AskToolError("Pass an address only when the user typed it, never one from a web search. Leave it out to use the site's own.")
+    }
     const origin = await centre(near, context)
     const steps = stageSteps(context)
     const lookup = await cached(

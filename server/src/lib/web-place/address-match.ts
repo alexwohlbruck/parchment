@@ -30,3 +30,12 @@ export function replacementTags(existing: Record<string, string>, business: Reco
   const address = kept.filter(([key]) => key.startsWith('addr:'))
   return { ...Object.fromEntries(kept), ...business, ...Object.fromEntries(address) }
 }
+
+/** True when the text names the address's house number and street, as a user who gave it would. */
+export function mentionsAddress(text: string, address: string): boolean {
+  const ours = splitStreet(address.split(',')[0].trim())
+  const [number, street] = [ours['addr:housenumber'], ours['addr:street']]
+  if (!number || !street) return false
+  const said = ` ${normalizeStreetName(text)} `
+  return said.includes(` ${number.toLowerCase()} `) && said.includes(` ${normalizeStreetName(street)} `)
+}

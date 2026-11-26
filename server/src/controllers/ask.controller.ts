@@ -94,6 +94,7 @@ const app = new Elysia()
                 signal: request.signal,
                 seen: new Map<string, Place>(),
                 reviews: new Map(),
+                userText: [...(body.history ?? []).filter((turn) => turn.role === 'user').map((turn) => turn.content), body.question].join('\n'),
                 model: preferences.webSearch ? meter.model : undefined,
                 sources: new Map(),
                 emit,

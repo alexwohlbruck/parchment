@@ -162,11 +162,11 @@ function searchService() {
     return (await trackedSearch(options, signal))?.results ?? []
   }
 
-  /** The committed search, plus the one place it names when it names one. */
+  /** The committed search, plus the one result it clearly means, if any. */
   async function fullSearch(
     options: SearchOptions,
     signal?: AbortSignal,
-  ): Promise<Pick<SearchResponse, 'results' | 'match'>> {
+  ): Promise<Partial<SearchResponse> & Pick<SearchResponse, 'results'>> {
     const response = await trackedSearch({ ...options, autocomplete: false }, signal)
     return response ? (response as SearchResponse) : { results: [] }
   }

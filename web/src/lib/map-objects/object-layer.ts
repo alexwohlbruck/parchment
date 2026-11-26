@@ -31,6 +31,7 @@
  * Objects are read from the same vector source their flat form is drawn from,
  * so the two cannot disagree about what exists.
  */
+import { Births, GRACE_SECONDS, GROW_SECONDS } from './births'
 import { sourceFeatures } from '@/lib/map/source-features'
 import { ghostBlend } from '@/lib/map/ghost-blend'
 import { MercatorCoordinate, type OcclusionFrame } from 'maplibre-gl'
@@ -75,9 +76,9 @@ const SETTLE = 80
 const MOVING_GATHER = 350
 const AT_MOST = 300
 
-/** Longest a gather holds the main thread before yielding to a frame, in milliseconds: a fraction of a frame while moving, longer at rest. */
+/** Longest a gather holds the main thread before yielding to a frame, in milliseconds: a fraction of a frame while moving, half of one at rest, where plants may still be growing in. */
 const SLICE = 3
-const RESTING_SLICE = 100
+const RESTING_SLICE = 8
 /** Candidates placed, or features read, between checks of the slice clock. */
 const STEP = 256
 const FEATURE_STEP = 8
@@ -111,6 +112,22 @@ export function project(
   out.perMetre = perMetre
 }
 
+/** Most a plant's entrance waits, rippling out from the middle of the view. */
+const GROW_RIPPLE_SECONDS = 0.25
+/** A birth for anything already whole, and a death for anything staying: finite, since GPUs disagree on infinities. */
+const LONG_AGO = -1e6
+const NEVER = 1e6
+/** Cells per mercator unit a plant's place is keyed to, about half a metre: two to the 26th, so x and y pack exactly into one number. */
+const KEY_CELLS = 2 ** 26
+
+/** How much of an instance stands, 0-1: grown in from its birth, eased out, and shrunk away from its death, eased in. See \`grownAfter\` and \`leftAfter\`. */
+const GROWTH_GLSL = `
+  float growth(vec2 life) {
+    float t = clamp((u_now - life.x) / ${GROW_SECONDS.toFixed(2)}, 0.0, 1.0);
+    float gone = clamp((u_now - life.y) / ${GROW_SECONDS.toFixed(2)}, 0.0, 1.0);
+    return (1.0 - (1.0 - t) * (1.0 - t) * (1.0 - t)) * (1.0 - gone * gone);
+  }`
+
 const VS = `#version 300 es
   uniform mat4 u_matrix;
   uniform vec3 u_light;
@@ -123,6 +140,7 @@ const VS = `#version 300 es
   /** Flutter amplitude, and the x where the cloth is held and how far it runs; see \`FLUTTER\`. */
   uniform vec3 u_flutter;
   uniform float u_time;
+  uniform float u_now;
   /** The role's year, when it has one: rgb and leaf per step, the tinted rgb, and where the year stands. */
   uniform float u_seasonal;
   uniform vec4 u_ramp[${RAMP}];
@@ -141,6 +159,9 @@ const VS = `#version 300 es
   in float a_tint;
   /** Instance: the ground's rise per unit run, east and south, so a long object follows a slope. */
   in vec2 a_slope;
+  /** Instance: when it was placed and when it started to leave, on the layer's clock; see \`growth\`. */
+  in vec2 a_life;
+  ${GROWTH_GLSL}
 
   /** Light-clip from the layer's frame, for the sun's shadow map; identity with no sun. */
   uniform mat4 u_sunLight;
@@ -193,8 +214,9 @@ const VS = `#version 300 es
     p = vec3(p.x * c - p.y * s, p.x * s + p.y * c, p.z);
     n = vec3(n.x * c - n.y * s, n.x * s + n.y * c, n.z);
 
-    vec2 across = p.xy * a_shape.y;
-    vec3 world = a_offset + vec3(across, p.z * a_shape.x + dot(a_slope, across));
+    float grown = growth(a_life);
+    vec2 across = p.xy * a_shape.y * mix(0.4, 1.0, grown);
+    vec3 world = a_offset + vec3(across, p.z * a_shape.x * grown + dot(a_slope, across));
 
     vec3 unit = normalize(n);
     // Half-lambert: a plain dot product leaves every face turned away from the
@@ -217,7 +239,8 @@ const VS = `#version 300 es
     float rise = clamp((a_position.y - u_occlusion.x) / max(u_occlusion.y - u_occlusion.x, 1e-4), 0.0, 1.0);
     float occlusion = mix(1.0 - u_occlusion.z, 1.0, smoothstep(0.0, 1.0, rise));
     vec3 base = mix(u_color, u_color_alt, a_tint);
-    v_leaf = day.a;
+    // A plant growing in fills out clump by clump, the way a thinning crown empties.
+    v_leaf = day.a * smoothstep(0.0, 0.5, grown);
     if (u_seasonal > 0.0) base = mix(day.rgb, mix(u_rampAlt[i], u_rampAlt[j], t), a_tint);
     v_grain = a_position * 8.0 + a_shape.z * 17.0;
     v_color = base * a_shade * occlusion * mix(u_ambient, 1.0, lit);
@@ -301,13 +324,13 @@ const LAMPS: Record<string, { reach: number; color: [number, number, number]; he
 /** How bright the glow round a lamp is, against its pool. */
 const LAMP_GLOW = 0.6
 
-const LOC = { a_position: 0, a_normal: 1, a_offset: 2, a_shape: 3, a_shade: 4, a_tint: 5, a_slope: 6 }
+const LOC = { a_position: 0, a_normal: 1, a_offset: 2, a_shape: 3, a_shade: 4, a_tint: 5, a_slope: 6, a_life: 7 }
 
 const DEPTH_FS = `
   precision mediump float;
   void main() { gl_FragColor = vec4(1.0); }`
 
-/** The object where it stands, for the sun's shadow map: `VS` without the light or the flutter. */
+/** The object where it stands, for the sun's shadow map: `VS` without the light, the flutter or the growth, so a cached map is never caught mid-entrance. */
 const SUN_VS = `
   uniform mat4 u_matrix;
   attribute vec3 a_position;
@@ -413,6 +436,8 @@ export type ObjectSourceSpec = {
   distinct?: boolean
   /** Whether the objects depend on the view, so a pan has to gather again. */
   followsView?: boolean
+  /** Whether a newly placed object grows in, as a plant does, rather than appearing whole. */
+  grows?: boolean
   /** Most objects this spec may place, keeping those nearest the view centre. */
   budget?: number
   /**
@@ -465,6 +490,7 @@ type Batch = {
   shade: Float32Array
   tint: Float32Array
   slope: Float32Array
+  life: Float32Array
   count: number
   /** Whether any instance sets a `length`, which scales by this model's own length. */
   stretched: boolean
@@ -481,7 +507,7 @@ type Batch = {
    * does. GL is touched only inside `render`, so the arrays are built off the
    * render path and handed over here.
    */
-  buffers: { offset: WebGLBuffer; shape: WebGLBuffer; shade: WebGLBuffer; tint: WebGLBuffer; slope: WebGLBuffer } | null
+  buffers: { offset: WebGLBuffer; shape: WebGLBuffer; shade: WebGLBuffer; tint: WebGLBuffer; slope: WebGLBuffer; life: WebGLBuffer } | null
   /** Its instances and one of a model's primitives pointed at the attributes, once, by primitive. */
   arrays?: Map<object, WebGLVertexArrayObject>
 }
@@ -507,6 +533,15 @@ export type Placed = {
   gy: number
   /** Metres the deck it stands on is over the ground. */
   raised?: number
+  /** Where a plant that grows in stands, and its source's record of births, so it keeps its entrance from one gather to the next. */
+  key?: number
+  births?: Births
+  /** When it was placed, on the layer's clock; long ago for anything that does not grow in. */
+  born?: number
+  /** When it started to leave, on the layer's clock; unset while it stands. */
+  died?: number
+  /** When a gather first missed it while it was still in view; it lingers a moment in case it comes straight back. */
+  missingSince?: number
 }
 
 /**
@@ -572,7 +607,7 @@ export class ObjectLayer {
   private flutterTimer = 0
   private onStillness = () => this.stopFlutter()
   private program = new LazyProgram(VS, FS, [
-    'u_matrix', 'u_light', 'u_ambient', 'u_color', 'u_color_alt', 'u_occlusion', 'u_flutter', 'u_time', 'u_lightUv', 'u_perMetre', 'u_lamp', 'u_seasonal', 'u_ramp', 'u_rampAlt', 'u_year', 'u_sheer',
+    'u_matrix', 'u_light', 'u_ambient', 'u_color', 'u_color_alt', 'u_occlusion', 'u_flutter', 'u_time', 'u_now', 'u_lightUv', 'u_perMetre', 'u_lamp', 'u_seasonal', 'u_ramp', 'u_rampAlt', 'u_year', 'u_sheer',
     ...LAMP_LIGHT_UNIFORMS, 'u_sunLight', ...SUN_SHADOW_UNIFORMS, 'u_shadowAlpha', 'u_shadowColor'], 'objects', LOC)
   private sunProgram = new LazyProgram(SUN_VS, DEPTH_FS, ['u_matrix'], 'objects', LOC)
   /** This frame's sun shadow map, handed over by the map's shading before this layer draws. */
@@ -589,6 +624,12 @@ export class ObjectLayer {
   private retired: Array<Record<string, WebGLBuffer>> = []
   private retiredArrays: WebGLVertexArrayObject[] = []
   private placed: Placed[] = []
+  /** Each growing source's record of when its plants first appeared; see \`birth\`. */
+  private births = new Map<ObjectSourceSpec, Births>()
+  private leaveTimer = 0
+  private epoch = performance.now()
+  /** When the last plant growing in is done, on the layer's clock; until then every frame is drawn. */
+  private growingUntil = 0
   private origin: [number, number, number] = [0, 0, 0]
   /** Zoom the current `placed` was gathered at; a change re-runs the gate. */
   private gatheredZoom = NaN
@@ -844,6 +885,7 @@ export class ObjectLayer {
     this.stopFlutter()
     if (this.scheduled) clearTimeout(this.scheduled)
     clearTimeout(this.slice)
+    clearTimeout(this.leaveTimer)
     this.scheduled = 0
     this.gathering = null
     this.map = null
@@ -907,8 +949,16 @@ export class ObjectLayer {
     const inView = (lng: number, lat: number) =>
       !bounds ||
       (lng >= bounds.getWest() - pad && lng <= bounds.getEast() + pad && lat >= bounds.getSouth() - pad && lat <= bounds.getNorth() + pad)
+    const outOfRange = new Set<Births>()
     for (const spec of this.specs) {
-      if (zoom < spec.minzoom) continue
+      const births = spec.grows ? this.birthsOf(spec) : undefined
+      if (zoom < spec.minzoom) {
+        // Out of its range every plant has gone, so each grows in again on the way back.
+        births?.clear()
+        if (births) outOfRange.add(births)
+        continue
+      }
+      births?.begin(this.clock())
       spec.prepare?.(this.map, spec)
       if (spec.prepareSteps) yield* spec.prepareSteps()
       const features = sourceFeatures(this.map, spec.source, spec.sourceLayer)
@@ -990,10 +1040,89 @@ export class ObjectLayer {
           placed.gx += run * Math.cos(instance.heading)
           placed.gy += run * Math.sin(instance.heading)
         }
+        if (births) {
+          placed.key = Math.round(placed.x * KEY_CELLS) * KEY_CELLS + Math.round(placed.y * KEY_CELLS)
+          placed.births = births
+        }
         placedNow.push(placed)
       }
     }
-    this.placed = placedNow
+    yield* this.birth(placedNow)
+    this.placed = [...placedNow, ...this.leaving(placedNow, outOfRange, bounds)]
+  }
+
+  /** Seconds on the layer's own clock, which the shader's \`u_now\` reads too. */
+  private clock() {
+    return (performance.now() - this.epoch) / 1000
+  }
+
+  /**
+   * Give each plant placed for the first time a moment to grow in from, rippling out from the
+   * middle of the view; one still standing keeps its own, so a new tile or a pan does not replay it. See \`Births\`.
+   */
+  private *birth(placed: Placed[]): Generator<void> {
+    const now = this.clock()
+    const still = this.stillness?.matches ?? false
+    const { x: cx, y: cy } = MercatorCoordinate.fromLngLat(this.map.getCenter(), 0)
+    const canvas = this.map.getCanvas?.()
+    const reach = mercatorPerPixel(this.map.getZoom()) * Math.max(canvas?.clientWidth ?? 1000, canvas?.clientHeight ?? 1000) * 0.6
+    for (let i = 0; i < placed.length; i++) {
+      if (i % (STEP * 2) === STEP * 2 - 1) yield
+      const p = placed[i]
+      if (p.key === undefined || !p.births) continue
+      const { born, isNew } = p.births.of(p.key, () => {
+        const away = Math.min(Math.hypot(p.x - cx, p.y - cy) / reach, 1)
+        return still ? LONG_AGO : now + away * GROW_RIPPLE_SECONDS + (p.instance.tint ?? 0) * 0.08
+      })
+      p.born = born
+      if (isNew) this.growingUntil = Math.max(this.growingUntil, born + GROW_SECONDS)
+    }
+  }
+
+  /**
+   * The plants the last gather had and this one lost, still to be drawn: each lingers a moment while in view, in
+   * case a tile swap brings it straight back, then shrinks away. One out of its zoom range leaves at once, and one
+   * off screen is simply dropped.
+   */
+  private leaving(next: Placed[], outOfRange: Set<Births>, bounds: { contains(point: [number, number]): boolean } | undefined): Placed[] {
+    if (this.stillness?.matches) return []
+    const now = this.clock()
+    const standing = new Map<Births, Set<number>>()
+    for (const p of next) {
+      if (!p.births || p.key === undefined) continue
+      let keys = standing.get(p.births)
+      if (!keys) standing.set(p.births, (keys = new Set()))
+      keys.add(p.key)
+    }
+    const out: Placed[] = []
+    let lingering = false
+    for (const p of this.placed) {
+      if (!p.births || p.key === undefined || standing.get(p.births)?.has(p.key)) continue
+      if (bounds && !bounds.contains(unproject(p.x, p.y))) continue
+      if (p.died === undefined) {
+        p.missingSince ??= now
+        if (!outOfRange.has(p.births) && now - p.missingSince < GRACE_SECONDS) {
+          out.push(p)
+          lingering = true
+          continue
+        }
+        p.died = now
+        p.births.leave(p.key, now)
+      }
+      if (now - p.died >= GROW_SECONDS) continue
+      out.push(p)
+      this.growingUntil = Math.max(this.growingUntil, p.died + GROW_SECONDS)
+    }
+    clearTimeout(this.leaveTimer)
+    // Look again once the lingering ones have waited long enough, or once the leaving ones are gone.
+    if (out.length) this.leaveTimer = setTimeout(() => this.map && this.invalidate(lingering), (lingering ? GRACE_SECONDS : GROW_SECONDS) * 1000 + 50) as unknown as number
+    return out
+  }
+
+  private birthsOf(spec: ObjectSourceSpec): Births {
+    let births = this.births.get(spec)
+    if (!births) this.births.set(spec, (births = new Births()))
+    return births
   }
 
   /**
@@ -1008,6 +1137,8 @@ export class ObjectLayer {
    */
   private arrange() {
     this.needsArrange = false
+    const now = this.clock()
+    this.placed = this.placed.filter(p => p.died === undefined || now - p.died < GROW_SECONDS)
     this.shadowVersion++
     const zoom = this.map.getZoom()
     const origin = MercatorCoordinate.fromLngLat(this.map.getCenter(), 0)
@@ -1051,6 +1182,8 @@ export class ObjectLayer {
       const shade = new Float32Array(group.length)
       const tint = new Float32Array(group.length)
       const slope = new Float32Array(group.length * 2)
+      const life = new Float32Array(group.length * 2)
+      group.forEach((p, i) => life.set([p.born ?? LONG_AGO, p.died ?? NEVER], i * 2))
       // A measured crown is sized against the near model's width even when the
       // far one is drawn, so a tree doesn't grow or shrink as it crosses the switch.
       const nearWidth = this.models.get(nearOf(model))?.width || 1
@@ -1072,7 +1205,7 @@ export class ObjectLayer {
       }
       const stretched = group.some(p => p.instance.length !== undefined)
       const raised = LAMPS[nearOf(model)] && group.some(p => p.raised) ? Float32Array.from(group, p => p.raised ?? 0) : undefined
-      this.batches.push({ model, offset, shape, shade, tint, slope, count: group.length, stretched, raised, buffers: null })
+      this.batches.push({ model, offset, shape, shade, tint, slope, life, count: group.length, stretched, raised, buffers: null })
     }
   }
 
@@ -1147,6 +1280,7 @@ export class ObjectLayer {
         if (context[key]) context[key].dirty = true
 
     if (this.flutterUntil && performance.now() >= this.flutterUntil) this.stopFlutter()
+    if (this.clock() < this.growingUntil) this.map.triggerRepaint()
   }
 
   private drawObjects(gl: WebGL2RenderingContext, { program, u }: { program: WebGLProgram; u: Uniforms<string> }, matrix: Float32Array, lights: GroundLights | null) {
@@ -1154,6 +1288,7 @@ export class ObjectLayer {
     gl.uniformMatrix4fv(u.u_matrix, false, matrix)
     const now = performance.now()
     gl.uniform1f(u.u_time, (now / 1000) % FLUTTER_CLOCK_WRAP)
+    gl.uniform1f(u.u_now, this.clock())
     const gain = this.flutterGain(now)
     gl.uniform3fv(u.u_light, this.lightDirection())
     gl.uniform1f(u.u_ambient, 0.58)
@@ -1301,6 +1436,7 @@ export class ObjectLayer {
       shade: gl.createBuffer()!,
       tint: gl.createBuffer()!,
       slope: gl.createBuffer()!,
+      life: gl.createBuffer()!,
     }
     const attach = (buffer: WebGLBuffer, data: Float32Array, loc: number, size: number) => {
       gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
@@ -1314,6 +1450,7 @@ export class ObjectLayer {
     attach(batch.buffers.shade, batch.shade, LOC.a_shade, 1)
     attach(batch.buffers.tint, batch.tint, LOC.a_tint, 1)
     attach(batch.buffers.slope, batch.slope, LOC.a_slope, 2)
+    attach(batch.buffers.life, batch.life, LOC.a_life, 2)
   }
 
   receiveSun(frame: SunFrame) {

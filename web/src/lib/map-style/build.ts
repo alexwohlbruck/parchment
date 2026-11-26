@@ -5,6 +5,7 @@ import type { MapStyleId } from '@/types/map.types'
 import { MapProjection } from '@/types/map.types'
 import { getCustomColorTint } from '@/lib/color-tint'
 import { hidingReplaced } from '@/lib/map-objects/landmarks'
+import { withEntrance } from './layer-entrance'
 import spec from './spec.json'
 import {
   detailSources,
@@ -530,7 +531,7 @@ export function buildLayers(options: {
   const fixtures = resolve(fixtureLayer(), tokens, categories, flavor)
   const layers = spliceIndoorLayers(spliceDetailLayers(darkenRoads(converted, flavor, mapStyle), flavor, hdRoads, detailLabel, mapStyle), flavor, indoorLabels, fixtures)
   const engraved = themeEngraved(mapStyle) ? withChartEngraving(layers, flavor) : layers
-  return withTypography(engraved, themeTypography(mapStyle)) as LayerSpecification[]
+  return (withTypography(engraved, themeTypography(mapStyle)) as LayerSpecification[]).map(withEntrance)
 }
 
 /** Basemap layers whose places a floor plan may draw itself, on their own level. */

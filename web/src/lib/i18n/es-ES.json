@@ -2744,7 +2744,7 @@
       },
       "offers": {
         "title": "Comparar precios",
-        "withTaxes": "{price} con impuestos y tasas",
+        "subtitle": "Por noche, con impuestos y tasas",
         "freeCancellation": "Cancelación gratis",
         "freeCancellationOnly": "Solo cancelación gratis",
         "none": "No hay precios para estas fechas",
@@ -2755,7 +2755,7 @@
         "morePricesFrom": "Más precios desde {price}",
         "morePrices": "{n} precios más",
         "moreOnGoogleHotels": "Más en Google Hotels",
-        "inApp": "Reserva en la app"
+        "inApp": "Reservar en la app"
       },
       "delivery": "Pedir a domicilio",
       "searchOn": "Buscar en {site}",

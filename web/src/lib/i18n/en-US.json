@@ -2839,7 +2839,7 @@
       },
       "offers": {
         "title": "Compare prices",
-        "withTaxes": "{price} with taxes + fees",
+        "subtitle": "Per night with taxes + fees",
         "freeCancellation": "Free cancellation",
         "freeCancellationOnly": "Free cancellation only",
         "none": "No prices for these dates",

@@ -19,6 +19,7 @@
 
 ### Fixed
 
+* Shallow coastal seas no longer show as a pale band against the deep ocean when zoomed out.
 * NYC subway trains now show on a line's map and follow your own train during navigation.
 * Shadows of lampposts, benches, picnic tables and bins now start at their base, and small objects cast them at all.
 

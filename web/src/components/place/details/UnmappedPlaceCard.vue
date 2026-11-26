@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { MapPinPlusIcon, MessageSquarePlusIcon } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { AppRoute } from '@/router'
+import { unmappedNoteText } from '@/lib/place/unmapped-note'
 import type { Place } from '@/types/place.types'
 
 const props = defineProps<{ place: Partial<Place> }>()
@@ -33,11 +34,22 @@ function addToMap() {
 }
 
 function tellMappers() {
-  const text = t('place.unmapped.noteText', {
-    name: props.place.name?.value ?? '',
-    address: props.place.address?.value?.formatted ?? '',
-    website: props.place.contactInfo?.website?.value ?? '',
-  })
+  const unmapped = props.place.unmapped
+  const name = props.place.name?.value ?? ''
+  const former = replaces.value
+  const text = unmapped
+    ? unmappedNoteText(unmapped, {
+        intro: t('place.unmapped.noteIntro', { name }),
+        opensSoon: t('place.unmapped.noteOpensSoon'),
+        replaces: former
+          ? t(former.formerName ? 'place.unmapped.noteReplacesNamed' : 'place.unmapped.noteReplaces', {
+              element: `${former.type} ${former.id}`,
+              former: former.formerName ?? '',
+            })
+          : undefined,
+        tagsHeading: t('place.unmapped.noteTags'),
+      })
+    : t('place.unmapped.noteIntro', { name })
   router.push({ name: AppRoute.NOTE_CREATE, query: { ...at(), text } })
 }
 </script>

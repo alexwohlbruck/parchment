@@ -2926,7 +2926,11 @@
       "add": "Añadir al mapa",
       "update": "Actualizar mapa",
       "note": "Avisar a los mapeadores",
-      "noteText": "{name} no aparece en el mapa. Dirección: {address}. Sitio web: {website}",
+      "noteIntro": "{name} no aparece en el mapa.",
+      "noteOpensSoon": "Su sitio web dice que aún no ha abierto, así que está etiquetado como en construcción.",
+      "noteReplaces": "Reemplaza a {element}, que ahora no tiene ningún negocio.",
+      "noteReplacesNamed": "Reemplaza a {element} ({former}), que ha cerrado.",
+      "noteTags": "Etiquetas sugeridas:",
       "findOnWeb": "Buscar “{query}” en la web",
       "findOnWebHint": "Para lugares que aún no están en el mapa"
     }

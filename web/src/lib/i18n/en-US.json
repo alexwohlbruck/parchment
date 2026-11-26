@@ -3030,7 +3030,11 @@
       "add": "Add to map",
       "update": "Update map",
       "note": "Tell mappers",
-      "noteText": "{name} is missing from the map. Address: {address}. Website: {website}",
+      "noteIntro": "{name} is missing from the map.",
+      "noteOpensSoon": "Its website says it hasn't opened yet, so it's tagged as under construction.",
+      "noteReplaces": "It takes over {element}, which has no business on it now.",
+      "noteReplacesNamed": "It takes over {element} ({former}), which has closed.",
+      "noteTags": "Suggested tags:",
       "findOnWeb": "Find “{query}” on the web",
       "findOnWebHint": "For places that aren't on the map yet"
     }

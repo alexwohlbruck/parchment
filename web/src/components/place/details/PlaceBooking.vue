@@ -47,9 +47,9 @@ const stayQuery = computed(() =>
     : null,
 )
 const { data: offers, loading: offersLoading } = useBookingData(stayQuery, fetchStayOffers)
-const comparing = computed(() => !!offers.value || offersLoading.value)
 /** Sellers already have priced rows, so the links below would only repeat them. */
 const priced = computed(() => !!offers.value?.offers.length)
+const comparing = computed(() => priced.value || offersLoading.value)
 
 function linkLabel(link: { provider: string; name?: string; search?: boolean }) {
   if (link.provider === 'search') return t('place.booking.searchWeb')

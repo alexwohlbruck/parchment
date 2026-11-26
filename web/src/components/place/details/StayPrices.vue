@@ -67,7 +67,7 @@ const sellerName = (offer: StayOffer) => (offer.bookHere ? APP_NAME_SHORT : offe
     </template>
 
     <p v-else-if="empty" class="py-2 text-sm text-muted-foreground">
-      {{ t(freeCancellationOnly ? 'place.booking.offers.noneFree' : 'place.booking.offers.none') }}
+      {{ t('place.booking.offers.noneFree') }}
     </p>
 
     <template v-else>
@@ -105,7 +105,7 @@ const sellerName = (offer: StayOffer) => (offer.bookHere ? APP_NAME_SHORT : offe
             <span class="text-sm leading-snug break-words">{{ sellerName(offer) }}</span>
             <span v-if="markers(offer).length" class="text-xs text-muted-foreground">
               <template v-for="(marker, i) in markers(offer)" :key="marker.key">
-                <template v-if="i"> · </template><span :class="marker.tone">{{ marker.label }}</span>
+                <template v-if="i"> · </template><span class="whitespace-nowrap" :class="marker.tone">{{ marker.label }}</span>
               </template>
             </span>
           </div>

@@ -192,7 +192,7 @@ export function siteLinks(html: string, base: string): { url: string; label: str
   const links = new Map<string, string>()
   for (const [tag, href, inner] of html.matchAll(/<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
     try {
-      const url = new URL(href, base)
+      const url = new URL(decodeEntities(href).replace(/[&?]+$/, ''), base)
       url.hash = ''
       if (!/^https?:$/.test(url.protocol) || !sameSite(hostOf(url.href), host) || links.get(url.href)) continue
       const label = plainText(inner.replace(/<[^>]+>/g, ' ')) || plainText(attribute(tag, 'aria-label') ?? '')

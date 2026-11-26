@@ -98,29 +98,29 @@ export async function findPlaceOnWeb(query: string, options: Options): Promise<W
   const located = options.website
     ? { website: options.website, corroboratedBy: [] }
     : await findOfficialSite(query, options)
-  if (!located) return { status: 'not-found', reason: 'No website of its own turned up.' }
+  if (!located) return { status: 'not-found', reason: "Couldn't find a website for it." }
   const { website, corroboratedBy } = located
   if (isListingSite(website)) {
-    return { status: 'not-found', reason: 'Only listing sites mention it, not a site of its own.' }
+    return { status: 'not-found', reason: 'Only review and delivery sites list it.' }
   }
 
   // "Frenchette, New York" names the business before the comma.
   const name = query.split(',')[0].trim()
   const site = await readSite(website, query, options)
-  if (!site) return { status: 'not-found', reason: `${hostOf(website)} doesn't give an address.` }
+  if (!site) return { status: 'not-found', reason: `${hostOf(website)} doesn't list an address.` }
   const { url } = site
   let { business } = site
   if (isListingSite(url)) {
-    return { status: 'not-found', reason: 'Only listing sites mention it, not a site of its own.' }
+    return { status: 'not-found', reason: 'Only review and delivery sites list it.' }
   }
-  if (business.closed) return { status: 'not-found', reason: 'Its site says it has closed.' }
+  if (business.closed) return { status: 'not-found', reason: 'Its website says it has closed.' }
   if (!typedName(name, business.name) && !site.names.some((candidate) => typedName(name, candidate))) {
-    return { status: 'not-found', reason: `${hostOf(url)} looks like a different business (${business.name}).` }
+    return { status: 'not-found', reason: `${hostOf(url)} is for a different place, ${business.name}.` }
   }
   business = { ...business, name: siteName(site.names, business.name, name) }
   if (options.address) business = { ...business, address: userAddress(options.address), addressFrom: 'you' }
   if (!business.address?.street) {
-    return { status: 'not-found', reason: `${hostOf(url)} doesn't give a street address, in its text or its images.` }
+    return { status: 'not-found', reason: `${hostOf(url)} doesn't list a street address.` }
   }
 
   const from = business.addressFrom && ADDRESS_FROM[business.addressFrom]
@@ -128,10 +128,10 @@ export async function findPlaceOnWeb(query: string, options: Options): Promise<W
   const geocoded = await geocodeAddress(business, options.near)
   if (geocoded) business = { ...business, address: geocodedAddress(business.address, geocoded.match) }
   const center = geocoded?.center ?? business.geo
-  if (!center) return { status: 'not-found', reason: "Couldn't place its address on the map." }
+  if (!center) return { status: 'not-found', reason: "Couldn't find that address on the map." }
   const km = distance([options.near.lng, options.near.lat], [center.lng, center.lat], { units: 'kilometers' })
   if (km > MAX_DISTANCE_KM) {
-    return { status: 'not-found', reason: `The ${business.name} on ${hostOf(url)} is ${Math.round(km)} km away.` }
+    return { status: 'not-found', reason: `${business.name} is ${Math.round(km)} km away.` }
   }
 
   options.progress?.('map', business.name)
@@ -188,7 +188,7 @@ interface Page {
   assets?: Map<string, BundledAsset>
 }
 
-const ADDRESS_FROM = { image: 'read off its images', you: 'as you gave it' } as const
+const ADDRESS_FROM = { image: 'from a photo on its website', you: 'the address you gave' } as const
 
 /** "215 Union St, Brooklyn, NY 11231" as the site's address shape. */
 export function userAddress(line: string): NonNullable<SiteBusiness['address']> {
@@ -253,7 +253,7 @@ async function readSite(website: string, query: string, options: Options) {
   }
   const text = pagesText(pages)
   if (!business || !hasCategory(business)) {
-    options.progress?.('classify', business ? 'Its structured data doesn’t say what kind of place it is' : 'It has no structured data')
+    options.progress?.('classify')
     const read = await readWithModel(text, query, options)
     business = business && read ? { ...business, preset: read.preset } : (business ?? read ?? undefined)
   }
@@ -549,16 +549,12 @@ Null unless the pages say it outright. Never answer from what is typical for thi
 ${lines.join('\n')}`
 }
 
-function fieldsSummary(preset: string, tags: Record<string, string>, rejected: { key: string; reason: string }[]): string {
-  const kept = Object.entries(tags).map(([key, value]) => `${key}=${value}`)
-  const dropped = rejected.map(({ key, reason }) => `${key} (${reason})`)
-  return [
-    preset,
-    kept.length ? `kept ${kept.join(', ')}` : 'nothing stated on the site',
-    dropped.length && `dropped ${dropped.join(', ')}`,
-  ]
-    .filter(Boolean)
-    .join(' · ')
+/** "Restaurant · cuisine, reservations": the kind of place, and which of its details the website gave. */
+function fieldsSummary(preset: string, specs: FieldSpec[], tags: Record<string, string>): string {
+  const found = specs
+    .filter(({ key }) => Object.keys(tags).some((tag) => tag === key || (key.endsWith(':') && tag.startsWith(key))))
+    .map(({ label }) => label.toLowerCase())
+  return found.length ? `${preset} · ${found.join(', ')}` : preset
 }
 
 /** Fills the preset's other fields from the pages, keeping only what the schema allows and the pages quote. */
@@ -568,7 +564,7 @@ async function readFields(business: SiteBusiness, text: string, { model, signal,
   const specs = preset ? presetFieldSpecs(preset) : []
   if (!model || !preset || !specs.length) return business
   const presetName = getPresetById(preset)?.name ?? preset
-  progress?.('fields', `${presetName}: ${specs.length} fields`)
+  progress?.('fields', presetName)
   try {
     const messages: ChatMessage[] = [
       { role: 'system', content: fieldsBrief(preset, specs) },
@@ -591,7 +587,7 @@ async function readFields(business: SiteBusiness, text: string, { model, signal,
       rejected.push({ key: 'operator', reason: 'just its own name' })
     }
     if (rejected.length) logger.debug({ preset, rejected }, '[web-place] dropped fields the schema or pages do not bear out')
-    progress?.('fields', fieldsSummary(presetName, tags, rejected))
+    progress?.('fields', fieldsSummary(presetName, specs, tags))
     return { ...business, tags }
   } catch (error) {
     if (!signal?.aborted) logError('Failed to read a business’s fields', error)

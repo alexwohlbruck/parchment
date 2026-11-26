@@ -13,12 +13,12 @@ import {
 } from './ask-tool-base'
 
 const STAGE_LABELS: Record<WebPlaceStage, string> = {
-  site: 'Finding its own site',
-  read: 'Reading its site',
-  classify: 'Working out what it is',
-  images: 'Looking for its address in its images',
-  fields: 'Checking OSM tags',
-  locate: 'Placing its address',
+  site: 'Finding the website',
+  read: 'Reading the website',
+  classify: 'Figuring out what kind of place it is',
+  images: 'Checking its photos for an address',
+  fields: 'Getting the details',
+  locate: 'Finding the address',
   map: 'Checking the map',
 }
 
@@ -66,7 +66,7 @@ const findPlaceOnWebTool: AskTool<{ query: string; near?: PointArg; website?: st
     },
     required: ['query'],
   },
-  label: () => 'Looking it up on the web',
+  label: () => 'Looking it up online',
   detail: ({ query }) => query,
   async run({ query, near, website, address }, context) {
     if (address && context.userText !== undefined && !mentionsAddress(context.userText, address)) {

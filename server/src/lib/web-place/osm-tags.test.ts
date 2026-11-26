@@ -58,3 +58,9 @@ describe('splitStreet', () => {
     expect(splitStreet(line)).toEqual(expected)
   })
 })
+
+test('credits a business without a website to its Instagram profile', () => {
+  const tags = businessTags({ name: 'Homestretch Bar', types: ['BarOrPub'] }, 'https://www.instagram.com/homestretchbar')
+  expect(tags['contact:instagram']).toBe('https://www.instagram.com/homestretchbar')
+  expect(tags.website).toBeUndefined()
+})

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { contactLinks, facebookPage, isListingSite, pageText, sameName, siteNames, typedName } from './site-page'
+import { contactLinks, facebookPage, instagramProfile, isListingSite, pageText, sameName, siteNames, typedName } from './site-page'
 
 describe('isListingSite', () => {
   test.each([
@@ -13,6 +13,8 @@ describe('isListingSite', () => {
     ['https://www.thegooglyeyes.com/', false],
     ['https://www.facebook.com/ElCerrito2024/', false],
     ['https://www.facebook.com/search/top?q=cerrito', true],
+    ['https://www.instagram.com/homestretchbar/', false],
+    ['https://www.instagram.com/p/CUfFIddLGD6/', true],
   ])('%s', (url, listing) => {
     expect(isListingSite(url)).toBe(listing)
   })
@@ -31,6 +33,17 @@ describe('facebookPage', () => {
   })
 })
 
+describe('instagramProfile', () => {
+  test.each<[string, string | undefined]>([
+    ['https://instagram.com/homestretchbar/?hl=en', 'https://www.instagram.com/homestretchbar'],
+    ['https://www.instagram.com/p/CUfFIddLGD6/', undefined],
+    ['https://www.instagram.com/explore/tags/bar/', undefined],
+    ['https://homestretch.example/', undefined],
+  ])('%s', (url, profile) => {
+    expect<string | undefined>(instagramProfile(url)).toBe(profile)
+  })
+})
+
 describe('pageText', () => {
   test('keeps what a reader sees and drops scripts, styles and tags', () => {
     const html = `<html><head><style>p{}</style><script>var a = 1</script></head>
@@ -41,6 +54,11 @@ describe('pageText', () => {
   test('leads with the meta description, where script-rendered sites put their address', () => {
     const html = `<head><meta name="description" content="Lady Delilah, New York. 353 W 14th St." /></head><body><div id="root"></div></body>`
     expect(pageText(html)).toBe('Lady Delilah, New York. 353 W 14th St.')
+  })
+
+  test('keeps an Instagram bio, which only the plain description carries', () => {
+    const html = `<meta property="og:description" content="641 Followers" /><meta content="Homestretch Bar on Instagram: &quot;214 Kings Highway&quot;" name="description" />`
+    expect(pageText(html)).toBe('Homestretch Bar on Instagram: "214 Kings Highway"\n641 Followers')
   })
 })
 
@@ -86,6 +104,9 @@ describe('typedName', () => {
     ['rolos restaurant', "Rolo's", true],
     ['moss bakery', 'Moss Café', true],
     ['moss bakery', 'Kate Moss Studio', false],
+    ['Homestretch Bar & Grill', 'The Home Stretch', true],
+    ['home stretch bar and grill', 'Homestretch', true],
+    ['Homestretch Bar & Grill', 'Home Depot', false],
   ])('%s / %s', (typed, name, same) => {
     expect(typedName(typed, name)).toBe(same)
   })
@@ -97,6 +118,10 @@ describe('siteNames', () => {
     expect(siteNames("<title>Joe's Pizza LLC</title>")).toEqual(["Joe's Pizza"])
     expect(siteNames('<title>Clinton St. Baking Co.</title>')).toEqual(['Clinton St. Baking Co.'])
     expect(siteNames('<title>Five Elephant.</title>')).toEqual(['Five Elephant'])
+  })
+
+  test('reads a name from an Instagram title', () => {
+    expect(siteNames('<title>Homestretch Bar (&#064;homestretchbar) &#x2022; Instagram photos and videos</title>')).toEqual(['Homestretch Bar'])
   })
 
   test('reads only the name out of a logo’s alt text', () => {

@@ -1,6 +1,6 @@
 import { compactHours, type SiteBusiness } from './schema-org'
 import { BUSINESS_KEYS, isOsmHours, presetTags } from './preset-schema'
-import { facebookPage } from './site-page'
+import { facebookPage, instagramProfile } from './site-page'
 
 /** schema.org business types and the OSM tags that say the same thing. */
 export const CATEGORY_TAGS: Record<string, Record<string, string>> = {
@@ -87,7 +87,11 @@ export function categoryTags(business: SiteBusiness): Record<string, string> | u
 /** The OSM tags a new node for this business would carry, from the business's own site. */
 export function businessTags(business: SiteBusiness, website: string): Record<string, string> {
   const category = categoryTags(business)
-  const site: Record<string, string> = facebookPage(website) ? { 'contact:facebook': website } : { website }
+  const site: Record<string, string> = facebookPage(website)
+    ? { 'contact:facebook': website }
+    : instagramProfile(website)
+      ? { 'contact:instagram': website }
+      : { website }
   const tags: Record<string, string> = { ...business.tags, ...category, name: business.name, ...site }
   Object.assign(tags, addressTags(business.address))
   if (business.phone) tags.phone = business.phone

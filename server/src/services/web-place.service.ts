@@ -26,7 +26,7 @@ import {
   hostOf,
   isListingSite,
   pageText,
-  facebookPage,
+  socialPage,
   siteLinks,
   siteNames,
   sameName,
@@ -96,10 +96,24 @@ interface Options {
  */
 export async function findPlaceOnWeb(query: string, options: Options): Promise<WebPlaceLookup> {
   const located = options.website
-    ? { website: options.website, corroboratedBy: [] }
-    : await findOfficialSite(query, options)
+    ? { websites: [options.website], corroboratedBy: [] }
+    : await findOfficialSites(query, options)
   if (!located) return { status: 'not-found', reason: "Couldn't find a website for it." }
-  const { website, corroboratedBy } = located
+  let first: WebPlaceLookup | undefined
+  for (const website of located.websites) {
+    const lookup = await lookUpSite(website, query, located.corroboratedBy, options)
+    if (lookup.status !== 'not-found') return lookup
+    first ??= lookup
+  }
+  return first!
+}
+
+async function lookUpSite(
+  website: string,
+  query: string,
+  corroboratedBy: string[],
+  options: Options,
+): Promise<WebPlaceLookup> {
   if (isListingSite(website)) {
     return { status: 'not-found', reason: 'Only review and delivery sites list it.' }
   }
@@ -139,15 +153,18 @@ export async function findPlaceOnWeb(query: string, options: Options): Promise<W
   if (mapped) return { status: 'mapped', place: mapped }
 
   const vacant = await vacantAddress(business, center)
-  const place = webPlace(business, facebookPage(url) ?? siteRoot(url), center, options.language, vacant)
+  const place = webPlace(business, socialPage(url) ?? siteRoot(url), center, options.language, vacant)
   await webPlaces.get(place.externalIds[SOURCE.WEB], async () => place)
   return { status: 'found', place, corroboratedBy }
 }
 
 const SITE_BRIEF =
-  "Find the business's own official website. Reply with only its URL, or NONE if it has no site of its own or you can't confirm the business exists. Never a directory, map, review, booking, delivery or social media page, except the business's own Facebook page when it has no website."
+  "Find this business's own pages, at the place named. Reply with only URLs, one per line: its official website first, then its own Facebook page and Instagram profile if it has them. Reply NONE if you can't confirm the business exists there. Never a directory, map, review, booking or delivery page, or a namesake elsewhere."
 
-async function findOfficialSite(query: string, { model, near, signal, progress }: Options) {
+/** The business's website and its own social pages, each tried in turn. */
+const MAX_SITES = 3
+
+async function findOfficialSites(query: string, { model, near, signal, progress }: Options) {
   if (!model) throw new WebPlaceError('Web search is not available here. Pass the business website instead.')
   const area = query.includes(',') ? undefined : await areaName(near)
   progress?.('site', area ? `${query}, ${area}` : query)
@@ -160,13 +177,17 @@ async function findOfficialSite(query: string, { model, near, signal, progress }
     maxTokens: SITE_TOKENS,
     signal,
   })
-  const website = message.content?.match(/https?:\/\/[^\s"'<>)\]]+/)?.[0]?.replace(/[.,;]+$/, '')
-  if (!website) return null
-  const host = hostOf(website)
+  const websites = [
+    ...new Set(
+      [...(message.content ?? '').matchAll(/https?:\/\/[^\s"'<>)\]]+/g)].map(([url]) => url.replace(/[.,;]+$/, '')),
+    ),
+  ].slice(0, MAX_SITES)
+  if (!websites.length) return null
+  const hosts = new Set(websites.map(hostOf))
   const corroboratedBy = [...new Set(citations.map(({ url }) => hostOf(url)))].filter(
-    (other): other is string => !!other && other !== host,
+    (other): other is string => !!other && !hosts.has(other),
   )
-  return { website, corroboratedBy }
+  return { websites, corroboratedBy }
 }
 
 /** "Brooklyn, NY", or a postcode where nearby addresses name no town, so a bare business name finds the local one. */
@@ -236,13 +257,13 @@ function signCase(name: string): string {
 
 /** The site's own description of the business: its JSON-LD, else what the model reads off its pages. */
 async function readSite(website: string, query: string, options: Options) {
-  const social = facebookPage(website)
+  const social = socialPage(website)
   options.progress?.('read', social?.replace(/^https:\/\/www\./, '') ?? hostOf(website) ?? website)
   const home = await fetchPage(website, options.signal)
   if (!home) return null
   const pages = [home]
   let business = pickBusiness(readSiteBusinesses(home.html), query, options.near)
-  // A Facebook page's own links lead around Facebook, not the business.
+  // A social page's own links lead around the platform, not the business.
   const links = social ? [] : contactLinks(home.html, home.url)
   for (const link of links.slice(0, MAX_CONTACT_PAGES)) {
     if (business?.address) break

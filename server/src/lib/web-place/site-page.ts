@@ -18,7 +18,7 @@ const LISTING_HOSTS = new Set(['x.com', 'hotels.com', 'goo.gl', 'maps.app.goo.gl
 export function isListingSite(url: string): boolean {
   const host = hostOf(url)
   if (!host) return true
-  if (facebookPage(url)) return false
+  if (socialPage(url)) return false
   if (LISTING_HOSTS.has(host)) return true
   return host.split('.').slice(0, -1).some((label) => LISTING_SITES.has(label))
 }
@@ -44,6 +44,26 @@ export function facebookPage(url: string): string | undefined {
   } catch {
     return undefined
   }
+}
+
+const NOT_A_PROFILE = /^(?:p|reel|reels|explore|stories|accounts|direct|tv|about|legal)$/i
+
+/** A business's own Instagram profile, as its canonical url. Posts, reels and explore pages aren't profiles. */
+export function instagramProfile(url: string): string | undefined {
+  try {
+    const { hostname, pathname } = new URL(url)
+    if (!/^(?:www\.)?instagram\.com$/i.test(hostname)) return undefined
+    const handle = pathname.split('/').filter(Boolean)[0]
+    if (!handle || !/^[\w.]+$/.test(handle) || NOT_A_PROFILE.test(handle)) return undefined
+    return `https://www.instagram.com/${handle}`
+  } catch {
+    return undefined
+  }
+}
+
+/** The business's own Facebook page or Instagram profile. */
+export function socialPage(url: string): string | undefined {
+  return facebookPage(url) ?? instagramProfile(url)
 }
 
 export function hostOf(url: string): string | undefined {
@@ -72,9 +92,10 @@ export function pageText(html: string): string {
   return [description, body].filter(Boolean).join('\n').slice(0, MAX_TEXT)
 }
 
-/** Script-rendered sites often state their address only here. */
+/** Script-rendered sites often state their address only here; Instagram puts the bio in the plain one. */
 function metaDescription(html: string): string | undefined {
-  return metaContent(html, /^(?:og:)?description$/i)
+  const texts = [metaContent(html, /^description$/i), metaContent(html, /^og:description$/i)]
+  return [...new Set(texts.filter(Boolean))].join('\n') || undefined
 }
 
 function metaContent(html: string, key: RegExp): string | undefined {
@@ -92,10 +113,12 @@ export function attribute(tag: string, name: string): string | undefined {
   return match ? (match[1] ?? match[2]) : undefined
 }
 
-const TAGLINE = /\s+[|–—·:]\s+|\s+-\s+/
+const TAGLINE = /\s+[|–—·•:]\s+|\s+-\s+/
 /** "Bakery in New York, NY": a title describing the place rather than naming it. */
 const WHERE = /\s+in\s+[^,]+,\s*[A-Z]{2}$/
-const NOT_A_NAME = /^(?:home|homepage|welcome|logo|menu|main|facebook|log in)$/i
+const NOT_A_NAME = /^(?:home|homepage|welcome|logo|menu|main|facebook|instagram(?: photos and videos)?|log in)$/i
+/** A social handle after the name: "Homestretch Bar (@homestretchbar)". */
+const HANDLE = /\(@[\w.]+\)/g
 /** A country or company form a site appends to its name, "La Cabra USA" or "Joe's Pizza LLC", that the place itself isn't called. */
 const ENTITY_SUFFIX = /,?\s+(?:USA|US|UK|NYC|Inc\.?|LLC|L\.L\.C\.|Ltd\.?|Corp\.?|GmbH|ApS|AB|AS|BV|SA|S\.A\.|Pty)$/
 
@@ -120,7 +143,7 @@ export function siteNames(html: string): string[] {
   ]
   const names = sources
     .flatMap((text) => text?.split(TAGLINE) ?? [])
-    .map((name) => name.replace(/\s+/g, ' ').trim().replace(ENTITY_SUFFIX, '').replace(/[,;:]+$|(?<=\p{L}{5})\.$/u, ''))
+    .map((name) => name.replace(HANDLE, ' ').replace(/\s+/g, ' ').trim().replace(ENTITY_SUFFIX, '').replace(/[,;:]+$|(?<=\p{L}{5})\.$/u, ''))
     .filter((name) => name && name.length <= 60 && !NOT_A_NAME.test(name) && !WHERE.test(name))
   return [...new Set(names)]
 }
@@ -232,12 +255,18 @@ export function sameName(a: string, b: string): boolean {
  */
 export function typedName(typed: string, name: string): boolean {
   if (spelledAs(typed, name)) return true
-  const bare = normalizeName(typed.replace(KIND_WORDS, ''))
-  return !!bare && bare === normalizeName(name.replace(KIND_WORDS, ''))
+  const bare = squashedName(typed)
+  return !!bare && bare === squashedName(name)
+}
+
+/** The name without its kind or spaces: "Homestretch Bar & Grill" and "The Home Stretch" both give "homestretch". */
+function squashedName(name: string): string {
+  return normalizeName(name.replace(KIND_WORDS, '')).replace(/ /g, '')
 }
 
 /** What kind of place it is, typed after its name: "Ruby's cafe" for a site that says "Ruby's". */
-const KIND_WORDS = /(?:\s+(?:cafe|café|coffee|restaurant|bakery|bar|pub|bistro|diner|deli|pizzeria|shop|store))+$/i
+const KIND_WORDS =
+  /(?:\s+(?:&\s*|and\s+)?(?:cafe|café|coffee|restaurant|bakery|bar|grill|kitchen|tavern|lounge|eatery|pub|bistro|diner|deli|pizzeria|shop|store))+$/i
 
 function spelledAs(typed: string, name: string): boolean {
   if (sameName(typed, name)) return true

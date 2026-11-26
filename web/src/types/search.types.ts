@@ -23,6 +23,7 @@ export interface SearchResult {
   title: string
   description?: string
   icon?: string
+  iconCategory?: string
   color?: string
   metadata: {
     // Brand metadata
@@ -108,8 +109,9 @@ export interface SearchResponse {
   query: string
   results: SearchResult[]
   totalCount: number
-  /** The id of the one place the query names, when it names exactly one. */
+  /** The id of the one result the query clearly means: a place, category, brand or transit line. */
   match?: string
+  intent?: QueryIntent
 }
 
 export interface AutocompleteResponse {

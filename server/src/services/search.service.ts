@@ -478,7 +478,11 @@ export async function search(
     query,
     results: limitedResults,
     totalCount: allResults.length,
-    match: confidentMatch(query, scoredResults.slice(0, maxResults)),
+    match: confidentMatch(
+      query,
+      scoredResults.slice(0, maxResults),
+      lat != null && lng != null ? { lat, lng } : undefined,
+    ),
   } as SearchResponse
 }
 

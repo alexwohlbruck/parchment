@@ -6,9 +6,13 @@
 * Attach up to 4 screenshots when you send feedback, or paste one straight into the form.
 * Tap a departure to follow that train or bus along its line, with the time it reaches every stop.
 * Admins can fix which Google or Foursquare listing a place shows, or mark that it has none, from the bottom of the place page.
+* Restaurants link straight to their booking page on OpenTable, Resy, Tock or SevenRooms for your party size and date, with a search as the fallback.
+* Hotels show a Compare prices card with each seller's nightly price, taxes and fees, and free cancellation, linking to that seller for your dates.
+* Places that deliver link to order on Uber Eats, DoorDash and other delivery services.
 
 ### Changed
 
+* Photos, hours and ratings from business listings load faster when you reopen a place, and the place keeps the same listing each time.
 * Press Enter in search to see all results right away, without waiting for suggestions. When a search clearly means one place or address, it opens straight away, and Back shows the full results.
 * Searching for a kind of place or a chain, like "coffee" or "Starbucks", opens that browse straight away, and a question opens Ask.
 * With Day & Night on, the globe's night side now shows city lights and a deep blue sky on the standard map, with a sunset glow around the Earth's edge and a brighter sun.
@@ -27,14 +31,10 @@
 * Share your location with a friend for 1 hour, 4 hours, until tomorrow morning or until you turn it off. Your friends list shows how long is left.
 * Switch the app style or the map style from the command palette.
 * Named buildings show their names when you zoom in, like the halls on a school or college campus.
-* Restaurants link straight to their booking page on OpenTable, Resy, Tock or SevenRooms for your party size and date, with a search as the fallback.
-* Hotels show a Compare prices card with each seller's nightly price, taxes and fees, and free cancellation, linking to that seller for your dates.
-* Places that deliver link to order on Uber Eats, DoorDash and other delivery services.
 * Day & Night can show daylight and darkness at any time in the coming week, using the same time control as transit.
 
 ### Changed
 
-* Photos, hours and ratings from business listings load faster when you reopen a place, and the place keeps the same listing each time.
 * The layers time control now sits in its own section and appears whenever transit or Day & Night is on.
 
 ### Fixed

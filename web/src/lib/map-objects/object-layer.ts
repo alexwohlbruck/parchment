@@ -31,7 +31,7 @@
  * Objects are read from the same vector source their flat form is drawn from,
  * so the two cannot disagree about what exists.
  */
-import { Births } from './births'
+import { Births, GRACE_SECONDS, GROW_SECONDS } from './births'
 import { sourceFeatures } from '@/lib/map/source-features'
 import { ghostBlend } from '@/lib/map/ghost-blend'
 import { MercatorCoordinate, type OcclusionFrame } from 'maplibre-gl'
@@ -112,20 +112,20 @@ export function project(
   out.perMetre = perMetre
 }
 
-/** Seconds a plant takes to grow in once it is placed. */
-const GROW_SECONDS = 0.45
 /** Most a plant's entrance waits, rippling out from the middle of the view. */
 const GROW_RIPPLE_SECONDS = 0.25
-/** A birth for anything already whole: finite, since GPUs disagree on infinities. */
+/** A birth for anything already whole, and a death for anything staying: finite, since GPUs disagree on infinities. */
 const LONG_AGO = -1e6
+const NEVER = 1e6
 /** Cells per mercator unit a plant's place is keyed to, about half a metre: two to the 26th, so x and y pack exactly into one number. */
 const KEY_CELLS = 2 ** 26
 
-/** How far grown an instance is, 0-1, eased out: \`u_now\` and \`a_born\` are seconds on the layer's clock. */
+/** How much of an instance stands, 0-1: grown in from its birth, eased out, and shrunk away from its death, eased in. See \`grownAfter\` and \`leftAfter\`. */
 const GROWTH_GLSL = `
-  float growth(float born) {
-    float t = clamp((u_now - born) / ${GROW_SECONDS.toFixed(2)}, 0.0, 1.0);
-    return 1.0 - (1.0 - t) * (1.0 - t) * (1.0 - t);
+  float growth(vec2 life) {
+    float t = clamp((u_now - life.x) / ${GROW_SECONDS.toFixed(2)}, 0.0, 1.0);
+    float gone = clamp((u_now - life.y) / ${GROW_SECONDS.toFixed(2)}, 0.0, 1.0);
+    return (1.0 - (1.0 - t) * (1.0 - t) * (1.0 - t)) * (1.0 - gone * gone);
   }`
 
 const VS = `#version 300 es
@@ -159,8 +159,8 @@ const VS = `#version 300 es
   in float a_tint;
   /** Instance: the ground's rise per unit run, east and south, so a long object follows a slope. */
   in vec2 a_slope;
-  /** Instance: when it was placed, on the layer's clock; see \`growth\`. */
-  in float a_born;
+  /** Instance: when it was placed and when it started to leave, on the layer's clock; see \`growth\`. */
+  in vec2 a_life;
   ${GROWTH_GLSL}
 
   /** Light-clip from the layer's frame, for the sun's shadow map; identity with no sun. */
@@ -214,7 +214,7 @@ const VS = `#version 300 es
     p = vec3(p.x * c - p.y * s, p.x * s + p.y * c, p.z);
     n = vec3(n.x * c - n.y * s, n.x * s + n.y * c, n.z);
 
-    float grown = growth(a_born);
+    float grown = growth(a_life);
     vec2 across = p.xy * a_shape.y * mix(0.4, 1.0, grown);
     vec3 world = a_offset + vec3(across, p.z * a_shape.x * grown + dot(a_slope, across));
 
@@ -324,7 +324,7 @@ const LAMPS: Record<string, { reach: number; color: [number, number, number]; he
 /** How bright the glow round a lamp is, against its pool. */
 const LAMP_GLOW = 0.6
 
-const LOC = { a_position: 0, a_normal: 1, a_offset: 2, a_shape: 3, a_shade: 4, a_tint: 5, a_slope: 6, a_born: 7 }
+const LOC = { a_position: 0, a_normal: 1, a_offset: 2, a_shape: 3, a_shade: 4, a_tint: 5, a_slope: 6, a_life: 7 }
 
 const DEPTH_FS = `
   precision mediump float;
@@ -490,7 +490,7 @@ type Batch = {
   shade: Float32Array
   tint: Float32Array
   slope: Float32Array
-  born: Float32Array
+  life: Float32Array
   count: number
   /** Whether any instance sets a `length`, which scales by this model's own length. */
   stretched: boolean
@@ -507,7 +507,7 @@ type Batch = {
    * does. GL is touched only inside `render`, so the arrays are built off the
    * render path and handed over here.
    */
-  buffers: { offset: WebGLBuffer; shape: WebGLBuffer; shade: WebGLBuffer; tint: WebGLBuffer; slope: WebGLBuffer; born: WebGLBuffer } | null
+  buffers: { offset: WebGLBuffer; shape: WebGLBuffer; shade: WebGLBuffer; tint: WebGLBuffer; slope: WebGLBuffer; life: WebGLBuffer } | null
   /** Its instances and one of a model's primitives pointed at the attributes, once, by primitive. */
   arrays?: Map<object, WebGLVertexArrayObject>
 }
@@ -538,6 +538,10 @@ export type Placed = {
   births?: Births
   /** When it was placed, on the layer's clock; long ago for anything that does not grow in. */
   born?: number
+  /** When it started to leave, on the layer's clock; unset while it stands. */
+  died?: number
+  /** When a gather first missed it while it was still in view; it lingers a moment in case it comes straight back. */
+  missingSince?: number
 }
 
 /**
@@ -622,6 +626,7 @@ export class ObjectLayer {
   private placed: Placed[] = []
   /** Each growing source's record of when its plants first appeared; see \`birth\`. */
   private births = new Map<ObjectSourceSpec, Births>()
+  private leaveTimer = 0
   private epoch = performance.now()
   /** When the last plant growing in is done, on the layer's clock; until then every frame is drawn. */
   private growingUntil = 0
@@ -880,6 +885,7 @@ export class ObjectLayer {
     this.stopFlutter()
     if (this.scheduled) clearTimeout(this.scheduled)
     clearTimeout(this.slice)
+    clearTimeout(this.leaveTimer)
     this.scheduled = 0
     this.gathering = null
     this.map = null
@@ -943,11 +949,13 @@ export class ObjectLayer {
     const inView = (lng: number, lat: number) =>
       !bounds ||
       (lng >= bounds.getWest() - pad && lng <= bounds.getEast() + pad && lat >= bounds.getSouth() - pad && lat <= bounds.getNorth() + pad)
+    const outOfRange = new Set<Births>()
     for (const spec of this.specs) {
       const births = spec.grows ? this.birthsOf(spec) : undefined
       if (zoom < spec.minzoom) {
         // Out of its range every plant has gone, so each grows in again on the way back.
         births?.clear()
+        if (births) outOfRange.add(births)
         continue
       }
       births?.begin(this.clock())
@@ -1040,7 +1048,7 @@ export class ObjectLayer {
       }
     }
     yield* this.birth(placedNow)
-    this.placed = placedNow
+    this.placed = [...placedNow, ...this.leaving(placedNow, outOfRange, bounds)]
   }
 
   /** Seconds on the layer's own clock, which the shader's \`u_now\` reads too. */
@@ -1071,6 +1079,46 @@ export class ObjectLayer {
     }
   }
 
+  /**
+   * The plants the last gather had and this one lost, still to be drawn: each lingers a moment while in view, in
+   * case a tile swap brings it straight back, then shrinks away. One out of its zoom range leaves at once, and one
+   * off screen is simply dropped.
+   */
+  private leaving(next: Placed[], outOfRange: Set<Births>, bounds: { contains(point: [number, number]): boolean } | undefined): Placed[] {
+    if (this.stillness?.matches) return []
+    const now = this.clock()
+    const standing = new Map<Births, Set<number>>()
+    for (const p of next) {
+      if (!p.births || p.key === undefined) continue
+      let keys = standing.get(p.births)
+      if (!keys) standing.set(p.births, (keys = new Set()))
+      keys.add(p.key)
+    }
+    const out: Placed[] = []
+    let lingering = false
+    for (const p of this.placed) {
+      if (!p.births || p.key === undefined || standing.get(p.births)?.has(p.key)) continue
+      if (bounds && !bounds.contains(unproject(p.x, p.y))) continue
+      if (p.died === undefined) {
+        p.missingSince ??= now
+        if (!outOfRange.has(p.births) && now - p.missingSince < GRACE_SECONDS) {
+          out.push(p)
+          lingering = true
+          continue
+        }
+        p.died = now
+        p.births.leave(p.key, now)
+      }
+      if (now - p.died >= GROW_SECONDS) continue
+      out.push(p)
+      this.growingUntil = Math.max(this.growingUntil, p.died + GROW_SECONDS)
+    }
+    clearTimeout(this.leaveTimer)
+    // Look again once the lingering ones have waited long enough, or once the leaving ones are gone.
+    if (out.length) this.leaveTimer = setTimeout(() => this.map && this.invalidate(lingering), (lingering ? GRACE_SECONDS : GROW_SECONDS) * 1000 + 50) as unknown as number
+    return out
+  }
+
   private birthsOf(spec: ObjectSourceSpec): Births {
     let births = this.births.get(spec)
     if (!births) this.births.set(spec, (births = new Births()))
@@ -1089,6 +1137,8 @@ export class ObjectLayer {
    */
   private arrange() {
     this.needsArrange = false
+    const now = this.clock()
+    this.placed = this.placed.filter(p => p.died === undefined || now - p.died < GROW_SECONDS)
     this.shadowVersion++
     const zoom = this.map.getZoom()
     const origin = MercatorCoordinate.fromLngLat(this.map.getCenter(), 0)
@@ -1132,7 +1182,8 @@ export class ObjectLayer {
       const shade = new Float32Array(group.length)
       const tint = new Float32Array(group.length)
       const slope = new Float32Array(group.length * 2)
-      const born = Float32Array.from(group, p => p.born ?? LONG_AGO)
+      const life = new Float32Array(group.length * 2)
+      group.forEach((p, i) => life.set([p.born ?? LONG_AGO, p.died ?? NEVER], i * 2))
       // A measured crown is sized against the near model's width even when the
       // far one is drawn, so a tree doesn't grow or shrink as it crosses the switch.
       const nearWidth = this.models.get(nearOf(model))?.width || 1
@@ -1154,7 +1205,7 @@ export class ObjectLayer {
       }
       const stretched = group.some(p => p.instance.length !== undefined)
       const raised = LAMPS[nearOf(model)] && group.some(p => p.raised) ? Float32Array.from(group, p => p.raised ?? 0) : undefined
-      this.batches.push({ model, offset, shape, shade, tint, slope, born, count: group.length, stretched, raised, buffers: null })
+      this.batches.push({ model, offset, shape, shade, tint, slope, life, count: group.length, stretched, raised, buffers: null })
     }
   }
 
@@ -1385,7 +1436,7 @@ export class ObjectLayer {
       shade: gl.createBuffer()!,
       tint: gl.createBuffer()!,
       slope: gl.createBuffer()!,
-      born: gl.createBuffer()!,
+      life: gl.createBuffer()!,
     }
     const attach = (buffer: WebGLBuffer, data: Float32Array, loc: number, size: number) => {
       gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
@@ -1399,7 +1450,7 @@ export class ObjectLayer {
     attach(batch.buffers.shade, batch.shade, LOC.a_shade, 1)
     attach(batch.buffers.tint, batch.tint, LOC.a_tint, 1)
     attach(batch.buffers.slope, batch.slope, LOC.a_slope, 2)
-    attach(batch.buffers.born, batch.born, LOC.a_born, 1)
+    attach(batch.buffers.life, batch.life, LOC.a_life, 2)
   }
 
   receiveSun(frame: SunFrame) {

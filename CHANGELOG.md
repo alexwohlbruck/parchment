@@ -10,7 +10,7 @@
 
 * Press Enter in search to see all results right away, without waiting for suggestions. When a search clearly means one place or address, it opens straight away, and Back shows the full results.
 * Searching for a kind of place or a chain, like "coffee" or "Starbucks", opens that browse straight away, and a question opens Ask.
-* Trees grow in when you zoom close enough to see them, rippling out from the middle of the map, rather than popping into view.
+* Trees grow in when you zoom close enough to see them, rippling out from the middle of the map, and shrink away as you zoom back out, rather than popping.
 * Detailed streets, paths, parking and other map layers fade in and out as you zoom or as they load, rather than popping.
 
 ### Fixed

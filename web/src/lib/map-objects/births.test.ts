@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { Births } from './births'
+import { Births, GROW_SECONDS, grownAfter, leftAfter } from './births'
 
 const fresh = (born: number) => () => born
 
@@ -53,5 +53,25 @@ describe('births', () => {
     births.clear()
     births.begin(1)
     expect(births.of(1, fresh(1)).isNew).toBe(true)
+  })
+
+  test('a plant caught leaving grows back from as much of it as is left', () => {
+    const births = new Births()
+    births.begin(0)
+    births.of(1, fresh(0))
+    births.leave(1, 10)
+    births.begin(10 + GROW_SECONDS / 2)
+    const { born, isNew } = births.of(1, fresh(99))
+    expect(isNew).toBe(true)
+    expect(grownAfter(10 + GROW_SECONDS / 2 - born)).toBeCloseTo(leftAfter(GROW_SECONDS / 2))
+  })
+
+  test('a plant that finished leaving and comes back grows in from nothing', () => {
+    const births = new Births()
+    births.begin(0)
+    births.of(1, fresh(0))
+    births.leave(1, 10)
+    births.begin(10 + GROW_SECONDS)
+    expect(births.of(1, fresh(20))).toEqual({ born: 20, isNew: true })
   })
 })

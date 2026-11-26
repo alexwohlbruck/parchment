@@ -10,6 +10,7 @@
 
 * Press Enter in search to see all results right away, without waiting for suggestions. When a search clearly means one place or address, it opens straight away, and Back shows the full results.
 * Searching for a kind of place or a chain, like "coffee" or "Starbucks", opens that browse straight away, and a question opens Ask.
+* Trees in fall turn a mix of yellow, gold, orange, red and dusty brown, with a few holding on to green.
 
 ### Fixed
 

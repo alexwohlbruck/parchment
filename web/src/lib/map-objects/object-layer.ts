@@ -35,7 +35,7 @@ import { sourceFeatures } from '@/lib/map/source-features'
 import { ghostBlend } from '@/lib/map/ghost-blend'
 import { MercatorCoordinate, type OcclusionFrame } from 'maplibre-gl'
 import type { GlbModel } from './glb.mjs'
-import { PHASE_SPREAD, RAMP, phaseOf, plantYear, rampAt, type Deciduous, type SeasonRamp } from './seasons'
+import { PHASE_SPREAD, RAMP, STOPS, phaseOf, plantYear, rampAt, type Deciduous, type SeasonRamp } from './seasons'
 import { GOLF_FLAG_MIN_PITCH as FLUTTER_MIN_PITCH } from '@/lib/map-style/detail-layers'
 import { bindSun, lightAbout, SUN_SHADOW_GLSL, SUN_SHADOW_UNIFORMS, type SunFrame } from '@/lib/map/sun-shadow'
 import { liveBuildingShade } from '@/lib/map/building-shade'
@@ -57,6 +57,9 @@ export const nearOf = (model: string) =>
  * roughly "past the first screenful", which at any tilt is where a tree stops
  * resolving into a trunk and a canopy.
  */
+/** The texture unit the season ramps are bound to; the sun and lamplight hold 5 to 7. */
+const RAMPS_UNIT = 8
+
 const NEAR_PIXELS = 850
 
 /**
@@ -123,10 +126,9 @@ const VS = `#version 300 es
   /** Flutter amplitude, and the x where the cloth is held and how far it runs; see \`FLUTTER\`. */
   uniform vec3 u_flutter;
   uniform float u_time;
-  /** The role's year, when it has one: rgb and leaf per step, the tinted rgb, and where the year stands. */
-  uniform float u_seasonal;
-  uniform vec4 u_ramp[${RAMP}];
-  uniform vec3 u_rampAlt[${RAMP}];
+  /** Every role's year, ${STOPS} rows of ${RAMP} steps each (see \`SeasonRamp\`), this role's first row or -1, and where the year stands. */
+  uniform highp sampler2D u_ramps;
+  uniform int u_rampRow;
   uniform float u_year;
 
   in vec3 a_position;
@@ -137,7 +139,7 @@ const VS = `#version 300 es
   in vec4 a_shape;
   /** Instance: a per-object brightness, so a stand of trees is not one colour. */
   in float a_shade;
-  /** Instance: how far toward the role's alternate colour, 0-1. */
+  /** Instance: how far toward the role's alternate colour, or along its season's stops, 0-1. */
   in float a_tint;
   /** Instance: the ground's rise per unit run, east and south, so a long object follows a slope. */
   in vec2 a_slope;
@@ -158,6 +160,13 @@ const VS = `#version 300 es
   /** How squarely the face meets the sun, -1 to 1. */
   out float v_facing;
 
+  vec4 rampStep(int step) {
+    float x = a_tint * ${STOPS - 1}.0;
+    int k = min(int(floor(x)), ${STOPS - 2});
+    vec4 from = texelFetch(u_ramps, ivec2(step, u_rampRow + k), 0);
+    return mix(from, texelFetch(u_ramps, ivec2(step, u_rampRow + k + 1), 0), x - float(k));
+  }
+
   void main() {
     float c = cos(a_shape.z);
     float s = sin(a_shape.z);
@@ -168,17 +177,13 @@ const VS = `#version 300 es
     // the same as leaving them facing the right way. See \`FRONT_FACE\`.
     vec3 m = a_position;
     vec4 day = vec4(0.0, 0.0, 0.0, 1.0);
-    int i = 0;
-    int j = 0;
-    float t = 0.0;
-    if (u_seasonal > 0.0) {
+    bool seasonal = u_rampRow >= 0;
+    if (seasonal) {
       // Each plant a few days early or late; see \`phaseOf\`.
       float phase = fract(a_tint * 7.13 + a_shade * 13.7);
       float at = fract(u_year + (phase - 0.5) * ${(2 * PHASE_SPREAD).toFixed(6)}) * ${RAMP}.0;
-      i = int(floor(at)) % ${RAMP};
-      j = (i + 1) % ${RAMP};
-      t = fract(at);
-      day = mix(u_ramp[i], u_ramp[j], t);
+      int i = int(floor(at)) % ${RAMP};
+      day = mix(rampStep(i), rampStep((i + 1) % ${RAMP}), fract(at));
       // A crown filling out or thinning draws in toward its middle as well as opening up.
       if (u_occlusion.z > 0.0) m = mix(vec3(0.0, (u_occlusion.x + u_occlusion.y) * 0.5, 0.0), m, mix(0.6, 1.0, day.a));
     }
@@ -218,7 +223,7 @@ const VS = `#version 300 es
     float occlusion = mix(1.0 - u_occlusion.z, 1.0, smoothstep(0.0, 1.0, rise));
     vec3 base = mix(u_color, u_color_alt, a_tint);
     v_leaf = day.a;
-    if (u_seasonal > 0.0) base = mix(day.rgb, mix(u_rampAlt[i], u_rampAlt[j], t), a_tint);
+    if (seasonal) base = day.rgb;
     v_grain = a_position * 8.0 + a_shape.z * 17.0;
     v_color = base * a_shade * occlusion * mix(u_ambient, 1.0, lit);
     v_color += (base * a_shade + 0.06) * lampLight((u_lightUv * vec4(world.xy, 0.0, 1.0)).xy, (world.z - a_offset.z) / u_perMetre);
@@ -451,8 +456,8 @@ type ModelBuffers = {
     occlusion: [number, number, number]
     /** Amplitude, held x and run, in model units; amplitude 0 for a rigid part. See `FLUTTER`. */
     flutter: [number, number, number]
-    /** The role's year, for the plants that change with it. */
-    ramp?: SeasonRamp
+    /** The role's first row in the ramp texture, for the plants that change with the year; -1 for the rest. */
+    rampRow: number
   }>
   /** Whether any part flutters, so a flag in view can start a flutter; see `startFlutter`. */
   flutters: boolean
@@ -572,7 +577,7 @@ export class ObjectLayer {
   private flutterTimer = 0
   private onStillness = () => this.stopFlutter()
   private program = new LazyProgram(VS, FS, [
-    'u_matrix', 'u_light', 'u_ambient', 'u_color', 'u_color_alt', 'u_occlusion', 'u_flutter', 'u_time', 'u_lightUv', 'u_perMetre', 'u_lamp', 'u_seasonal', 'u_ramp', 'u_rampAlt', 'u_year', 'u_sheer',
+    'u_matrix', 'u_light', 'u_ambient', 'u_color', 'u_color_alt', 'u_occlusion', 'u_flutter', 'u_time', 'u_lightUv', 'u_perMetre', 'u_lamp', 'u_ramps', 'u_rampRow', 'u_year', 'u_sheer',
     ...LAMP_LIGHT_UNIFORMS, 'u_sunLight', ...SUN_SHADOW_UNIFORMS, 'u_shadowAlpha', 'u_shadowColor'], 'objects', LOC)
   private sunProgram = new LazyProgram(SUN_VS, DEPTH_FS, ['u_matrix'], 'objects', LOC)
   /** This frame's sun shadow map, handed over by the map's shading before this layer draws. */
@@ -665,6 +670,44 @@ export class ObjectLayer {
   private deciduous: Record<string, Deciduous> = {}
   private year = 0.5
 
+  private rampTexture: WebGLTexture | null = null
+  private rampsUploaded = false
+
+  /** A role's first row in the ramp texture, in `ramps` order; -1 for a role without a year. */
+  private rampRow(role: string): number {
+    const index = Object.keys(this.ramps).indexOf(role)
+    return index < 0 ? -1 : index * STOPS
+  }
+
+  /** Every role's ramp as one float texture, uploaded again when the ramps change. */
+  private bindRamps(gl: WebGL2RenderingContext, u: Record<string, WebGLUniformLocation | null>) {
+    gl.activeTexture(gl.TEXTURE0 + RAMPS_UNIT)
+    if (!this.rampTexture) {
+      this.rampTexture = gl.createTexture()
+      this.rampsUploaded = false
+    }
+    gl.bindTexture(gl.TEXTURE_2D, this.rampTexture)
+    if (!this.rampsUploaded) {
+      const ramps = Object.values(this.ramps)
+      const rows = Math.max(ramps.length, 1) * STOPS
+      const data = new Float32Array(rows * RAMP * 4)
+      ramps.forEach((ramp, r) => data.set(ramp, r * STOPS * RAMP * 4))
+      // MapLibre caches these and they apply to array uploads too, so set them for this one and put them back.
+      const flip = gl.getParameter(gl.UNPACK_FLIP_Y_WEBGL)
+      const premultiply = gl.getParameter(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL)
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false)
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false)
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, RAMP, rows, 0, gl.RGBA, gl.FLOAT, data)
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, flip)
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, premultiply)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+      this.rampsUploaded = true
+    }
+    gl.uniform1i(u.u_ramps, RAMPS_UNIT)
+    gl.activeTexture(gl.TEXTURE0)
+  }
+
   /** Move the plants through the year: a uniform, plus a re-sort where a tree's branches come into or out of view. */
   setYear(year: number) {
     if (year === this.year) return
@@ -674,14 +717,17 @@ export class ObjectLayer {
 
   setFlavor(palette: ObjectPalette, ramps: Record<string, SeasonRamp> = this.ramps) {
     this.palette = palette
-    // New ramps can move a tree's leaf, and with it whether its bare branches show.
-    if (ramps !== this.ramps && this.map) this.invalidate(false)
-    this.ramps = ramps
+    if (ramps !== this.ramps) {
+      this.ramps = ramps
+      this.rampsUploaded = false
+      // New ramps can move a tree's leaf, and with it whether its bare branches show.
+      if (this.map) this.invalidate(false)
+    }
     for (const model of this.models.values())
       for (const p of model.primitives) {
         p.color = palette[p.role] ?? p.color
         p.colorAlt = palette[`${p.role}-alt`] ?? p.color
-        p.ramp = ramps[p.role]
+        p.rampRow = this.rampRow(p.role)
       }
     this.map?.triggerRepaint?.()
   }
@@ -708,7 +754,7 @@ export class ObjectLayer {
             colorAlt: this.palette[`${p.material}-alt`] ?? color,
             occlusion: crownOcclusion(p.material, p.position),
             flutter: flutterOf(p.material, p.position, name.endsWith(FAR_SUFFIX)),
-            ramp: this.ramps[p.material],
+            rampRow: this.rampRow(p.material),
           }
         })
       this.models.set(name, {
@@ -857,6 +903,8 @@ export class ObjectLayer {
     this.sunProgram.delete(gl)
     this.pools.delete(gl)
     this.glows.delete(gl)
+    gl.deleteTexture(this.rampTexture)
+    this.rampTexture = null
     for (const model of this.models.values())
       for (const p of model.primitives) {
         gl.deleteBuffer(p.position)
@@ -1170,6 +1218,7 @@ export class ObjectLayer {
     gl.uniformMatrix4fv(u.u_lightUv, false, lights ? lightAbout(lights.uv, this.origin) : IDENTITY)
     gl.uniform1f(u.u_perMetre, this.placed[0]?.perMetre ?? 1)
     gl.uniform1f(u.u_year, this.year)
+    this.bindRamps(gl, u)
     const night = !!lights && lights.strength > 0
 
     const ghost = ghostBlend(gl, this.opacity)
@@ -1189,12 +1238,8 @@ export class ObjectLayer {
         this.bindArrays(gl, batch, primitive)
         gl.uniform3fv(u.u_color, primitive.color)
         gl.uniform3fv(u.u_color_alt, primitive.colorAlt)
-        gl.uniform1f(u.u_seasonal, primitive.ramp ? 1 : 0)
+        gl.uniform1i(u.u_rampRow, primitive.rampRow)
         gl.uniform1f(u.u_sheer, SHEER.has(primitive.role) ? 1 : 0)
-        if (primitive.ramp) {
-          gl.uniform4fv(u.u_ramp, primitive.ramp.color)
-          gl.uniform3fv(u.u_rampAlt, primitive.ramp.alt)
-        }
         gl.uniform3fv(u.u_occlusion, primitive.occlusion)
         gl.uniform1f(u.u_lamp, night && primitive.role === 'lamp' ? 1 : 0)
         const [amplitude, held, run] = primitive.flutter

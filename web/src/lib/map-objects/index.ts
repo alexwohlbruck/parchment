@@ -159,8 +159,7 @@ export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
 /** Every role's colour for a flavor, the leafy ones as they stand at midsummer; the year moves them in the shader. */
 export function objectPalette(flavor: FlavorId): ObjectPalette {
   const leaves = Object.entries(seasonRamps(flavor)).flatMap(([role, ramp]) => {
-    const { color, alt } = rampAt(ramp, MIDSUMMER)
-    return [[role, color], [`${role}-alt`, alt]]
+    return [[role, rampAt(ramp, MIDSUMMER, 0).color], [`${role}-alt`, rampAt(ramp, MIDSUMMER, 1).color]]
   })
   return { ...OBJECT_PALETTE[flavor], ...Object.fromEntries(leaves) }
 }

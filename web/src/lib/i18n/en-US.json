@@ -2853,7 +2853,16 @@
       },
       "delivery": "Order delivery",
       "searchOn": "Search {site}",
-      "searchWeb": "Search the web"
+      "searchWeb": "Search the web",
+      "seeTimes": "See times for {party} {when}",
+      "seeRooms": "See rooms for {guests}, {nights}",
+      "notLinked": "No booking page found yet",
+      "when": {
+        "tonight": "tonight",
+        "today": "today",
+        "tomorrow": "tomorrow",
+        "date": "on {date}"
+      }
     },
     "details": {
       "address": "Address",

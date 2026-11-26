@@ -1,16 +1,19 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { BedDoubleIcon, CalendarCheckIcon, ExternalLinkIcon, SearchIcon, ShoppingBagIcon } from 'lucide-vue-next'
-import { Button } from '@/components/ui/button'
+import { BedDoubleIcon, CalendarCheckIcon, ExternalLinkIcon, GlobeIcon, SearchIcon, ShoppingBagIcon } from 'lucide-vue-next'
 import { Chip } from '@/components/ui/chip'
-import { Skeleton } from '@/components/ui/skeleton'
-import PlaceSection from './PlaceSection.vue'
+import PlaceSection from '../details/PlaceSection.vue'
 import StayPrices from './StayPrices.vue'
+import BookingRow from './BookingRow.vue'
+import BookingRowSkeleton from './BookingRowSkeleton.vue'
+import BookingLogo from './BookingLogo.vue'
 import type { Place } from '@/types/place.types'
 import { usePlaceBooking } from '@/composables/place/usePlaceBooking'
 import { useBookingData } from '@/composables/place/useBookingData'
 import { fetchStayOffers } from '@/services/place/booking.service'
+import type { BookingLink } from '@/lib/place/place-booking'
+import { bookingBrandOf, isBookingBrand, siteName } from '@/lib/place/booking-brands'
 import {
   PARTY_SIZES,
   STAY_NIGHTS,
@@ -51,10 +54,40 @@ const { data: offers, loading: offersLoading } = useBookingData(stayQuery, fetch
 const priced = computed(() => !!offers.value?.offers.length)
 const comparing = computed(() => priced.value || offersLoading.value)
 
-function linkLabel(link: { provider: string; name?: string; search?: boolean }) {
+function linkLabel(link: BookingLink) {
   if (link.provider === 'search') return t('place.booking.searchWeb')
   const site = link.name ?? t(`place.booking.providers.${link.provider}`)
   return link.search ? t('place.booking.searchOn', { site }) : site
+}
+
+const linkBrand = (link: BookingLink) =>
+  isBookingBrand(link.provider) ? link.provider : link.provider === 'other' ? bookingBrandOf(link.url) : null
+
+const linkIcon = (link: BookingLink) =>
+  link.provider === 'venue' ? GlobeIcon : link.provider === 'search' ? SearchIcon : undefined
+
+function whenLabel(day: string) {
+  const key = kind.value && dayLabelKey(day, kind.value)
+  if (key) return t(`place.booking.when.${key}`)
+  return t('place.booking.when.date', { date: dateLabel(day) })
+}
+
+/** What the page shows: a booking site opens prefilled, anyone else's site just opens. */
+const planHint = computed(() => {
+  const { day, party, nights } = plan.value
+  if (kind.value === 'table') return t('place.booking.seeTimes', { party: partyOptions.value[party - 1]?.label, when: whenLabel(day) })
+  if (kind.value === 'stay')
+    return t('place.booking.seeRooms', {
+      guests: partyOptions.value[party - 1]?.label,
+      nights: t('place.booking.nights', { n: nights }, nights),
+    })
+  return null
+})
+
+function linkHint(link: BookingLink) {
+  if (link.search) return null
+  if (link.provider === 'venue' || (link.provider === 'other' && !linkBrand(link))) return siteName(link.url)
+  return planHint.value
 }
 
 /** Searches sit quieter than a venue's own pages, and never beside them. */
@@ -71,10 +104,12 @@ const title = computed(() => {
   return kind.value ? t(`place.booking.title.${kind.value}`) : t('place.booking.delivery')
 })
 
+const dateLabel = (day: string) =>
+  new Date(`${day}T12:00`).toLocaleDateString(locale.value, { weekday: 'short', month: 'short', day: 'numeric' })
+
 function dayLabel(day: string) {
   const key = kind.value && dayLabelKey(day, kind.value)
-  if (key) return t(`place.booking.day.${key}`)
-  return new Date(`${day}T12:00`).toLocaleDateString(locale.value, { weekday: 'short', month: 'short', day: 'numeric' })
+  return key ? t(`place.booking.day.${key}`) : dateLabel(day)
 }
 
 const dayOptions = computed(() => upcomingDays().map((day) => ({ value: day, label: dayLabel(day) })))
@@ -136,53 +171,35 @@ const nightOptions = computed(() => STAY_NIGHTS.map((n) => ({ value: n, label: t
         <ExternalLinkIcon class="size-3" />
       </a>
 
-      <div v-else-if="venuesLoading && !comparing" class="flex gap-1.5 pl-7" data-testid="booking-links-skeleton">
-        <Skeleton class="h-8 w-24 rounded-md" />
-        <Skeleton class="h-8 w-20 rounded-md" />
-      </div>
-
-      <div
-        v-else-if="links.length && !offersLoading"
-        class="flex flex-wrap items-center"
-        :class="searching ? 'gap-x-1 pl-5' : 'gap-1.5 pl-7'"
-      >
-        <Button
-          v-for="link in links"
-          :key="link.provider + (link.name ?? '')"
-          as="a"
-          :href="link.url"
-          target="_blank"
-          rel="noopener noreferrer"
-          :variant="link.search ? 'ghost' : 'outline'"
-          size="sm"
-          class="gap-1.5"
-          :class="link.search && 'h-8 px-2 text-xs text-muted-foreground'"
-          data-testid="booking-link"
-        >
-          <SearchIcon v-if="link.search" class="size-3.5" />
-          {{ linkLabel(link) }}
-          <ExternalLinkIcon v-if="!link.search" class="size-3.5 text-muted-foreground" />
-        </Button>
-      </div>
-
-      <div v-if="delivery.length" class="flex flex-col gap-0.5 pl-7">
-        <span v-if="kind && links.length" class="text-xs text-muted-foreground">{{ t('place.booking.delivery') }}</span>
-        <div class="-ml-2 flex flex-wrap items-center gap-x-1">
-          <Button
-            v-for="link in delivery"
-            :key="link.name"
-            as="a"
+      <div v-else-if="!comparing && (venuesLoading || links.length || delivery.length)" class="flex flex-col pl-7">
+        <template v-if="venuesLoading">
+          <BookingRowSkeleton v-for="n in 2" :key="n" data-testid="booking-links-skeleton" />
+        </template>
+        <template v-else-if="kind && links.length">
+          <span v-if="searching" class="pb-1 text-xs text-muted-foreground">{{ t('place.booking.notLinked') }}</span>
+          <BookingRow
+            v-for="link in links"
+            :key="link.provider + (link.name ?? '')"
             :href="link.url"
-            target="_blank"
-            rel="noopener noreferrer"
-            variant="ghost"
-            size="sm"
-            class="h-8 gap-1.5 px-2 text-xs"
+            data-testid="booking-link"
           >
+            <template #logo>
+              <BookingLogo :brand="linkBrand(link)" :icon="linkIcon(link)" :name="linkLabel(link)" />
+            </template>
+            {{ linkLabel(link) }}
+            <template v-if="linkHint(link)" #detail>{{ linkHint(link) }}</template>
+          </BookingRow>
+        </template>
+
+        <template v-if="delivery.length">
+          <span v-if="kind && links.length" class="pt-2 pb-1 text-xs text-muted-foreground">
+            {{ t('place.booking.delivery') }}
+          </span>
+          <BookingRow v-for="link in delivery" :key="link.name" :href="link.url" data-testid="delivery-link">
+            <template #logo><BookingLogo :brand="link.brand" :name="link.name" /></template>
             {{ link.name }}
-            <ExternalLinkIcon class="size-3.5 text-muted-foreground" />
-          </Button>
-        </div>
+          </BookingRow>
+        </template>
       </div>
     </template>
   </PlaceSection>

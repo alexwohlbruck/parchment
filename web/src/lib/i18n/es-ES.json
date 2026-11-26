@@ -2758,7 +2758,16 @@
       },
       "delivery": "Pedir a domicilio",
       "searchOn": "Buscar en {site}",
-      "searchWeb": "Buscar en la web"
+      "searchWeb": "Buscar en la web",
+      "seeTimes": "Ver horas para {party} {when}",
+      "seeRooms": "Ver habitaciones para {guests}, {nights}",
+      "notLinked": "Aún no hay página de reservas",
+      "when": {
+        "tonight": "esta noche",
+        "today": "hoy",
+        "tomorrow": "mañana",
+        "date": "el {date}"
+      }
     },
     "details": {
       "address": "Dirección",

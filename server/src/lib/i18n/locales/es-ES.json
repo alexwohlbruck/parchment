@@ -469,5 +469,15 @@
   },
   "routing": {
     "onto": "{{action}} por {{road}}"
+  },
+  "webPlace": {
+    "note": {
+      "intro": "{{name}} no aparece en el mapa.",
+      "opensSoon": "Su sitio web dice que aún no ha abierto, así que está etiquetado como en construcción.",
+      "replaces": "Reemplaza a {{element}}, que ahora no tiene ningún negocio.",
+      "replacesNamed": "Reemplaza a {{element}} ({{former}}), que ha cerrado.",
+      "found": "Encontrado en {{site}} con Parchment.",
+      "tags": "Etiquetas sugeridas:"
+    }
   }
 }

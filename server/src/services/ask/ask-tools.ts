@@ -48,6 +48,7 @@ import { environmentTools } from './ask-environment-tools'
 import { tripTools } from './ask-trip-tools'
 import { libraryTools } from './ask-library-tools'
 import { webTools } from './ask-web-tools'
+import { webPlaceTools } from './ask-web-place-tools'
 import { canvasTools } from './ask-canvas-tools'
 import { routeTools } from './ask-route-tools'
 
@@ -507,6 +508,7 @@ export const askTools: AskTool[] = [
   ...libraryTools,
   ...routeTools,
   ...canvasTools,
+  ...webPlaceTools,
   ...webTools,
 ]
 

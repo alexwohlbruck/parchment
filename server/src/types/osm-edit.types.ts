@@ -34,6 +34,8 @@ export interface SubmitEditInput {
     lon?: number
     tags: Record<string, string>
   }
+  /** The place found on the web this edit adds. */
+  webPlaceId?: string
 }
 
 export interface SubmitEditResult {

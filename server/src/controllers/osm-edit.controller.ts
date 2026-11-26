@@ -26,6 +26,7 @@ import type { OverpassIntegration } from '../services/integrations/overpass-inte
 import { getOsmConfig } from '../config/osm.config'
 import { logError } from '../lib/logger'
 import { metersBetween } from '../util/geometry-conversion'
+import { resolveWebPlace } from '../services/web-place-listings.service'
 
 const OSM_ELEMENT_TYPE = t.Union([
   t.Literal('node'),
@@ -367,7 +368,9 @@ authedApi.post(
   '/edits',
   async ({ user, body, status }) => {
     try {
-      return await submitEdit(user.id, body)
+      const result = await submitEdit(user.id, body)
+      if (body.webPlaceId) await resolveWebPlace(body.webPlaceId, 'added').catch((error) => logError('Failed to resolve a web place', error))
+      return result
     } catch (error: any) {
       if (error instanceof OsmEditError) {
         return status(editErrorStatus(error), {
@@ -392,12 +395,13 @@ authedApi.post(
         lon: t.Optional(t.Number({ minimum: -180, maximum: 180 })),
         tags: t.Record(t.String(), t.String()),
       }),
+      webPlaceId: t.Optional(t.String({ description: 'The place found on the web this edit adds, so it gets no automatic note' })),
     }),
     detail: {
       tags: ['OSM'],
       summary: 'Submit a quick edit to OpenStreetMap',
       description:
-        "Creates a changeset, uploads the change, and closes the changeset using the user's connected OSM account.",
+        "Creates a changeset, uploads the change, and closes the changeset using the user's connected OSM account. With `webPlaceId`, the place found on the web is marked added, so it won't get an automatic note when its listing expires.",
     },
   },
 )

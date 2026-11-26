@@ -15,6 +15,7 @@ import { useSearchService, type BrandHeader } from '@/services/search.service'
 import type { Place } from '@/types/place.types'
 import type { QueryIntent, SearchResult } from '@/types/search.types'
 import PlaceList from '@/components/place/card/PlaceList.vue'
+import FindOnWebRow from '@/components/place/FindOnWebRow.vue'
 import FilterChips from '@/components/map/FilterChips.vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
 import { useRouter } from 'vue-router'
@@ -712,6 +713,11 @@ watch(
       @action="performSearch"
     />
 
+    <FindOnWebRow
+      v-if="searchType === 'text' && !searchStore.isSearching && !searchStore.hasResults && !isOffline"
+      :query="(route.query.q as string) ?? ''"
+    />
+
     <!-- Results take up remaining space -->
     <div
       v-if="
@@ -730,6 +736,11 @@ watch(
           @retry="performSearch()"
           @place-hover="searchStore.setHoveredPlace($event)"
           @place-leave="searchStore.setHoveredPlace(null)"
+        />
+        <FindOnWebRow
+          v-if="searchType === 'text' && !searchStore.isSearching && !isOffline"
+          :query="(route.query.q as string) ?? ''"
+          class="mt-2"
         />
         <!-- Scroll-pagination spinner -->
         <div v-if="isLoadingMore" class="flex justify-center py-4">

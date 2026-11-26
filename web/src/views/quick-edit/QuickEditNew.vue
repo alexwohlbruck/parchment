@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
 import { PencilIcon } from 'lucide-vue-next'
 import { useQuickEditService } from '@/services/quick-edit.service'
+import { usePlaceService } from '@/services/place/place.service'
 import { useMapService } from '@/services/map/map.service'
 import { useAppService } from '@/services/app.service'
 import { useExternalLink } from '@/composables/useExternalLink'
@@ -34,6 +35,7 @@ const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
 const quickEditService = useQuickEditService()
+const placeService = usePlaceService()
 const { addVueMarker, removeMarker } = useMapService()
 const { toast } = useAppService()
 const { openExternalLink } = useExternalLink()
@@ -45,6 +47,8 @@ const lat = ref(Number(route.query.lat))
 const lng = ref(Number(route.query.lng))
 const preset = ref<EditablePreset | null>(null)
 const tags = reactive<Record<string, string>>({})
+/** Tags carried in from a place found on its own website, kept through a change of type. */
+const draft = ref<Record<string, string>>({})
 const duplicates = ref<DuplicateCandidate[]>([])
 const submitting = ref(false)
 const sandboxServer = ref<string | null>(null)
@@ -85,6 +89,7 @@ watch(
     lng.value = Number(nextLng)
     preset.value = null
     duplicates.value = []
+    draft.value = {}
     for (const key of Object.keys(tags)) delete tags[key]
     showPin()
   },
@@ -97,7 +102,15 @@ onMounted(async () => {
   if (server && server.server !== 'production') {
     sandboxServer.value = server.serverUrl.replace(/^https?:\/\//, '')
   }
+  if (typeof route.query.place === 'string') await loadDraft(route.query.place)
 })
+
+async function loadDraft(placeId: string) {
+  const unmapped = (await placeService.lookupPlaceById(placeId))?.unmapped
+  if (!unmapped) return
+  draft.value = unmapped.tags
+  if (unmapped.presetId) await selectPreset({ id: unmapped.presetId } as PresetSummary)
+}
 
 onUnmounted(() => {
   clearTimeout(labelTimer)
@@ -146,7 +159,7 @@ watch(
 async function selectPreset(result: PresetSummary) {
   preset.value = await quickEditService.getPreset(result.id)
   for (const key of Object.keys(tags)) delete tags[key]
-  Object.assign(tags, retagForPreset({}, null, preset.value))
+  Object.assign(tags, retagForPreset({ ...draft.value }, null, preset.value))
 
   placeMarker()
   duplicates.value = await quickEditService.findDuplicates(
@@ -196,6 +209,7 @@ async function handleSubmit(comment: string) {
   submitting.value = true
   try {
     const result = await quickEditService.submitEdit({
+      webPlaceId: typeof route.query.place === 'string' ? route.query.place : undefined,
       comment: comment || t('quickEdit.defaultAddComment', { name: tags.name || preset.value.name }),
       action: 'create',
       element: {

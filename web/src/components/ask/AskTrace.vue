@@ -50,6 +50,7 @@ const TOOL_ICONS: Record<string, Component> = {
   saved_places: BookmarkIcon,
   my_vehicles: CarIcon,
   web_search: GlobeIcon,
+  find_place_on_web: GlobeIcon,
 }
 
 const open = ref(false)
@@ -79,7 +80,7 @@ const seconds = computed(() =>
       <li
         v-for="step in steps"
         :key="step.id"
-        class="flex min-w-0 items-center gap-2 text-[12.5px] animate-[fade-in_200ms_ease-out]"
+        class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] animate-[fade-in_200ms_ease-out]"
       >
         <Spinner v-if="step.status === 'running'" class="size-3.5 shrink-0 text-muted-foreground" />
         <XIcon v-else-if="step.status === 'failed'" class="size-3.5 shrink-0 text-destructive" />
@@ -87,7 +88,7 @@ const seconds = computed(() =>
         <span class="shrink-0 font-medium text-foreground">{{ step.label }}</span>
         <span
           v-if="step.detail"
-          class="min-w-0 truncate rounded-md border border-border/60 bg-muted/60 px-1.5 py-px font-mono text-[11px] text-muted-foreground"
+          class="min-w-0 max-w-full line-clamp-3 break-words rounded-md border border-border/60 bg-muted/60 px-1.5 py-px font-mono text-[11px] text-muted-foreground"
         >
           {{ step.detail }}
         </span>

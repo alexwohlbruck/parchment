@@ -3093,6 +3093,18 @@
       "empty": "No places found",
       "emptyDescription": "Try a different search or area"
     },
+    "unmapped": {
+      "title": "Not on the map yet",
+      "opensSoonTitle": "Opening soon, not on the map yet",
+      "description": "Found on {site}. Add it so others can find it too.",
+      "replacesDescription": "Found on {site}. The map still shows {former} at this address. Update it so others can find this place.",
+      "add": "Add to map",
+      "update": "Update map",
+      "note": "Tell mappers",
+      "autoNote": "If no one adds it by tomorrow, Parchment leaves mappers a note from your OpenStreetMap account.",
+      "findOnWeb": "Find “{query}” on the web",
+      "findOnWebHint": "For places that aren't on the map yet"
+    },
     "listings": {
       "title": "Business listings",
       "none": "No listing yet",
@@ -4537,6 +4549,9 @@
   },
   "ask": {
     "title": "Ask",
+    "skills": {
+      "findOnWeb": "Find on the web"
+    },
     "starting": "Reading your question",
     "searches": "1 search | {count} searches",
     "followUp": "Ask a follow-up",
@@ -4639,5 +4654,8 @@
     "remove": "Remove photo",
     "unreadable": "Couldn't open that image",
     "saveFailed": "Couldn't update your photo"
+  },
+  "recents": {
+    "remove": "Remove from recents"
   }
 }

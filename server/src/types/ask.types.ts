@@ -1,4 +1,4 @@
-import type { AttributedValue, Place, Review } from './place.types'
+import type { AttributedValue, Place, PlaceDraft, Review } from './place.types'
 import type { IsochroneGeometry } from './isochrone.types'
 import type { QueryIntent } from './search.types'
 import type { MultimodalTripResponse, RoutingPreferences, Vehicle } from './trip.types'
@@ -15,6 +15,10 @@ export interface AskPoint extends LatLng {
 }
 
 export type AskUnits = 'metric' | 'imperial'
+
+/** A task the app starts for the user, asked with a prompt the server writes. */
+export const ASK_SKILLS = ['find-on-web'] as const
+export type AskSkill = (typeof ASK_SKILLS)[number]
 
 /** A point Ask can name. A saved place reaches the model only by its name, never its coordinates. */
 export interface AskEndpoint extends LatLng {
@@ -90,6 +94,8 @@ export type AskEvent =
       /** How many things it found, once done. */
       found?: number
     }
+  /** A place a lookup is still reading, filled in as it goes; null drops it. */
+  | { type: 'draft'; id: string; place: PlaceDraft | null }
   | { type: 'reach'; geometry: IsochroneGeometry }
   /** A trip the answer recommends, for the app to open in Directions. */
   | {

@@ -47,6 +47,8 @@ export interface AskContext {
   seen: Map<string, Place>
   /** The reviews get_place showed, by place id, in ref order. An answer may cite only these. */
   reviews: Map<string, AttributedValue<Review>[]>
+  /** What the user typed this conversation, to tell their words from the web's; absent over MCP. */
+  userText?: string
   /** Answers web searches; absent where the caller has its own (MCP). */
   model?: LanguageModelCapability
   /** Web pages a search read, by url. */

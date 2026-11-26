@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import RemoveRecentButton from '@/components/recents/RemoveRecentButton.vue'
 import {
   computed,
   inject,
@@ -334,7 +335,11 @@ function navigateToRoute(routeName: AppRoute) {
             icon-variant="ghost"
             :subtitle="item.subtitle"
             @click="minimizeSheet()"
-          />
+          >
+            <template #trailing>
+              <RemoveRecentButton :identity="item.key" />
+            </template>
+          </PlaceCard>
         </div>
       </div>
       </div>

@@ -1,6 +1,7 @@
 // Import the types from the server
 import type {
   Place,
+  PlaceDraft,
   PlaceGeometry,
   Address,
   OpeningHours,
@@ -38,6 +39,7 @@ import { WidgetType, WidgetDataType } from '@server/types/place.types'
 // Re-export for use in client code
 export type {
   Place,
+  PlaceDraft,
   PlaceGeometry,
   Address,
   OpeningHours,

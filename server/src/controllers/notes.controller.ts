@@ -2,9 +2,9 @@ import { Elysia, t } from 'elysia'
 import axios from 'axios'
 import { permissions } from '../middleware/auth.middleware'
 import { PermissionId } from '../types/auth.types'
-import { getConfiguredIntegrations } from '../services/integration.service'
+import { osmAccountToken, postOsmNote } from '../services/osm-account.service'
+import { resolveWebPlace } from '../services/web-place-listings.service'
 import {
-  IntegrationId,
   OsmNote,
   OsmNoteComment,
 } from '../types/integration.types'
@@ -12,14 +12,6 @@ import { getOsmConfig } from '../config/osm.config'
 import { i18nPlugin } from '../lib/i18n/plugin'
 import { logError } from '../lib/logger'
 
-/**
- * Look up the user's OSM access token from their configured integrations.
- */
-async function getOsmAccessToken(userId: string): Promise<string | null> {
-  const integrations = await getConfiguredIntegrations(userId)
-  const osm = integrations.find(i => i.integrationId === IntegrationId.OPENSTREETMAP_ACCOUNT)
-  return (osm?.config as any)?.accessToken ?? null
-}
 
 /**
  * Adapt a raw OSM GeoJSON Feature into our OsmNote shape.
@@ -126,24 +118,15 @@ app.get(
 app.use(i18nPlugin).use(permissions(PermissionId.NOTES_WRITE)).post(
   '/create',
   async ({ body, user, status, t }) => {
-    const accessToken = await getOsmAccessToken(user.id)
+    const accessToken = await osmAccountToken(user.id)
     if (!accessToken) {
       return status(403, { message: t('errors.osm.notConfigured') })
     }
 
     try {
-      const response = await axios.post(
-        `${getOsmConfig().apiBase}/notes.json`,
-        null,
-        {
-          params: { lat: body.lat, lon: body.lng, text: body.text },
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            Accept: 'application/json',
-          },
-        },
-      )
-      return adaptNoteFeature(response.data)
+      const note = await postOsmNote(accessToken, body.lat, body.lng, body.text)
+      if (body.webPlaceId) await resolveWebPlace(body.webPlaceId, 'noted').catch((error) => logError('Failed to resolve a web place', error))
+      return adaptNoteFeature(note)
     } catch (error: any) {
       return status(...notesFailure(error, 'Failed to create note'))
     }
@@ -153,6 +136,7 @@ app.use(i18nPlugin).use(permissions(PermissionId.NOTES_WRITE)).post(
       lat: t.Number(),
       lng: t.Number(),
       text: t.String(),
+      webPlaceId: t.Optional(t.String({ description: 'The place found on the web this note is about, so it gets no automatic note' })),
     }),
     detail: {
       tags: ['Notes'],
@@ -167,7 +151,7 @@ app.use(i18nPlugin).use(permissions(PermissionId.NOTES_WRITE)).post(
 app.use(i18nPlugin).use(permissions(PermissionId.NOTES_WRITE)).post(
   '/:id/comment',
   async ({ params, body, user, status, t }) => {
-    const accessToken = await getOsmAccessToken(user.id)
+    const accessToken = await osmAccountToken(user.id)
     if (!accessToken) {
       return status(403, { message: t('errors.osm.notConfigured') })
     }
@@ -209,7 +193,7 @@ app.use(i18nPlugin).use(permissions(PermissionId.NOTES_WRITE)).post(
 app.use(i18nPlugin).use(permissions(PermissionId.NOTES_WRITE)).post(
   '/:id/close',
   async ({ params, body, user, status, t }) => {
-    const accessToken = await getOsmAccessToken(user.id)
+    const accessToken = await osmAccountToken(user.id)
     if (!accessToken) {
       return status(403, { message: t('errors.osm.notConfigured') })
     }
@@ -251,7 +235,7 @@ app.use(i18nPlugin).use(permissions(PermissionId.NOTES_WRITE)).post(
 app.use(i18nPlugin).use(permissions(PermissionId.NOTES_WRITE)).post(
   '/:id/reopen',
   async ({ params, body, user, status, t }) => {
-    const accessToken = await getOsmAccessToken(user.id)
+    const accessToken = await osmAccountToken(user.id)
     if (!accessToken) {
       return status(403, { message: t('errors.osm.notConfigured') })
     }

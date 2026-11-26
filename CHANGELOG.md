@@ -2,6 +2,9 @@
 
 ### Added
 
+* Remove a single search or place from Recents with the **×** on its row, in search or on the home screen.
+* When a business isn't on the map, Ask can look it up on its own website, or its Facebook or Instagram page when it has none, straight from search results. The place card fills in as it reads, and its icon appears on the map as soon as the address is found. You can add the place to OpenStreetMap, updating the old entry when the map still shows a closed business at its address, or leave a note for mappers that lists every suggested tag. It picks out the right location of a business with several, finds addresses shown only in a site's logo or images, takes one you give it, and marks places that haven't opened yet.
+* If no one adds a place Ask found on the web within a day, Parchment leaves mappers a note about it from your OpenStreetMap account.
 * Ask now has a shortcut in the home screen's navigation on phones.
 * Attach up to 4 screenshots when you send feedback, or paste one straight into the form.
 * Tap a departure to follow that train or bus along its line, with the time it reaches every stop.
@@ -21,6 +24,8 @@
 
 ### Fixed
 
+* Editing a place offers every detail its type supports, such as wheelchair access, email and payment methods for shops.
+* Places from Foursquare no longer show “Moving Target” or “unknown” as their type.
 * Shallow coastal seas no longer show as a pale band against the deep ocean when zoomed out.
 * NYC subway trains now show on a line's map and follow your own train during navigation.
 * Shadows of lampposts, benches, picnic tables and bins now start at their base, and small objects cast them at all.

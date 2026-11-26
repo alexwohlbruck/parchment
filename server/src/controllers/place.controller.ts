@@ -204,7 +204,7 @@ app.get(
       tags: ['Places'],
       summary: 'Get place details by ID, name/location, or coordinates',
       description:
-        'Lookup and enrich place data. Supports ID-based lookup (source+id), name-based lookup (name+lat+lng), or coordinate-based lookup (lat+lng). Coordinate-based lookups reverse geocode; when the coordinate lands on a named place, that place is returned fully enriched with its center pinned to the coordinate, otherwise the coordinate itself with its address.',
+        'Lookup and enrich place data. Supports ID-based lookup (source+id; source `web` is a business Ask found on its own website, kept for a day), name-based lookup (name+lat+lng), or coordinate-based lookup (lat+lng). Coordinate-based lookups reverse geocode; when the coordinate lands on a named place, that place is returned fully enriched with its center pinned to the coordinate, otherwise the coordinate itself with its address.',
     },
   },
 )

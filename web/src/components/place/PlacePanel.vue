@@ -32,6 +32,7 @@ import NearbyCategories from './details/NearbyCategories.vue'
 import PlaceCollections from './details/PlaceCollections.vue'
 import BrandSeeAllChip from './details/BrandSeeAllChip.vue'
 import PlaceDisplayChips from './details/PlaceDisplayChips.vue'
+import UnmappedPlaceCard from './details/UnmappedPlaceCard.vue'
 import PlaceBooking from './booking/PlaceBooking.vue'
 import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
 import SheetPageHost from '@/components/sheet/SheetPageHost.vue'
@@ -377,6 +378,8 @@ function handleBrandLogoError() {
           </div>
 
           <PlaceDisplayChips :place="place" />
+
+          <UnmappedPlaceCard v-if="place.unmapped && !place.externalIds?.osm" :place="place" />
 
           <OfflineDataNotice v-if="offline" :text="t('offlineMaps.notice.place')" />
 

@@ -14,7 +14,8 @@ import {
   type AskTool,
 } from './ask-tools'
 import { webTools } from './ask-web-tools'
-import type { AskCitation, AskPoint, AskTurn, LatLng } from '../../types/ask.types'
+import { skillQuestion } from './ask-skills'
+import type { AskCitation, AskPoint, AskSkill, AskTurn, LatLng } from '../../types/ask.types'
 import { classifyQuery } from '../query-intent.service'
 import { HERE } from '../../lib/ask/known-places'
 import { localDateTime } from '../../lib/ask/trip-summary'
@@ -36,9 +37,12 @@ export interface AskRequest {
   /** A place the question is about, looked up before the model starts. */
   placeId?: string
   point?: AskPoint
+  /** A task the app started; the question is then its subject, e.g. a business's name. */
+  skill?: AskSkill
 }
 
-function subjectQuestion({ question, point }: AskRequest): string {
+function subjectQuestion({ question: asked, point, skill }: AskRequest): string {
+  const question = skill ? skillQuestion(skill, asked) : asked
   if (!point) return question
   const at = `${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`
   return `${question}\n\nThe question is about ${point.name ? `${point.name}, at ${at}` : `the spot at ${at}`}.`
@@ -66,6 +70,7 @@ function systemPrompt(context: AskContext): string {
     'Call create_canvas when the user asks for a map or canvas, or for a route as above, after finding or building what goes on it.',
     "Change the user's library only when they ask: save_place to save a place, edit_route to change a route, share_canvas for a link anyone can open, archive to file something away.",
     'Use web_search only for what the map cannot know (events, news, menus, prices, tickets, a place that just opened or closed), then find any place it mentions with the map tools before citing it.',
+    "When find_places can't find a business the user named, try find_place_on_web before saying it doesn't exist. A place it returns isn't on the map yet: cite it, and say so in a few words.",
     'For how to get somewhere, call plan_trip, with kind when the user names a way of travelling: biking is their own bike, bikeshare only for Citi Bike and the like, never one in place of the other. A time someone must be somewhere by (work, a meeting, "monday 9am" for a commute) is arrive_by; "leave at" is depart_at. For stops on the way (water, food, a shop), find them with search_along_route, then pass the ones you pick to plan_trip as stops, so the trip goes through them. Use transit_departures for what leaves a station soon, transit_line for where a line goes and whether it is running, transit_trips only for timetables like the last train, travel_times to compare ways, and weather or wildfires when they matter.',
     `Give distances in ${context.units === 'imperial' ? 'miles and feet' : 'kilometres and metres'}, and times as the tools give them.`,
     `Finish by calling ${ANSWER_TOOL}. Keep its text to at most two short sentences, about 40 words; the cards carry the rest. For a trip, describe the first trip the tool returned (the one the app shows), with every move it makes and none presented as optional; say the moves that matter (where to pick up and drop off a bike, which line) and how long it takes; give clock times only when the user asked when, and add no caveats. The app shows a Directions button. For places, the app shows each one's distance, hours and address on a card, so never repeat them.`,
@@ -242,16 +247,14 @@ export async function runAsk(
       const answer = groundAnswer(parseArgs(answerCall), context.seen, context.reviews)
       if (!answer.unknownIds.length || last) {
         if (context.proposedTrip) context.emit(context.proposedTrip)
-        const intent = classifyQuery(request.question, {
-          language: context.language,
-        })
+        const intent = request.skill ? undefined : classifyQuery(request.question, { language: context.language })
         context.emit({
           type: 'answer',
           text: answer.text,
           places: answer.places,
           ...(answer.followUps.length && { followUps: answer.followUps }),
           ...(context.sources.size && { sources: [...context.sources.values()] }),
-          ...(intent.category ? { browse: intent } : {}),
+          ...(intent?.category ? { browse: intent } : {}),
         })
         return
       }

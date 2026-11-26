@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useNotesService } from '@/services/notes.service'
@@ -9,6 +9,10 @@ import { LngLat } from '@/types/map.types'
 import { AppRoute } from '@/router'
 import CreateNoteMarker from '@/components/map/markers/CreateNoteMarker.vue'
 import CreateNotePanel from '@/components/notes/CreateNotePanel.vue'
+import ConnectPrompt from '@/components/quick-edit/ConnectPrompt.vue'
+import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
+import { useIntegrationsStore } from '@/stores/integrations.store'
+import { IntegrationId } from '@/types/integrations.types'
 
 const route = useRoute()
 const router = useRouter()
@@ -22,6 +26,13 @@ const MARKER_ID = 'create-note-marker'
 const lat = ref(Number(route.query.lat))
 const lng = ref(Number(route.query.lng))
 const isSubmitting = ref(false)
+const initialText = typeof route.query.text === 'string' ? route.query.text : ''
+const webPlaceId = typeof route.query.place === 'string' ? route.query.place : undefined
+
+const integrationsStore = useIntegrationsStore()
+const osmConnected = computed(() =>
+  Boolean(integrationsStore.getIntegrationConfig(IntegrationId.OPENSTREETMAP_ACCOUNT)),
+)
 
 onMounted(() => {
   placeMarker()
@@ -52,7 +63,7 @@ function placeMarker() {
 async function handleSubmit(text: string) {
   isSubmitting.value = true
   try {
-    const note = await notesService.createNote(lat.value, lng.value, text)
+    const note = await notesService.createNote(lat.value, lng.value, text, webPlaceId)
     toast.success(t('notes.noteCreated'))
     // Refresh notes layer markers
     await notesService.refreshNotes()
@@ -66,9 +77,14 @@ async function handleSubmit(text: string) {
 </script>
 
 <template>
+  <PanelLayout v-if="!osmConnected">
+    <ConnectPrompt />
+  </PanelLayout>
   <CreateNotePanel
+    v-else
     :lat="lat"
     :lng="lng"
+    :initial-text="initialText"
     :is-submitting="isSubmitting"
     @submit="handleSubmit"
   />

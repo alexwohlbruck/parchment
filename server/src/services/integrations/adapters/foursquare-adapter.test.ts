@@ -241,4 +241,14 @@ describe('FoursquareAdapter attributes → OSM tags', () => {
     ])
     expect(place.openingHours?.value.isPermanentlyClosed).toBe(true)
   })
+
+  it('ignores the catch-all category for venues that move around', () => {
+    const place = adapter.adaptPlace({
+      fsq_place_id: 'p',
+      name: 'Pianoland',
+      categories: [{ fsq_category_id: '4f2a23984b9023bd5841ed2c', name: 'Moving Target' }],
+    })
+    expect(place.placeType.value).toBe('')
+    expect(Object.values(place.amenities ?? {}).map(({ value }) => value)).not.toContain('Moving Target')
+  })
 })

@@ -469,5 +469,15 @@
   },
   "routing": {
     "onto": "{{action}} onto {{road}}"
+  },
+  "webPlace": {
+    "note": {
+      "intro": "{{name}} is missing from the map.",
+      "opensSoon": "Its website says it hasn't opened yet, so it's tagged as under construction.",
+      "replaces": "It takes over {{element}}, which has no business on it now.",
+      "replacesNamed": "It takes over {{element}} ({{former}}), which has closed.",
+      "found": "Found on {{site}} with Parchment.",
+      "tags": "Suggested tags:"
+    }
   }
 }

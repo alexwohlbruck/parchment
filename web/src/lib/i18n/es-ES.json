@@ -2985,6 +2985,18 @@
       "title": "Lugar no disponible",
       "description": "No pudimos cargar este lugar"
     },
+    "unmapped": {
+      "title": "Aún no está en el mapa",
+      "opensSoonTitle": "Abre pronto, aún no está en el mapa",
+      "description": "Encontrado en {site}. Añádelo para que otros también lo encuentren.",
+      "replacesDescription": "Encontrado en {site}. El mapa aún muestra {former} en esta dirección. Actualízalo para que otros encuentren este lugar.",
+      "add": "Añadir al mapa",
+      "update": "Actualizar mapa",
+      "note": "Avisar a los mapeadores",
+      "autoNote": "Si nadie lo añade antes de mañana, Parchment deja una nota a los mapeadores desde tu cuenta de OpenStreetMap.",
+      "findOnWeb": "Buscar “{query}” en la web",
+      "findOnWebHint": "Para lugares que aún no están en el mapa"
+    },
     "listings": {
       "title": "Fichas de negocio",
       "none": "Sin ficha",
@@ -4261,6 +4273,9 @@
   },
   "ask": {
     "title": "Preguntar",
+    "skills": {
+      "findOnWeb": "Buscar en la web"
+    },
     "starting": "Leyendo tu pregunta",
     "searches": "1 búsqueda | {count} búsquedas",
     "followUp": "Haz otra pregunta",
@@ -4363,5 +4378,8 @@
     "remove": "Quitar foto",
     "unreadable": "No se pudo abrir esa imagen",
     "saveFailed": "No se pudo actualizar tu foto"
+  },
+  "recents": {
+    "remove": "Quitar de recientes"
   }
 }

@@ -129,7 +129,7 @@ describe('GlobeSky', () => {
     expect(calls.uniform1f).toHaveBeenCalledWith('u_cloud_blend', 0)
     expect(calls.uniform1f).toHaveBeenCalledWith('u_ocean_blend', 0)
     expect(calls.uniform1f).toHaveBeenCalledWith('u_moon_visible', 0)
-    expect(calls.uniform1f).toHaveBeenCalledWith('u_night_brightness', 0.14)
+    expect(calls.uniform1f).toHaveBeenCalledWith('u_night_brightness', 0.16)
     expect(fetch).not.toHaveBeenCalled()
     sky.onRemove(host, gl)
     sky.onAdd(host, gl)

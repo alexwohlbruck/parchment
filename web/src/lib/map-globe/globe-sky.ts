@@ -100,10 +100,10 @@ vec3 sunGlow(vec3 ray) {
     float disc = 1.0 - smoothstep(0.00465 - antialias, 0.00465 + antialias, angle);
     float corona = exp(-angle / 0.014) * 0.7;
     float bloom = exp(-pow(angle / 0.065, 1.4)) * 0.16;
-    float haze = exp(-pow(angle / 0.28, 2.0)) * 0.035;
+    float haze = exp(-pow(angle / 0.28, 2.0)) * 0.02;
     return vec3(1.0, 0.96, 0.82) * disc
-        + vec3(1.0, 0.86, 0.64) * corona
-        + vec3(1.0, 0.62, 0.30) * bloom
+        + vec3(1.0, 0.76, 0.45) * corona
+        + vec3(1.0, 0.56, 0.23) * bloom
         + vec3(1.0, 0.80, 0.55) * haze;
 }
 float bell(float x, float width) {
@@ -139,10 +139,14 @@ void main() {
     vec2 skyUv = vec2(0.5 - atan(galactic.y, galactic.x) / 6.28318530718, 0.5 - asin(clamp(galactic.z, -1.0, 1.0)) / 3.14159265359);
     vec3 galaxy = pow(max(texture(u_milky_way, skyUv).rgb - vec3(0.04), vec3(0.0)), vec3(1.35));
     vec3 spaceColor = (atmosphereColor * outerHaze + rim * outerRim) * scatter * atmosphereExposure;
-    // Seen from the night side, the whole limb is a sunset.
+    // Twilight along the limb: gold where the sun has just set, deepening to red further into night.
     float ember = bell(limbSun + 0.1, 0.17) * u_lighting;
     float height = max(edge, 0.0);
-    spaceColor += vec3(1.0, 0.46, 0.18) * ember * (exp(-height / 0.02) * 0.55 + exp(-height / 0.06) * 0.14) * atmosphereExposure;
+    vec3 emberColor = mix(vec3(1.0, 0.66, 0.30), vec3(0.85, 0.22, 0.10), smoothstep(-0.02, -0.25, limbSun));
+    spaceColor += emberColor * ember * (exp(-height / 0.02) * 0.33 + exp(-height / 0.06) * 0.08) * atmosphereExposure;
+    // Airglow: a faint green band about 100 km up, visible only above the night side.
+    float airglow = bell(height - 0.016, 0.004) * (1.0 - smoothstep(-0.3, -0.05, limbSun)) * u_lighting;
+    spaceColor += vec3(0.30, 0.85, 0.45) * airglow * 0.07 * atmosphereExposure;
     spaceColor += galaxy * u_galaxy_blend * (0.06 + 0.045 * (u_exposure - 1.0));
     spaceColor += sunGlow(ray);
     spaceColor += vec3(0.86, 0.91, 1.0) * stars(galactic) * (1.0 - min(1.0, outerHaze * scatter)) * mix(1.0, 0.6, u_galaxy_blend) * atmosphereExposure;
@@ -208,9 +212,9 @@ const UNIFORMS = [
 ] as const
 
 const SATELLITE_NIGHT = [0.004, 0.008, 0.02]
-const STANDARD_NIGHT = [0.010, 0.021, 0.060]
+const STANDARD_NIGHT = [0.007, 0.015, 0.040]
 // City lights sit under the vector labels, so they are dimmer than over imagery.
-const STANDARD_LIGHTS = 0.7
+const STANDARD_LIGHTS = 0.5
 
 export class GlobeSky implements CustomLayerInterface {
   readonly id = 'globe-sky'
@@ -309,7 +313,7 @@ export class GlobeSky implements CustomLayerInterface {
     gl.uniform3fv(u.u_night_color, satellite ? SATELLITE_NIGHT : STANDARD_NIGHT)
     gl.uniform3fv(u.u_sun, sun)
     gl.uniform1f(u.u_lighting, lighting ? 1 : 0)
-    gl.uniform1f(u.u_night_brightness, satellite ? 0.09 : 0.14)
+    gl.uniform1f(u.u_night_brightness, satellite ? 0.09 : 0.16)
     gl.uniform1f(u.u_pixel_ratio, this.map.getPixelRatio())
     gl.uniform1f(u.u_opacity, fade * fade * (3 - 2 * fade))
     const fading = [this.galaxy, this.atmosphere, this.clouds, this.ocean, this.lights, this.moon].some(texture => texture.ready && texture.blend < 1)

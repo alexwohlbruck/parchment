@@ -112,11 +112,13 @@ export function project(
 }
 
 /** Seconds a plant takes to grow in once it is placed. */
-const GROW_SECONDS = 0.7
+const GROW_SECONDS = 0.45
 /** Most a plant's entrance waits, rippling out from the middle of the view. */
-const GROW_RIPPLE_SECONDS = 0.45
+const GROW_RIPPLE_SECONDS = 0.25
 /** A birth for anything already whole: finite, since GPUs disagree on infinities. */
 const LONG_AGO = -1e6
+/** Cells per mercator unit a plant's place is keyed to, about half a metre: two to the 26th, so x and y pack exactly into one number. */
+const KEY_CELLS = 2 ** 26
 /** Seconds a plant may be missing from a gather, as between tiles, and still not grow in again. */
 const BIRTH_MEMORY_SECONDS = 4
 
@@ -239,7 +241,7 @@ const VS = `#version 300 es
     float occlusion = mix(1.0 - u_occlusion.z, 1.0, smoothstep(0.0, 1.0, rise));
     vec3 base = mix(u_color, u_color_alt, a_tint);
     // A plant growing in fills out clump by clump, the way a thinning crown empties.
-    v_leaf = day.a * smoothstep(0.0, 0.8, grown);
+    v_leaf = day.a * smoothstep(0.0, 0.5, grown);
     if (u_seasonal > 0.0) base = mix(day.rgb, mix(u_rampAlt[i], u_rampAlt[j], t), a_tint);
     v_grain = a_position * 8.0 + a_shape.z * 17.0;
     v_color = base * a_shade * occlusion * mix(u_ambient, 1.0, lit);
@@ -329,24 +331,20 @@ const DEPTH_FS = `
   precision mediump float;
   void main() { gl_FragColor = vec4(1.0); }`
 
-/** The object where it stands, for the sun's shadow map: `VS` without the light or the flutter. */
+/** The object where it stands, for the sun's shadow map: `VS` without the light, the flutter or the growth, so a cached map is never caught mid-entrance. */
 const SUN_VS = `
   uniform mat4 u_matrix;
-  uniform float u_now;
   attribute vec3 a_position;
   attribute vec3 a_offset;
   attribute vec4 a_shape;
   attribute vec2 a_slope;
-  attribute float a_born;
-  ${GROWTH_GLSL}
   void main() {
     float c = cos(a_shape.z);
     float s = sin(a_shape.z);
-    float grown = growth(a_born);
     vec3 p = vec3(a_position.x * a_shape.w, -a_position.z, a_position.y);
     p = vec3(p.x * c - p.y * s, p.x * s + p.y * c, p.z);
-    vec2 across = p.xy * a_shape.y * mix(0.4, 1.0, grown);
-    gl_Position = u_matrix * vec4(a_offset + vec3(across, p.z * a_shape.x * grown + dot(a_slope, across)), 1.0);
+    vec2 across = p.xy * a_shape.y;
+    gl_Position = u_matrix * vec4(a_offset + vec3(across, p.z * a_shape.x + dot(a_slope, across)), 1.0);
   }`
 
 /** Metres an object must stand to close in the ground round it: a tree does, a bollard does not. */
@@ -537,7 +535,7 @@ export type Placed = {
   /** Metres the deck it stands on is over the ground. */
   raised?: number
   /** Where a plant that grows in stands, so it keeps its entrance from one gather to the next. */
-  key?: string
+  key?: number
   /** When it was placed, on the layer's clock; long ago for anything that does not grow in. */
   born?: number
 }
@@ -607,7 +605,7 @@ export class ObjectLayer {
   private program = new LazyProgram(VS, FS, [
     'u_matrix', 'u_light', 'u_ambient', 'u_color', 'u_color_alt', 'u_occlusion', 'u_flutter', 'u_time', 'u_now', 'u_lightUv', 'u_perMetre', 'u_lamp', 'u_seasonal', 'u_ramp', 'u_rampAlt', 'u_year', 'u_sheer',
     ...LAMP_LIGHT_UNIFORMS, 'u_sunLight', ...SUN_SHADOW_UNIFORMS, 'u_shadowAlpha', 'u_shadowColor'], 'objects', LOC)
-  private sunProgram = new LazyProgram(SUN_VS, DEPTH_FS, ['u_matrix', 'u_now'], 'objects', LOC)
+  private sunProgram = new LazyProgram(SUN_VS, DEPTH_FS, ['u_matrix'], 'objects', LOC)
   /** This frame's sun shadow map, handed over by the map's shading before this layer draws. */
   private sun: SunFrame | null = null
   private lights: GroundLights | null = null
@@ -623,7 +621,8 @@ export class ObjectLayer {
   private retiredArrays: WebGLVertexArrayObject[] = []
   private placed: Placed[] = []
   /** When each plant was placed and last seen, by where it stands; see \`birth\`. */
-  private births = new Map<string, { born: number; seen: number }>()
+  private births = new Map<number, { born: number; seen: number }>()
+  private prunedAt = 0
   private epoch = performance.now()
   /** When the last plant growing in is done, on the layer's clock; until then every frame is drawn. */
   private growingUntil = 0
@@ -984,7 +983,6 @@ export class ObjectLayer {
         const instance = spec.toInstance(feature, lng, lat, i)
         if (!instance) continue
         const placed: Placed = { instance, x: 0, y: 0, z: 0, perMetre: 0, gx: 0, gy: 0 }
-        if (spec.grows) placed.key = `${Math.round(lng * 1e6)},${Math.round(lat * 1e6)}`
         project(lng, lat, 0, placed)
         const meets = terrain ? spec.deck?.(instance) : null
         if (meets === 'clear' && this.surfaceAt) {
@@ -1029,10 +1027,11 @@ export class ObjectLayer {
           placed.gx += run * Math.cos(instance.heading)
           placed.gy += run * Math.sin(instance.heading)
         }
+        if (spec.grows) placed.key = Math.round(placed.x * KEY_CELLS) * KEY_CELLS + Math.round(placed.y * KEY_CELLS)
         placedNow.push(placed)
       }
     }
-    this.birth(placedNow)
+    yield* this.birth(placedNow)
     this.placed = placedNow
   }
 
@@ -1045,14 +1044,16 @@ export class ObjectLayer {
    * Give each plant placed for the first time a moment to grow in from, rippling out from the
    * middle of the view; one seen recently keeps its own, so a new tile or a pan does not replay it.
    */
-  private birth(placed: Placed[]) {
+  private *birth(placed: Placed[]): Generator<void> {
     const now = this.clock()
     const still = this.stillness?.matches ?? false
     const { x: cx, y: cy } = MercatorCoordinate.fromLngLat(this.map.getCenter(), 0)
     const canvas = this.map.getCanvas?.()
     const reach = mercatorPerPixel(this.map.getZoom()) * Math.max(canvas?.clientWidth ?? 1000, canvas?.clientHeight ?? 1000) * 0.6
-    for (const p of placed) {
-      if (!p.key) continue
+    for (let i = 0; i < placed.length; i++) {
+      if (i % (STEP * 2) === STEP * 2 - 1) yield
+      const p = placed[i]
+      if (p.key === undefined) continue
       const known = this.births.get(p.key)
       if (known) {
         p.born = known.born
@@ -1060,11 +1061,17 @@ export class ObjectLayer {
         continue
       }
       const away = Math.min(Math.hypot(p.x - cx, p.y - cy) / reach, 1)
-      p.born = still ? LONG_AGO : now + away * GROW_RIPPLE_SECONDS + (p.instance.tint ?? 0) * 0.12
+      p.born = still ? LONG_AGO : now + away * GROW_RIPPLE_SECONDS + (p.instance.tint ?? 0) * 0.08
       this.births.set(p.key, { born: p.born, seen: now })
       this.growingUntil = Math.max(this.growingUntil, p.born + GROW_SECONDS)
     }
-    for (const [key, birth] of this.births) if (now - birth.seen > BIRTH_MEMORY_SECONDS) this.births.delete(key)
+    if (now - this.prunedAt < BIRTH_MEMORY_SECONDS) return
+    this.prunedAt = now
+    let n = 0
+    for (const [key, birth] of this.births) {
+      if (++n % (STEP * 4) === 0) yield
+      if (now - birth.seen > BIRTH_MEMORY_SECONDS) this.births.delete(key)
+    }
   }
 
   /**
@@ -1438,7 +1445,6 @@ export class ObjectLayer {
     if (!depth) return
     gl.useProgram(depth.program)
     gl.uniformMatrix4fv(depth.u.u_matrix, false, lightAbout(frame.matrix, this.origin))
-    gl.uniform1f(depth.u.u_now, this.clock())
     for (const batch of this.batches) {
       const model = this.models.get(shadowModel(batch, this.models))
       if (!model || this.tallest(batch) < least) continue
@@ -1459,7 +1465,6 @@ export class ObjectLayer {
     if (!depth) return
     gl.useProgram(depth.program)
     gl.uniformMatrix4fv(depth.u.u_matrix, false, lightAbout(frame.light, this.origin))
-    gl.uniform1f(depth.u.u_now, this.clock())
     for (const batch of this.batches) {
       const name = shadowModel(batch, this.models)
       const model = this.models.get(name)

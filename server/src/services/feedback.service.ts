@@ -10,6 +10,8 @@ import type {
   FeedbackPortalLogin,
 } from '../types/integration.types'
 import { logError } from '../lib/logger'
+import { toWebp } from '../lib/webp'
+import { blobStore, publicUrl } from './storage/storage.service'
 
 export type { FeedbackBoard, FeedbackSubmission, SubmittedFeedback }
 
@@ -53,10 +55,45 @@ export async function listBoards(): Promise<FeedbackBoard[]> {
   return provider().listBoards()
 }
 
-export async function submitFeedback(
-  input: FeedbackSubmission,
-): Promise<SubmittedFeedback> {
-  return provider().submitFeedback(input)
+const SCREENSHOT_MAX_EDGE = 2048
+
+async function storeScreenshot(image: Uint8Array) {
+  const webp = await toWebp(image, {
+    width: SCREENSHOT_MAX_EDGE,
+    height: SCREENSHOT_MAX_EDGE,
+    fit: 'inside',
+    withoutEnlargement: true,
+  })
+  const key = `feedback/${crypto.randomUUID()}.webp`
+  await blobStore.put(key, webp, 'image/webp')
+  return key
+}
+
+/** Post body in markdown: the user's text, then each screenshot as an image. */
+function withScreenshots(content: string, urls: string[]) {
+  const images = urls.map((url, i) => `![Screenshot ${i + 1}](${url})`)
+  return [content, ...images].filter(Boolean).join('\n\n')
+}
+
+/**
+ * Screenshots are stored first so the post can link them; the provider copies
+ * them from there. A post that fails takes its screenshots with it.
+ */
+export async function submitFeedback({
+  screenshots = [],
+  ...input
+}: FeedbackSubmission & { screenshots?: Uint8Array[] }): Promise<SubmittedFeedback> {
+  const feedback = provider()
+  const keys = await Promise.all(screenshots.map(storeScreenshot))
+  try {
+    return await feedback.submitFeedback({
+      ...input,
+      content: withScreenshots(input.content, keys.map(publicUrl)),
+    })
+  } catch (error) {
+    await Promise.allSettled(keys.map((key) => blobStore.delete(key)))
+    throw error
+  }
 }
 
 export function isFeedbackPortalLoginEnabled(): boolean {

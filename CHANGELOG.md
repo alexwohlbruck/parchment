@@ -3,8 +3,14 @@
 ### Added
 
 * When a business isn't on the map, Ask can look it up on its own website, straight from search results, showing each step as it goes. You can add the place to OpenStreetMap, updating the old entry when the map still shows a closed business at its address, or leave a note for mappers that lists every suggested tag. It picks out the right location of a business with several, finds addresses shown only in a site's logo or images, takes one you give it, and marks places that haven't opened yet.
+* Ask now has a shortcut in the home screen's navigation on phones.
+* Attach up to 4 screenshots when you send feedback, or paste one straight into the form.
+* Tap a departure to follow that train or bus along its line, with the time it reaches every stop.
 
 ### Changed
+
+* Press Enter in search to see all results right away, without waiting for suggestions. When a search clearly means one place or address, it opens straight away, and Back shows the full results.
+* Searching for a kind of place or a chain, like "coffee" or "Starbucks", opens that browse straight away, and a question opens Ask.
 
 ### Fixed
 
@@ -49,6 +55,7 @@
 * Location sharing with friends on other servers isn't available yet, and the switch says so.
 * Water names are set in italic, in every map style.
 * A menu or dialog opened over a sheet now tucks that sheet behind it and dims the map, so it's clear what you're using. Tap outside to close it.
+* Ferry routes draw as the map's own dashed ferry lanes, so busy harbours no longer turn into a solid band over the water.
 * Your recovery key is now 24 words that are easier to write down and type back in. Anyone with an older recovery key will be asked to save the words instead.
 * Deleting a passkey tells you when it's one that can unlock your encrypted data on a new device, and when it's the only one.
 * Passkeys from more password managers can unlock your encrypted data, since adding one now checks a second time before giving up.

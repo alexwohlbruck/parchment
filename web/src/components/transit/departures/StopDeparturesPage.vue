@@ -36,6 +36,7 @@ import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
 import SheetPageHeader from '@/components/sheet/SheetPageHeader.vue'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
+import { useOpenDeparture } from '@/composables/transit/useOpenDeparture'
 
 /** Past this, a countdown stops being easier to read than a clock time. */
 
@@ -54,6 +55,7 @@ const props = defineProps<{
 const { t } = useI18n()
 const { openExternalLink } = useExternalLink()
 const router = useRouter()
+const openDeparture = useOpenDeparture()
 const currentTime = useTransitClock()
 
 /** Runs loaded on demand replace the widget's opening set. */
@@ -319,14 +321,21 @@ function openTransitlandLink() {
             style="grid-template-columns: 1fr auto"
           >
             <!-- Row 1: headsign + next 2 countdowns -->
-            <span class="text-sm truncate">{{ dir.headsign }}</span>
+            <button
+              type="button"
+              class="text-sm truncate text-left"
+              @click="dir.departures[0] && openDeparture(transitInfo?.feedId, dir.departures[0])"
+            >{{ dir.headsign }}</button>
             <div class="flex items-center gap-1 justify-end">
               <template v-for="(dep, i) in dir.departures.slice(0, 2)" :key="i">
                 <span v-if="i > 0" class="text-muted-foreground text-xs">,</span>
-                <span
-                  class="text-sm tabular-nums"
+                <button
+                  type="button"
+                  class="text-sm tabular-nums rounded-sm underline-offset-2 hover:underline"
                   :class="{ 'text-green-600 dark:text-green-400 font-medium': i === 0 && getMinutesUntil(dep, currentTime) !== null && getMinutesUntil(dep, currentTime)! <= 1 }"
-                >{{ formatMin(dep) }}</span>
+                  :title="t('place.transit.followRun')"
+                  @click="openDeparture(transitInfo?.feedId, dep)"
+                >{{ formatMin(dep) }}</button>
                 <RealtimeIndicator v-if="dep.realTime" :realTime="true" class="shrink-0" />
               </template>
             </div>
@@ -343,7 +352,12 @@ function openTransitlandLink() {
                   class="text-[10px] text-muted-foreground rounded bg-muted px-1.5 py-0.5"
                 >{{ dep.dayLabel }}</span>
                 <span v-else-if="i > 0" class="text-muted-foreground text-[10px]">,</span>
-                <span class="text-xs tabular-nums text-muted-foreground">{{ formatDepartureTime(dep) }}</span>
+                <button
+                  type="button"
+                  class="text-xs tabular-nums text-muted-foreground rounded-sm underline-offset-2 hover:underline hover:text-foreground"
+                  :title="t('place.transit.followRun')"
+                  @click="openDeparture(transitInfo?.feedId, dep)"
+                >{{ formatDepartureTime(dep) }}</button>
                 <RealtimeIndicator v-if="dep.realTime" :realTime="true" class="shrink-0" />
               </template>
               <span v-if="dir.departures.length > 8" class="text-xs text-muted-foreground">

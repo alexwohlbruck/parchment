@@ -134,24 +134,41 @@ function searchService() {
     return response.data
   }
 
-  async function search(
+  /** `requestSearch` with loading and error state; null when it failed. */
+  async function trackedSearch(
     options: SearchOptions,
     signal?: AbortSignal,
-  ): Promise<SearchResult[] | AutocompleteResult[]> {
+  ): Promise<SearchResponse | AutocompleteResponse | null> {
     loading.value = true
     error.value = null
 
     try {
-      return (await requestSearch(options, signal)).results
+      return await requestSearch(options, signal)
     } catch (err) {
-      if (axios.isCancel(err)) return []
+      if (axios.isCancel(err)) return null
       console.error('Error in search:', err)
       error.value =
         err instanceof Error ? err.message : 'Unknown error occurred'
-      return []
+      return null
     } finally {
       loading.value = false
     }
+  }
+
+  async function search(
+    options: SearchOptions,
+    signal?: AbortSignal,
+  ): Promise<SearchResult[] | AutocompleteResult[]> {
+    return (await trackedSearch(options, signal))?.results ?? []
+  }
+
+  /** The committed search, plus the one result it clearly means, if any. */
+  async function fullSearch(
+    options: SearchOptions,
+    signal?: AbortSignal,
+  ): Promise<Partial<SearchResponse> & Pick<SearchResponse, 'results'>> {
+    const response = await trackedSearch({ ...options, autocomplete: false }, signal)
+    return response ? (response as SearchResponse) : { results: [] }
   }
 
   /**
@@ -350,6 +367,7 @@ function searchService() {
     getAutocomplete,
     getAutocompleteSuggestions,
     search,
+    fullSearch,
     searchLocally,
     searchByCategory,
     searchByBrand,

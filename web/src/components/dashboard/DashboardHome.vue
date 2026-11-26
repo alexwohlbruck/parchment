@@ -16,6 +16,9 @@ import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useLayersStore } from '@/stores/layers.store'
 import { useCanvasesStore } from '@/stores/library/canvases.store'
 import { useRecentsStore } from '@/stores/recents.store'
+import { useAskStore } from '@/stores/ask.store'
+import { useAskService } from '@/services/ask/ask.service'
+import { isAskOffered } from '@/lib/ask/ask-access'
 import { useResponsive } from '@/lib/utils'
 import { Card } from '@/components/ui/card'
 
@@ -48,6 +51,8 @@ const canvasesStore = useCanvasesStore()
 const recentsStore = useRecentsStore()
 const { places: recentPlaces, searches: recentSearches } = storeToRefs(recentsStore)
 const { isMobileScreen, isDesktopScreen } = useResponsive()
+const askStore = useAskStore()
+useAskService().loadAccess().catch(() => null)
 
 const minimizeSheet = inject<() => void>('minimizeMobileSheet', () => {})
 const expandSheet = inject<() => void>('expandMobileSheet', () => {})
@@ -270,6 +275,15 @@ function navigateToRoute(routeName: AppRoute) {
           >
             <ItemIcon icon="Navigation" color="forest" size="sm" variant="ghost" />
             <span class="font-medium text-sm">{{ t('directions.title') }}</span>
+          </Card>
+
+          <Card
+            v-if="isAskOffered(askStore.access)"
+            class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border"
+            @click="navigateTo('/ask')"
+          >
+            <ItemIcon icon="MessageCircleQuestion" color="teal" size="sm" variant="ghost" />
+            <span class="font-medium text-sm">{{ t('ask.title') }}</span>
           </Card>
 
           <Card

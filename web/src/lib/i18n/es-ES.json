@@ -216,7 +216,6 @@
         "groups": {
           "frequents": "Frecuentes",
           "suggestedCategories": "Categorías",
-          "fullSearch": "Buscar",
           "recents": "Recientes",
           "brands": "Marcas",
           "categories": "Categorías",
@@ -2630,7 +2629,13 @@
     "submittedDescription": "Te avisaremos cuando haya novedades.",
     "viewPost": "Ver",
     "submitFailed": "No se pudieron enviar tus comentarios. Inténtalo de nuevo.",
-    "loadFailed": "No se pudieron cargar los tableros de comentarios."
+    "loadFailed": "No se pudieron cargar los tableros de comentarios.",
+    "addScreenshot": "Añadir captura",
+    "removeScreenshot": "Quitar captura",
+    "screenshotAlt": "Captura {n}",
+    "screenshotType": "Las capturas deben ser PNG, JPEG o WebP",
+    "screenshotTooLarge": "Las capturas deben pesar menos de 10 MB",
+    "screenshotLimit": "Puedes adjuntar hasta 4 capturas"
   },
   "profileMenu": {
     "shortcuts": "Atajos",

@@ -196,7 +196,9 @@
     "feedback": {
       "unavailable": "Feedback is not available on this server",
       "fetchFailed": "Failed to load feedback boards",
-      "submitFailed": "Failed to submit feedback"
+      "submitFailed": "Failed to submit feedback",
+      "tooManyScreenshots": "Attach up to 4 screenshots",
+      "invalidScreenshot": "Screenshots must be JPEG, PNG, or WebP images under 10MB"
     },
     "ask": {
       "notConfigured": "Ask isn't set up on this server",

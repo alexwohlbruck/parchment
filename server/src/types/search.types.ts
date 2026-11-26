@@ -110,6 +110,9 @@ export interface SearchResponse {
   query: string
   results: SearchResult[]
   totalCount: number
+  /** The id of the one result the query clearly means: a place, category, brand or transit line. */
+  match?: string
+  intent: QueryIntent
 }
 
 /** What a typed query is after: a name to look up, a filtered browse, or a question. */

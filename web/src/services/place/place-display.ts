@@ -7,7 +7,7 @@ import type { RouteBulletStyle } from '@/types/transit.types'
 import type { AutocompleteResult } from '@/types/search.types'
 import type { ThemeColor } from '@/lib/utils'
 import { AppRoute } from '@/router'
-import { getPlaceRoute, getPlaceRouteFromExternalIds, getTransitStopRoute } from '@/lib/place/place-route'
+import { getPlaceRoute, getPlaceRouteFromExternalIds, getResultPlaceRoute } from '@/lib/place/place-route'
 import { formatAddress } from '@/lib/place/place-details'
 import { resolveOpeningStatus } from '@/lib/place/place-hours'
 import { getCategoryColor } from '@/services/place/place-colors'
@@ -167,17 +167,7 @@ export function placeToDisplay(
     reviewCount: place.ratings?.reviewCount?.value ?? null,
     openState,
     hoursText,
-    // A GTFS-only stop has no OSM place to open — route to its coordinates
-    // instead (a transit-route id resolves fine through getPlaceRoute).
-    route: place.transitStop
-      ? getTransitStopRoute(
-          title,
-          place.geometry?.value?.center?.lat ?? 0,
-          place.geometry?.value?.center?.lng ?? 0,
-        )
-      : place.id
-        ? getPlaceRoute(place.id)
-        : null,
+    route: place.transitStop || place.id ? getResultPlaceRoute(place, title) : null,
   }
 }
 

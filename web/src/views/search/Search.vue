@@ -13,13 +13,17 @@ import { useDebounceFn } from '@vueuse/core'
 import type { MapCamera, MapBounds } from '@/types/map.types'
 import { useSearchService, type BrandHeader } from '@/services/search.service'
 import type { Place } from '@/types/place.types'
-import type { SearchResult } from '@/types/search.types'
+import type { QueryIntent, SearchResult } from '@/types/search.types'
 import PlaceList from '@/components/place/card/PlaceList.vue'
 import FindOnWebRow from '@/components/place/FindOnWebRow.vue'
 import FilterChips from '@/components/map/FilterChips.vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
 import { useRouter } from 'vue-router'
 import { getPlaceRoute } from '@/lib/place/place-route'
+import { searchMatchRoute } from '@/lib/search/search-match'
+import { isAskOffered } from '@/lib/ask/ask-access'
+import { useAskService } from '@/services/ask/ask.service'
+import { useAskPreferencesStore } from '@/stores/preferences/ask-preferences.store'
 import { localResultAsPlace } from '@/lib/search/local-search'
 import { usePlaceService } from '@/services/place/place.service'
 import { useRecentsStore } from '@/stores/recents.store'
@@ -301,6 +305,12 @@ function frameNearestResults(places: Place[], count: number) {
   }
 }
 
+/** Whether a question opens Ask, as the palette puts Ask first for one. */
+async function askOnEnter(intent?: QueryIntent): Promise<boolean> {
+  if (intent?.intent !== 'ask' || !useAskPreferencesStore().preferences.suggest) return false
+  return isAskOffered(await useAskService().loadAccess().catch(() => null))
+}
+
 async function performSearch(opts: { refit?: boolean } = {}) {
   // `refit` frames the camera to a brand's nearest locations. Only true for a
   // fresh brand search — a map-move re-search must NOT re-fit, or the user could
@@ -407,9 +417,22 @@ async function performSearch(opts: { refit?: boolean } = {}) {
         lng: center.lng,
         maxResults,
       }
-      const searchResults = isOffline.value
-        ? []
-        : await searchService.search({ ...options, autocomplete: false })
+      const response = isOffline.value
+        ? { results: [] }
+        : await searchService.fullSearch(options)
+      const searchResults = response.results
+
+      // Coming back from what a search opened shows the list instead.
+      const returned = !!router.options.history.state.forward
+      const matchRoute = refit && !returned
+        ? searchMatchRoute(response, { offerAsk: await askOnEnter(response.intent) })
+        : null
+      if (matchRoute) {
+        const place = searchResults.find(result => result.id === response.match)?.metadata.place
+        if (place) setPartialPlace(place as unknown as Place)
+        router.push(matchRoute)
+        return
+      }
       // Transit lines and GTFS-only stops ride along as pseudo-places; their
       // cards route to the transit views via placeToDisplay.
       places = (searchResults as SearchResult[])

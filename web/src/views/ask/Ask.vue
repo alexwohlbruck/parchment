@@ -34,10 +34,11 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import type { Place } from '@/types/place.types'
-import type { AskPoint } from '@/types/ask.types'
+import { ASK_SKILLS, type AskPoint } from '@/types/ask.types'
 
 const props = defineProps<{
   question?: string
+  skill?: string
   placeId?: string
   placeName?: string
   lat?: string
@@ -74,6 +75,8 @@ const point = computed<AskPoint | undefined>(() => {
 })
 const hasSubject = computed(() => !!props.placeId || !!point.value)
 
+const skill = computed(() => ASK_SKILLS.find(id => id === props.skill))
+
 const showHistory = computed(() => !props.question && !hasSubject.value && !props.thread)
 
 watch(
@@ -104,12 +107,16 @@ const access = computed(() => askStore.access)
 async function start(question: string | undefined) {
   if (props.thread) return
   const text = question?.trim()
-  if (!text || text === askStore.current?.question) return
+  if (!text || isCurrent(text)) return
   const result = await askService
     .loadAccess({ fresh: !askStore.access?.allowed })
     .catch(() => null)
   loadingAccess.value = false
-  if (result?.allowed) askService.ask(text, askContext())
+  if (result?.allowed) askService.ask(text, askContext(), { skill: skill.value })
+}
+
+function isCurrent(question: string | undefined) {
+  return question === askStore.current?.question && skill.value === askStore.current?.skill
 }
 
 async function loadAccess() {
@@ -127,7 +134,7 @@ async function openThread(id: string | undefined) {
     return
   }
   const question = props.question
-  await router.replace({ name: AppRoute.ASK, query: question ? { q: question } : {} })
+  await router.replace({ name: AppRoute.ASK, query: question ? { q: question, skill: skill.value } : {} })
   await nextTick()
   start(question)
 }
@@ -148,8 +155,10 @@ function connectOpenRouter() {
 }
 
 function retry() {
-  const question = askStore.current?.question
-  if (question) askService.ask(question, askContext(), { followUp: askStore.exchanges.length > 1 })
+  const current = askStore.current
+  if (current) {
+    askService.ask(current.question, askContext(), { followUp: askStore.exchanges.length > 1, skill: current.skill })
+  }
 }
 
 const firstAboutPlace = computed(() => hasSubject.value && !askStore.exchanges.length)
@@ -234,7 +243,7 @@ onMounted(async () => {
     askStore.reset()
     await askService.loadAccess({ fresh: !askStore.access?.allowed }).catch(() => null)
     loadingAccess.value = false
-  } else if (props.question === askStore.current?.question) {
+  } else if (isCurrent(props.question)) {
     searchStore.setSearchResults(citedPlaces.value)
     loadingAccess.value = false
   } else {

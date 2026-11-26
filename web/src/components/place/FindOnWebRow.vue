@@ -21,7 +21,7 @@ onMounted(async () => {
 <template>
   <RouterLink
     v-if="offered && query.trim()"
-    :to="{ name: AppRoute.ASK, query: { q: t('place.unmapped.askQuestion', { query: query.trim() }) } }"
+    :to="{ name: AppRoute.ASK, query: { q: query.trim(), skill: 'find-on-web' } }"
     class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-muted"
   >
     <GlobeIcon class="size-4 shrink-0 text-muted-foreground" />

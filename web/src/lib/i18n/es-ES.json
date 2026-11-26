@@ -2925,8 +2925,7 @@
       "note": "Avisar a los mapeadores",
       "noteText": "{name} no aparece en el mapa. Dirección: {address}. Sitio web: {website}",
       "findOnWeb": "Buscar “{query}” en la web",
-      "findOnWebHint": "Para lugares que aún no están en el mapa",
-      "askQuestion": "“{query}” no está en el mapa. ¿Puedes buscarlo en la web?"
+      "findOnWebHint": "Para lugares que aún no están en el mapa"
     }
   },
   "settings": {
@@ -4184,6 +4183,9 @@
   },
   "ask": {
     "title": "Preguntar",
+    "skills": {
+      "findOnWeb": "Buscar en la web"
+    },
     "starting": "Leyendo tu pregunta",
     "searches": "1 búsqueda | {count} búsquedas",
     "followUp": "Haz otra pregunta",

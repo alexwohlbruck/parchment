@@ -4,7 +4,7 @@ import { PlaceCard } from '@/components/place/card'
 import { ITEM_ROW_SURFACES } from '@/components/ui/item-row'
 import ErrorMessage from '@/components/ErrorMessage.vue'
 import { EmptyState } from '@/components/ui/empty-state'
-import { ArrowRightIcon, CornerUpRightIcon, MapIcon, MapPinOffIcon } from 'lucide-vue-next'
+import { ArrowRightIcon, CornerUpRightIcon, GlobeIcon, MapIcon, MapPinOffIcon } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Button } from '@/components/ui/button'
@@ -19,7 +19,7 @@ import AskRouteCard from './AskRouteCard.vue'
 import AskReviewQuotes from './AskReviewQuotes.vue'
 import DirectionsLoading from '@/components/directions/DirectionsLoading.vue'
 import { AppRoute } from '@/router'
-import type { AskExchange } from '@/types/ask.types'
+import type { AskExchange, AskSkill } from '@/types/ask.types'
 import type { Place } from '@/types/place.types'
 
 const props = defineProps<{
@@ -42,6 +42,12 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const router = useRouter()
 
+const SKILLS = {
+  'find-on-web': { icon: GlobeIcon, label: 'ask.skills.findOnWeb' },
+} satisfies Record<AskSkill, { icon: unknown; label: string }>
+
+const skill = computed(() => (props.exchange.skill ? SKILLS[props.exchange.skill] : null))
+
 const browseRoute = computed(() => {
   const intent = props.exchange.browse
   if (!intent?.category) return null
@@ -55,9 +61,15 @@ const browseRoute = computed(() => {
 
 <template>
   <section class="flex flex-col gap-3">
-    <h2 class="text-lg font-bold text-foreground tracking-tight leading-tight">
-      {{ exchange.question }}
-    </h2>
+    <div class="flex flex-col gap-1">
+      <span v-if="skill" class="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <component :is="skill.icon" class="size-3.5" />
+        {{ t(skill.label) }}
+      </span>
+      <h2 class="text-lg font-bold text-foreground tracking-tight leading-tight">
+        {{ exchange.question }}
+      </h2>
+    </div>
 
     <AskTrace
       :steps="exchange.steps"

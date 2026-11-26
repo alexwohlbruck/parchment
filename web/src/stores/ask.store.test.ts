@@ -27,6 +27,16 @@ describe('ask store', () => {
     })
   })
 
+  it('replays a skill to follow-ups as the task, keyed to its subject', () => {
+    const store = useAskStore()
+    store.start('cafe wands', { followUp: false, skill: 'find-on-web' })
+    store.apply({ type: 'answer', text: 'It has no street address yet.', places: [] })
+    store.apply({ type: 'done' })
+
+    expect(store.current).toMatchObject({ question: 'cafe wands', skill: 'find-on-web' })
+    expect(store.history[0]).toEqual({ role: 'user', content: 'Find "cafe wands" on the web' })
+  })
+
   it('keeps the route and canvas an answer saved', () => {
     const store = useAskStore()
     store.start('plan a ride around manhattan', { followUp: false })

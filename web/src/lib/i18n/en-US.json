@@ -3029,8 +3029,7 @@
       "note": "Tell mappers",
       "noteText": "{name} is missing from the map. Address: {address}. Website: {website}",
       "findOnWeb": "Find “{query}” on the web",
-      "findOnWebHint": "For places that aren't on the map yet",
-      "askQuestion": "“{query}” isn't on the map. Can you find it on the web?"
+      "findOnWebHint": "For places that aren't on the map yet"
     }
   },
   "settings": {
@@ -4456,6 +4455,9 @@
   },
   "ask": {
     "title": "Ask",
+    "skills": {
+      "findOnWeb": "Find on the web"
+    },
     "starting": "Reading your question",
     "searches": "1 search | {count} searches",
     "followUp": "Ask a follow-up",

@@ -1,6 +1,7 @@
 import { computed, ref, shallowRef } from 'vue'
 import { defineStore } from 'pinia'
-import type { AskAccess, AskEvent, AskExchange, AskThread, AskTripPlan, AskTurn } from '@/types/ask.types'
+import { turnQuestion } from '@/lib/ask/ask-skills'
+import type { AskAccess, AskEvent, AskExchange, AskSkill, AskThread, AskTripPlan, AskTurn } from '@/types/ask.types'
 
 export const useAskStore = defineStore('ask', () => {
   const access = ref<AskAccess | null>(null)
@@ -19,7 +20,7 @@ export const useAskStore = defineStore('ask', () => {
     exchanges.value
       .filter(exchange => exchange.status === 'done')
       .flatMap(exchange => [
-        { role: 'user' as const, content: exchange.question },
+        { role: 'user' as const, content: turnQuestion(exchange) },
         {
           role: 'assistant' as const,
           content: [
@@ -36,9 +37,10 @@ export const useAskStore = defineStore('ask', () => {
     exchanges.value = [...exchanges.value.slice(0, -1), change(last)]
   }
 
-  function start(question: string, { followUp }: { followUp: boolean }) {
+  function start(question: string, { followUp, skill }: { followUp: boolean; skill?: AskSkill }) {
     const exchange: AskExchange = {
       question,
+      ...(skill && { skill }),
       steps: [],
       text: '',
       places: [],

@@ -553,7 +553,7 @@ export class MaplibreStrategy extends MapStrategy {
     // are already attached, because MapLibre's layer-scoped delegates use
     // getLayer() on each event and automatically adapt to style changes.
     this.poiElevation = attachPoiElevation(this.mapInstance, () => this.map3dBuildings)
-    this.bridgeLabels = attachBridgeLabels(this.mapInstance, () => this.deckLayer && { surfaceAt: (lng, lat) => this.deckLayer?.surfaceAt(lng, lat) ?? null, footprints: () => this.deckLayer?.footprints() ?? null })
+    this.bridgeLabels = attachBridgeLabels(this.mapInstance, () => this.deckLayer && { surfaceAt: (lng, lat) => this.deckLayer?.surfaceAt(lng, lat) ?? null, footprints: () => this.deckLayer?.footprints() ?? null, version: this.deckLayer.version })
     this.golfPins = attachGolfPins(this.mapInstance)
     this.indoorTerrain = attachIndoorTerrain(this.mapInstance, fineTerrain, this.terrainCarver)
     this.indoorFlights = attachIndoorFlights(this.mapInstance, () => (this.options.theme === 'dark' ? 'dark' : 'light'))

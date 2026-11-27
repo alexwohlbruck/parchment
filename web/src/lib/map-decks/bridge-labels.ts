@@ -162,6 +162,22 @@ export function raisedLabelFeatures(features: Array<Pick<GeoJSON.Feature, 'geome
   return out
 }
 
+export type RaisedLabels = Record<(typeof RAISED_SOURCE_LAYERS)[number], GeoJSON.Feature<GeoJSON.LineString>[]>
+type TileFeature = Pick<GeoJSON.Feature, 'geometry' | 'properties'>
+
+/**
+ * One tile's raised labels. Names carry no bridge tag: one is raised only
+ * where it runs along a bridge's road, not where it passes beneath a deck. A
+ * tile's own roads answer that, its buffer reaching past any name inside it.
+ */
+export function raisedTileLabels(roads: TileFeature[], names: TileFeature[], decks: Box[], surfaceAt: SurfaceAt): RaisedLabels {
+  const bridges = roads.filter(f => f.properties?.brunnel === 'bridge')
+  return {
+    transportation: raisedLabelFeatures(bridges, decks, surfaceAt),
+    transportation_name: raisedLabelFeatures(names, decks, surfaceAt, ridesBridges(bridges.flatMap(f => lines(f.geometry)))),
+  }
+}
+
 /** The ground under raised stretches, where their flat labels would lie beneath them. */
 export function stretchFootprints(stretches: GeoJSON.Feature<GeoJSON.LineString>[]): GeoJSON.MultiPolygon {
   return deckFootprints(stretches.map(f => ({ points: f.geometry.coordinates.map(mercator), edges: [CLIP_HALF_WIDTH, CLIP_HALF_WIDTH] })))

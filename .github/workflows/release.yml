@@ -29,6 +29,8 @@ on:
 env:
   REGISTRY: docker.io
   RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+  # macOS runners default Node to a ~2 GB heap, which vue-tsc outgrows.
+  NODE_OPTIONS: --max-old-space-size=6144
 
 # ─── PHASE 1: TEST ────────────────────────────────────────────────────────────
 

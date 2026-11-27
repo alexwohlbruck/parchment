@@ -6,6 +6,8 @@
 
 ### Fixed
 
+* Subway line bullets sit below a station's name again instead of over its second line.
+
 ## [0.27.2] - 2026-11-26
 
 ### Added

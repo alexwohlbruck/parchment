@@ -32,15 +32,27 @@ export function glyphAdvances(map: any, font: string[]): GlyphAdvances | null {
   const entry = map?.style?.glyphManager?.entries?.[stack]
   const glyphs = entry?.glyphs
   if (!glyphs || typeof glyphs !== 'object') return null
+  const advance = (glyph: any) => {
+    const a = glyph?.metrics?.advance
+    return typeof a === 'number' ? a : undefined
+  }
+  // MapLibre 6 caches each glyph on request, keyed by the character under
+  // its font variant, rather than whole ranges keyed by code point
+  const byChar = glyphs.default
+  if (byChar && typeof byChar === 'object') {
+    const chars = Object.keys(byChar)
+    if (!chars.length) return null
+    return {
+      key: `${stack}#${chars.length}`,
+      of: (code: number) => advance(byChar[String.fromCodePoint(code)]),
+    }
+  }
   // ranges arrive one 256-codepoint block at a time; an entry that exists
   // with none of them loaded knows nothing yet
   const ranges = Object.keys(entry.ranges ?? {})
   if (!ranges.length) return null
   return {
     key: `${stack}#${ranges.sort().join('.')}`,
-    of: (code: number) => {
-      const advance = glyphs[code]?.metrics?.advance
-      return typeof advance === 'number' ? advance : undefined
-    },
+    of: (code: number) => advance(glyphs[code]),
   }
 }

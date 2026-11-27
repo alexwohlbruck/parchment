@@ -36,6 +36,7 @@ export enum PermissionId {
   SHARING_WRITE = 'sharing:write',
   LOCATION_SHARING = 'location:sharing',
   NOTES_WRITE = 'notes:write',
+  PLACES_LISTINGS_WRITE = 'places:listings:write',
 }
 
 export type PermissionRule =

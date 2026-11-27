@@ -61,6 +61,9 @@ import {
   LABEL_TEXT_DARK_MAP,
   labelFontFor,
   labelPaintFor,
+  FERRY_LINE,
+  IS_FERRY,
+  NOT_FERRY,
   RIBBON_COLOR,
   ribbonColorWithAlpha,
   STEADY_OFFSET,
@@ -74,6 +77,7 @@ import {
   classFilterExpr,
   composeFilter,
   modeExprs,
+  modeStyle,
   routeFilterExpr,
   pickRouteToken,
   routesOf,
@@ -105,6 +109,9 @@ const DRAWN_LINES_GHOST = 'portolan-drawn-lines-ghost'
 const srcTiles = (feed: string) => `portolan-tiles-${feed}`
 const steadyId = (feed: string) => `portolan-ribbon-steady-${feed}`
 const rampId = (kind: string, feed: string) => `portolan-ribbon-${kind}-${feed}`
+const ferryId = (feed: string) => `portolan-ribbon-ferry-${feed}`
+/** The basemap's ferry lane layer, MapLibre spec then Mapbox Standard. */
+const BASEMAP_FERRY_LAYERS = ['Ferry line', 'ferry']
 const SYMBOL_LAYERS = [
   'portolan-station-markers',
   'portolan-cats',
@@ -545,13 +552,13 @@ function isolatedLineStyle(): { color: string; w: number; o: number } {
       const routes = `,${f.properties?.routes ?? ''},`
       if (!routes.includes(`,${isolatedRoute},`)) continue
       const st = styleForFeed(sid.slice('portolan-tiles-'.length))
-      const m = st?.modes?.[f.properties?.mode as string]
+      const m = modeStyle(st, f.properties?.mode as string)
       return {
         color: f.properties?.route_color
           ? `#${f.properties.route_color}`
           : fallback.color,
-        w: m?.width ?? 1,
-        o: m?.opacity ?? 1,
+        w: m.width,
+        o: m.opacity,
       }
     }
   }
@@ -1724,7 +1731,7 @@ function mountFeed(r: PortolanIndexEntry) {
   })
   const { w, o } = modeExprs(styleForFeed(r.feed))
 
-  const filter: Expr = ['all', TILE_BAND_FILTER, ['==', ['get', 'kind'], 'steady']]
+  const filter: Expr = ['all', TILE_BAND_FILTER, NOT_FERRY, ['==', ['get', 'kind'], 'steady']]
   addRibbonLayer(
     {
       id: steadyId(r.feed),
@@ -1746,7 +1753,7 @@ function mountFeed(r: PortolanIndexEntry) {
   // Without the fork a transition cannot ease along its length; at a fixed
   // offset the midpoint meets each neighbour half a slot out.
   for (const kind of ['transition', 'bridge'] as const) {
-    const filter: Expr = ['all', TILE_BAND_FILTER, ['==', ['get', 'kind'], kind]]
+    const filter: Expr = ['all', TILE_BAND_FILTER, NOT_FERRY, ['==', ['get', 'kind'], kind]]
     addRibbonLayer(
       {
         id: rampId(kind, r.feed),
@@ -1772,6 +1779,48 @@ function mountFeed(r: PortolanIndexEntry) {
       filter,
       true,
     )
+  }
+  addFerryLayer(r.feed)
+}
+
+/**
+ * Ferries draw as the basemap's ferry lanes they are matched onto: same
+ * colour, width and dash, every route on the lane itself rather than in a
+ * slot beside it. A harbour's routes then read as its lanes, not as a band
+ * of ribbons over them.
+ */
+function addFerryLayer(feed: string) {
+  const paint = basemapFerryPaint()
+  const filter: Expr = ['all', TILE_BAND_FILTER, IS_FERRY]
+  addRibbonLayer(
+    {
+      id: ferryId(feed),
+      type: 'line',
+      source: srcTiles(feed),
+      'source-layer': 'ribbons',
+      filter,
+      layout: { 'line-join': 'round' },
+      paint: {
+        'line-color': paint.color,
+        'line-width': paint.width,
+        'line-dasharray': paint.dasharray,
+      },
+    },
+    paint.opacity,
+    filter,
+  )
+}
+
+function basemapFerryPaint() {
+  const id = BASEMAP_FERRY_LAYERS.find((l) => map.getLayer(l))
+  if (!id) return FERRY_LINE
+  return {
+    color: map.getPaintProperty(id, 'line-color') ?? FERRY_LINE.color,
+    width: map.getPaintProperty(id, 'line-width') ?? FERRY_LINE.width,
+    dasharray: map.getPaintProperty(id, 'line-dasharray') ?? FERRY_LINE.dasharray,
+    // the basemap fades its lanes in by zoom; ribbons only draw from the
+    // ferry band up, where that fade has finished
+    opacity: FERRY_LINE.opacity as unknown as Expr,
   }
 }
 

@@ -26,6 +26,7 @@ export interface GeocodeOutcome {
  */
 async function runGeocoding(
   operation: (capability: GeocodingCapability) => Promise<Place[]>,
+  accept: (results: Place[]) => boolean = () => true,
 ): Promise<GeocodeOutcome> {
   const records = integrationManager.getConfiguredIntegrationsByCapability(
     IntegrationCapabilityId.GEOCODING,
@@ -46,7 +47,7 @@ async function runGeocoding(
 
     try {
       const results = await operation(capability)
-      if (results?.length) {
+      if (results?.length && accept(results)) {
         return { results, integrationId: record.integrationId }
       }
       logger.debug(
@@ -64,13 +65,14 @@ async function runGeocoding(
   return { results: [], integrationId: firstTried }
 }
 
-/** Resolve an address or place query to coordinates. */
+/** Resolve an address or place query to coordinates. A provider whose results `accept` rejects hands over to the next. */
 export function forwardGeocode(
   query: string,
   lat?: number,
   lng?: number,
+  accept?: (results: Place[]) => boolean,
 ): Promise<GeocodeOutcome> {
-  return runGeocoding((capability) => capability.geocode(query, lat, lng))
+  return runGeocoding((capability) => capability.geocode(query, lat, lng), accept)
 }
 
 /** Resolve a coordinate to the places at that point. */

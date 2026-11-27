@@ -9,6 +9,63 @@
 ### Fixed
 
 * The map no longer freezes for seconds when zooming out over parks and woods.
+* Subway line bullets sit below a station's name again instead of over its second line.
+
+## [0.27.2] - 2026-11-26
+
+### Added
+
+* Remove a single search or place from Recents with the **×** on its row, in search or on the home screen.
+* When a business isn't on the map, Ask can look it up on its website or social pages straight from search results, fill in its place card, and help you add it to OpenStreetMap or leave a note for mappers.
+* If no one adds a place Ask found on the web within a day, Parchment leaves mappers a note about it from your OpenStreetMap account.
+* Ask now has a shortcut in the home screen's navigation on phones.
+* Attach up to 4 screenshots when you send feedback, or paste one straight into the form.
+* Tap a departure to follow that train or bus along its line, with the time it reaches every stop.
+* Admins can fix which Google or Foursquare listing a place shows, or mark that it has none, from the bottom of the place page.
+* Restaurants link straight to their booking page on OpenTable, Resy, Tock or SevenRooms for your party size and date, with a search as the fallback.
+* Hotels show a Compare prices card with each seller's nightly price, taxes and fees, and free cancellation, linking to that seller for your dates.
+* Places that deliver link to order on Uber Eats, DoorDash and other delivery services.
+
+### Changed
+
+* Unsaved recovery words are now a small reminder above your account instead of a popup, and dismissing it hides it for 4 months on every device.
+* Photos, hours and ratings from business listings load faster when you reopen a place, and the place keeps the same listing each time.
+* Press Enter in search to see all results right away, without waiting for suggestions. When a search clearly means one place or address, it opens straight away, and Back shows the full results.
+* Searching for a kind of place or a chain, like "coffee" or "Starbucks", opens that browse straight away, and a question opens Ask.
+* Trees grow in when you zoom close enough to see them, rippling out from the middle of the map, and shrink away as you zoom back out, rather than popping.
+* Detailed streets, paths, parking and other map layers fade in and out as you zoom or as they load, rather than popping.
+* With Day & Night on, the globe's night side now shows city lights and a deep blue sky on the standard map, with a sunset glow around the Earth's edge and a brighter sun.
+* Trees in fall turn a mix of yellow, gold, orange, red and dusty brown, with a few holding on to green.
+
+### Fixed
+
+* Editing a place offers every detail its type supports, such as wheelchair access, email and payment methods for shops.
+* Places from Foursquare no longer show “Moving Target” or “unknown” as their type.
+* Shallow coastal seas no longer show as a pale band against the deep ocean when zoomed out.
+* NYC subway trains now show on a line's map and follow your own train during navigation.
+* Shadows of lampposts, benches, picnic tables and bins now start at their base, and small objects cast them at all.
+* Fewer stutters when moving the map around parks and bridges.
+* With seasonal colors off, cherry trees show their pink blossom again rather than plain summer green.
+
+## [0.27.1] - 2026-11-25
+
+### Added
+
+* The command palette lists the commands you use most at the top.
+* On a place, the command palette offers directions, call, website, share and edit, and **D** gets directions there.
+* Share your location with a friend for 1 hour, 4 hours, until tomorrow morning or until you turn it off. Your friends list shows how long is left.
+* Switch the app style or the map style from the command palette.
+* Named buildings show their names when you zoom in, like the halls on a school or college campus.
+* Day & Night can show daylight and darkness at any time in the coming week, using the same time control as transit.
+
+### Changed
+
+* The layers time control now sits in its own section and appears whenever transit or Day & Night is on.
+
+### Fixed
+
+* Building roofs keep the same shading when you turn map layers on or off.
+* Sharing a place copies its link when the browser can't open a share sheet.
 * Uploaded profile photos show up instead of a blank square.
 
 ## [0.27.0] - 2026-11-24
@@ -28,6 +85,7 @@
 * Location sharing with friends on other servers isn't available yet, and the switch says so.
 * Water names are set in italic, in every map style.
 * A menu or dialog opened over a sheet now tucks that sheet behind it and dims the map, so it's clear what you're using. Tap outside to close it.
+* Ferry routes draw as the map's own dashed ferry lanes, so busy harbours no longer turn into a solid band over the water.
 * Your recovery key is now 24 words that are easier to write down and type back in. Anyone with an older recovery key will be asked to save the words instead.
 * Deleting a passkey tells you when it's one that can unlock your encrypted data on a new device, and when it's the only one.
 * Passkeys from more password managers can unlock your encrypted data, since adding one now checks a second time before giving up.

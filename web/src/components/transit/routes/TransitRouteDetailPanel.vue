@@ -37,6 +37,7 @@ import {
   ShipIcon,
   TramFrontIcon,
   MapPinIcon,
+  XIcon,
 } from 'lucide-vue-next'
 import type { TransitDeparture } from '@/types/place.types'
 import { Spinner } from '@/components/ui/spinner'
@@ -56,11 +57,13 @@ const store = useRouteDetailStore()
 const { t } = useI18n()
 const router = useRouter()
 const currentTime = useTransitClock()
+const markerClock = useTransitClock(10_000)
 
 const route = computed(() => store.activeRoute)
 const isLoading = computed(() => store.isLoading)
 const vehiclesOnRoute = computed(() => store.vehiclesOnRoute)
 const selectedId = computed(() => store.selectedVehicleId)
+const followedTrip = computed(() => store.selectedTripId)
 const geo = useGeolocationService()
 const { formatDistance } = useUnits()
 const proximity = computed(() => vehicleProximity(vehiclesOnRoute.value, geo.lngLat.value))
@@ -257,7 +260,8 @@ const selectedVehicleOnRoute = computed(() =>
 function isStopPassedBySelected(displayIndex: number): boolean {
   const sv = selectedVehicleOnRoute.value
   const stop = displayStops.value[displayIndex]
-  if (!sv || !stop) return false
+  if (!stop) return false
+  if (!sv) return displayIndex < firstTimedIndex.value || isStopInPast(stop)
   return store.isReversed
     ? stop.distanceAlongRoute > sv.distanceAlongRoute
     : stop.distanceAlongRoute < sv.distanceAlongRoute
@@ -284,21 +288,59 @@ function onSelectVehicle(value: string) {
   store.selectVehicle(value === selectedId.value ? null : value)
 }
 
-/** Look up the departure/arrival time for a stop from the selected vehicle's trip. */
-function stopTime(stop: { stopId: string }): string | null {
-  if (!selectedId.value) return null
+/** When the followed run calls here. A line's stop list names one direction's platforms, so the other direction meets it at the station. */
+function stopTimeMs(stop: RouteDetailStop): number | null {
+  if (!followedTrip.value) return null
   const time = stopTimeMap.value.get(stop.stopId)
-  if (!time) return null
-  const d = new Date(time)
-  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    ?? (stop.parentStation ? stopTimeMap.value.get(stop.parentStation) : undefined)
+  return time ? new Date(time).getTime() : null
 }
 
-function isStopInPast(stop: { stopId: string }): boolean {
-  if (!selectedId.value) return false
-  const time = stopTimeMap.value.get(stop.stopId)
-  if (!time) return false
-  return new Date(time).getTime() < Date.now()
+function stopTime(stop: RouteDetailStop): string | null {
+  const ms = stopTimeMs(stop)
+  return ms === null ? null : new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 }
+
+function isStopInPast(stop: RouteDetailStop): boolean {
+  const ms = stopTimeMs(stop)
+  return ms !== null && ms < currentTime.value.valueOf()
+}
+
+/** A live run lists only the calls still ahead of it, so an untimed stop before its first time is behind it. */
+const firstTimedIndex = computed(() => {
+  if (!store.tripStopTimes.length) return -1
+  return displayStops.value.findIndex(stop => stopTimeMs(stop) !== null)
+})
+
+/** Where the followed run is by its timetable, for a run with no position to show: between the last call it has made and the next. */
+const tripMarkerTop = computed((): number | null => {
+  if (selectedVehicleOnRoute.value) return null
+  const centers = dotCenters.value
+  const stops = displayStops.value
+  if (centers.length !== stops.length) return null
+  const now = markerClock.value.valueOf()
+  const timed = stops
+    .map((stop, i) => ({ i, ms: stopTimeMs(stop) }))
+    .filter((x): x is { i: number; ms: number } => x.ms !== null)
+  if (!timed.length || now >= timed[timed.length - 1].ms) return null
+  const next = timed.findIndex(x => x.ms > now)
+  if (next <= 0) return centers[timed[0].i]
+  const a = timed[next - 1]
+  const b = timed[next]
+  const t = (now - a.ms) / (b.ms - a.ms)
+  return centers[a.i] + (centers[b.i] - centers[a.i]) * t
+})
+
+/** The followed run's last call, which is what a rider calls it. */
+const followedDestination = computed(() => {
+  const times = store.tripStopTimes
+  const last = times[times.length - 1]
+  if (!last) return null
+  const stop = store.routeStops.find(
+    s => s.stopId === last.stopId || (last.parentStation != null && s.parentStation === last.parentStation),
+  )
+  return stop?.stopName ?? null
+})
 
 /** A stop's connections as bullets, resolved and ordered by the same code
  *  the map's station labels use, so the two agree glyph for glyph. */
@@ -529,10 +571,35 @@ onUnmounted(() => {
             </Select>
           </div>
 
+          <div
+            v-if="followedTrip && !selectedVehicleOnRoute"
+            class="mt-2 flex h-9 items-center gap-2 rounded-md border px-3"
+          >
+            <div
+              class="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+              :style="{ background: bgColor }"
+            >
+              <component :is="routeTypeIcon" class="h-3 w-3" :style="{ color: textColor }" />
+            </div>
+            <span class="text-sm truncate">
+              {{ followedDestination
+                ? t('place.transit.followedRun', { destination: followedDestination })
+                : t('place.transit.followedRunUnknown', { type: t(`place.transit.vehicleType.${vehicleTypeKey}`, 1) }) }}
+            </span>
+            <button
+              type="button"
+              class="ml-auto -mr-1 rounded p-1 text-muted-foreground hover:text-foreground"
+              :aria-label="t('place.transit.stopFollowing')"
+              @click="store.selectTrip(null)"
+            >
+              <XIcon class="h-4 w-4" />
+            </button>
+          </div>
+
           <!-- Unpicked, the trigger reads as the count of what the list below
                holds — the viewed direction only. A train the other way is one
                the direction picker reveals, not a value this one owes. -->
-          <div v-if="vehiclesOnRoute.length > 0" class="mt-2">
+          <div v-else-if="vehiclesOnRoute.length > 0" class="mt-2">
             <Select
               :modelValue="selectedId || undefined"
               @update:modelValue="(v) => onSelectVehicle(v as string)"
@@ -648,6 +715,14 @@ onUnmounted(() => {
             >
               <component :is="routeTypeIcon" class="h-3 w-3" :style="{ color: textColor }" />
             </div>
+          </div>
+
+          <div
+            v-if="tripMarkerTop !== null"
+            class="absolute z-20 left-[2px] w-[22px] h-[22px] rounded-full flex items-center justify-center border-2 border-white ring-2 ring-offset-1 ring-offset-background"
+            :style="{ top: `${tripMarkerTop - 11}px`, background: bgColor, boxShadow: '0 1px 4px rgba(0,0,0,0.3)' }"
+          >
+            <component :is="routeTypeIcon" class="h-3 w-3" :style="{ color: textColor }" />
           </div>
 
           <!-- Stop rows -->

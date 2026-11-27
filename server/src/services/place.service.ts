@@ -8,6 +8,8 @@ import { findBookmarkByExternalIds } from './library/bookmarks.service'
 import * as turf from '@turf/turf'
 import { integrationManager } from './integrations'
 import { IntegrationCapabilityId, IntegrationId } from '../types/integration.types'
+import { getWebPlace } from './web-place.service'
+import { listedWebPlace } from './web-place-listings.service'
 import { FoursquareIntegration } from './integrations/foursquare-integration'
 import { User } from '../schema/users.schema'
 import { WikidataIntegration } from './integrations/wikidata-integration'
@@ -19,6 +21,20 @@ import { getPlaceOsmTags, isAreaPlace } from '../lib/place-tags'
 import { reverseGeocode } from './geocoding.service'
 import { isTappedPlace } from '../lib/tapped-place'
 import { logError, logWarn, logger } from '../lib/logger'
+import {
+  clearedProviders,
+  matchedProviderIds,
+  planMatchUpdate,
+  storedListingIds,
+  type ProviderIds,
+  type ProviderMatches,
+} from '../lib/place/provider-matches'
+import {
+  applyProviderMatchUpdate,
+  getProviderMatches,
+  setProviderMatch,
+} from './place/provider-matches.service'
+import { venuesFromActions, venueUpserts, type VenueIds } from '../lib/place/booking-venues'
 
 /** True for an aborted/cancelled request (axios CanceledError or DOM AbortError). */
 function isAbortError(error: unknown): boolean {
@@ -169,6 +185,7 @@ export async function lookupPlaceById(
 ): Promise<Place | null> {
   try {
     logger.debug(`[lookupPlaceById] Looking up source=${source}, placeId=${placeId}`)
+    if (source === SOURCE.WEB) return (await getWebPlace(placeId)) ?? (await listedWebPlace(`${SOURCE.WEB}/${placeId}`))
     const integrationRecord =
       integrationManager.getConfiguredIntegrationForSource(
         source,
@@ -633,8 +650,7 @@ async function enrichPlaceWithWikiData(
  * attached during the search blend, or otherwise resolving one via the Place
  * Match endpoint (a single best id + confidence) — then fetches full Premium
  * details and merges them under Foursquare attribution. The matched id is
- * carried on `externalIds` so it can later be persisted in Barrelman for
- * user correction.
+ * carried on `externalIds`, from where the caller persists it.
  *
  * Premium-gated and Foursquare-optional: a no-op unless the caller has premium
  * data access and Foursquare is configured.
@@ -694,6 +710,68 @@ async function enrichPlaceWithFoursquareData(
   }
 }
 
+async function loadProviderMatches(source: Source, id: string): Promise<ProviderMatches> {
+  try {
+    return await getProviderMatches(source, id)
+  } catch (error) {
+    logError('Error loading stored provider matches', error)
+    return {}
+  }
+}
+
+/**
+ * Fetches each stored match directly. A provider that no longer returns the
+ * place marks its id stale; an unconfigured provider is left alone.
+ */
+async function resolveStoredMatches(
+  stored: ProviderIds,
+  language: Language,
+): Promise<{ places: Place[]; stale: Source[] }> {
+  const entries = (Object.entries(stored) as [Source, string][]).filter(([provider]) =>
+    integrationManager.getConfiguredIntegrationForSource(
+      provider,
+      IntegrationCapabilityId.PLACE_INFO,
+    ),
+  )
+  const results = await Promise.all(
+    entries.map(([provider, providerId]) => lookupPlaceById(provider, providerId, { language })),
+  )
+  const places: Place[] = []
+  const stale: Source[] = []
+  results.forEach((result, i) => {
+    if (result) places.push(result)
+    else stale.push(entries[i][0])
+  })
+  return { places, stale }
+}
+
+async function saveProviderMatches(
+  source: Source,
+  id: string,
+  stored: ProviderMatches,
+  found: ProviderIds,
+  stale: Source[],
+): Promise<void> {
+  try {
+    await applyProviderMatchUpdate(source, id, planMatchUpdate(stored, found, stale))
+  } catch (error) {
+    logError('Error saving provider matches', error)
+  }
+}
+
+/** Booking-site venues a place's reservation links point at, stored so free lookups link straight to them. They rank below tags and Wikidata, so they only fill empty sites. */
+async function saveBookingVenues(source: Source, id: string, stored: ProviderMatches, found: VenueIds): Promise<void> {
+  try {
+    await Promise.all(
+      Object.entries(venueUpserts(stored, found, { replace: false })).map(([provider, providerPlaceId]) =>
+        setProviderMatch(source, id, provider, { providerPlaceId, confirmed: false }),
+      ),
+    )
+  } catch (error) {
+    logError('Error saving booking venues', error)
+  }
+}
+
 /**
  * Look up a place by ID and enrich it with data from other sources
  *
@@ -734,26 +812,38 @@ export async function lookupEnrichedPlaceById(
     const businessData = premiumData && !isAreaPlace(place)
     const skipThirdPartySearch = !businessData || (isPlaceTransitStop(place) && source === SOURCE.TRANSITLAND)
 
+    const baseIds = { ...place.externalIds }
+    const storedMatches = businessData ? await loadProviderMatches(source, id) : {}
+    const cleared = clearedProviders(storedMatches) as Source[]
+    let staleMatches: Source[] = []
+
     if (place.name?.value && place.geometry.value.center && !skipThirdPartySearch) {
       const step2Start = Date.now()
       const { lat, lng } = place.geometry.value.center
 
-      const thirdPartyPlace = await lookupPlaceByNameAndLocation(
-        place.name.value,
-        { lat, lng },
-        {
-          radius: 500,
-          sourceBlacklist: [source], // Exclude the original source
-          language,
-          sameAs: place,
-        },
-      )
+      const stored = await resolveStoredMatches(storedListingIds(storedMatches), language)
+      staleMatches = stored.stale
+      const thirdPartyPlaces = stored.places
+
+      if (!thirdPartyPlaces.length || staleMatches.length) {
+        const searched = await lookupPlaceByNameAndLocation(
+          place.name.value,
+          { lat, lng },
+          {
+            radius: 500,
+            sourceBlacklist: [source, ...cleared],
+            language,
+            sameAs: place,
+          },
+        )
+        if (searched) thirdPartyPlaces.push(searched)
+      }
       const step2Time = Date.now() - step2Start
       logger.debug(`[PERF] Step 2 - Third party place lookup: ${step2Time}ms`)
 
-      if (thirdPartyPlace) {
+      if (thirdPartyPlaces.length) {
         const mergeStart = Date.now()
-        place = mergePlaces(place, thirdPartyPlace)
+        place = mergePlaces(place, ...thirdPartyPlaces)
         const mergeTime = Date.now() - mergeStart
         logger.debug(`[PERF] Step 2b - Place merge: ${mergeTime}ms`)
       }
@@ -769,7 +859,7 @@ export async function lookupEnrichedPlaceById(
       enrichPlaceWithWikiData(JSON.parse(JSON.stringify(place)), language),
       enrichPlaceWithAddressData(JSON.parse(JSON.stringify(place))),
       enrichPlaceWithFoursquareData(JSON.parse(JSON.stringify(place)), {
-        premiumData: businessData,
+        premiumData: businessData && !cleared.includes(SOURCE.FOURSQUARE),
         language,
       }),
     ])
@@ -779,6 +869,19 @@ export async function lookupEnrichedPlaceById(
     place = mergePlaces(wikiEnrichedPlace, addressEnrichedPlace, foursquareEnrichedPlace)
     const enrichmentTime = Date.now() - enrichmentStart
     logger.debug(`[PERF] Step 3-4 - Parallel enrichment (Wiki + Address): ${enrichmentTime}ms`)
+
+    if (businessData) {
+      await Promise.all([
+        saveProviderMatches(
+          source,
+          id,
+          storedMatches,
+          matchedProviderIds(source, baseIds, place.externalIds),
+          staleMatches,
+        ),
+        saveBookingVenues(source, id, storedMatches, venuesFromActions(place.placeActions?.value)),
+      ])
+    }
 
     // Step 5: Resolve timezone from coordinates
     if (place.geometry?.value?.center) {

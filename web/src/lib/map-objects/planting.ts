@@ -645,6 +645,7 @@ export function plantedSpec(options: {
     minzoom: options.minzoom,
     distinct: false,
     followsView: true,
+    grows: true,
     budget: options.falloff ? undefined : options.budget,
     prepare(m, spec) {
       map = m

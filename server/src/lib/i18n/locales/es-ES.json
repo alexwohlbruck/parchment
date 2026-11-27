@@ -35,9 +35,12 @@
     "place": {
       "invalidParams": "Proporcione source+id, name+lat+lng o lat+lng",
       "invalidOsmType": "Tipo OSM no válido. El formato debe ser \"type/id\" donde type es node, way o relation.",
+      "listingUnsupported": "Solo se pueden cambiar los anuncios de lugares de OpenStreetMap.",
+      "listingInvalid": "Ese enlace no es la página de un local en este sitio.",
       "notFoundWithParams": "Lugar no encontrado con los parámetros proporcionados",
       "retrievalError": "Error al recuperar datos del lugar",
-      "coordinatesRequired": "Se requieren lat y lng"
+      "coordinatesRequired": "Se requieren lat y lng",
+      "invalidStay": "Elige una estancia de 1 a 30 noches a partir de hoy"
     },
     "server": {
       "internal": "Se produjo un error interno del servidor",
@@ -114,7 +117,8 @@
     },
     "friends": {
       "invalidHandle": "Formato de handle no válido. Use alias@domain",
-      "remoteLocationUnsupported": "Aún no puedes compartir tu ubicación con amigos de otros servidores"
+      "remoteLocationUnsupported": "Aún no puedes compartir tu ubicación con amigos de otros servidores",
+      "shareExpiryInPast": "Elige una hora futura para dejar de compartir"
     },
     "sharing": {
       "alreadyShared": "Ya lo compartes con esta persona",
@@ -195,7 +199,9 @@
     "feedback": {
       "unavailable": "Los comentarios no están disponibles en este servidor",
       "fetchFailed": "No se pudieron cargar los tableros de comentarios",
-      "submitFailed": "No se pudieron enviar los comentarios"
+      "submitFailed": "No se pudieron enviar los comentarios",
+      "tooManyScreenshots": "Adjunta hasta 4 capturas de pantalla",
+      "invalidScreenshot": "Las capturas deben ser imágenes JPEG, PNG o WebP de menos de 10 MB"
     },
     "ask": {
       "notConfigured": "Preguntar no está configurado en este servidor",
@@ -463,5 +469,15 @@
   },
   "routing": {
     "onto": "{{action}} por {{road}}"
+  },
+  "webPlace": {
+    "note": {
+      "intro": "{{name}} no aparece en el mapa.",
+      "opensSoon": "Su sitio web dice que aún no ha abierto, así que está etiquetado como en construcción.",
+      "replaces": "Reemplaza a {{element}}, que ahora no tiene ningún negocio.",
+      "replacesNamed": "Reemplaza a {{element}} ({{former}}), que ha cerrado.",
+      "found": "Encontrado en {{site}} con Parchment.",
+      "tags": "Etiquetas sugeridas:"
+    }
   }
 }

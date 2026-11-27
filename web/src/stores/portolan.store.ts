@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
-import { computed, ref, watch } from 'vue'
+import { computed, watch } from 'vue'
 import { useLayersStore } from '@/stores/layers.store'
 import { useLayerAppearanceStore } from '@/stores/layer-appearance.store'
+import { useMapTimeStore } from '@/stores/map-time.store'
 import type { MapStrategy } from '@/services/map/providers/map.strategy'
 import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
 import {
@@ -10,29 +11,21 @@ import {
   TRANSIT_GROUP_ID,
   type TransitClassGroup,
   classVisibilityFor,
-  dateAtDaySlot,
-  minutesOfDay,
-  portolanDay,
 } from '@/services/layers/features/portolan/portolan-ui'
-
-/** Once per minute, the useTransitClock cadence — the acts masks resolve
- *  to the hour, so anything faster is wasted refiltering. */
-const TICK_MS = 60_000
 
 /**
  * UI state for the portolan transit feature: the Transit group master
  * switch drives init/teardown, the four class toggles drive
- * setClassVisibility, and the service-time control drives setServiceTime.
+ * setClassVisibility, and the shared map time drives setServiceTime.
  *
  * Class toggle state persists in the layers store's localStorage
  * visibility override map (same map every layer row rides), keyed by
- * synthetic `portolan:class:*` ids. The service-time control is
- * deliberately NOT persisted: a stale fixed time across reloads would
- * quietly show last Tuesday's network, so every session opens live.
+ * synthetic `portolan:class:*` ids.
  */
 export const usePortolanTransitStore = defineStore('portolan-transit', () => {
   const layersStore = useLayersStore()
   const appearanceStore = useLayerAppearanceStore()
+  const mapTimeStore = useMapTimeStore()
   const portolanService = usePortolanTransitService()
 
   let mapStrategy: MapStrategy | undefined
@@ -66,55 +59,9 @@ export const usePortolanTransitStore = defineStore('portolan-transit', () => {
     layersStore.updateLayerVisibility(CLASS_GROUP_ROW_ID_PREFIX + group, visible)
   }
 
-  // ── service time ─────────────────────────────────────────────────────
-  // Live mode tracks the wall clock (ticking); touching the slider or the
-  // day control detaches into fixed mode. `now` also anchors the fixed
-  // date's calendar week — stale there is fine, only weekday+hour matter.
-  const mode = ref<'live' | 'fixed'>('live')
-  const now = ref(new Date())
-  const fixedDay = ref(0)
-  const fixedMinutes = ref(0)
-
-  const serviceDate = computed(() =>
-    mode.value === 'live'
-      ? now.value
-      : dateAtDaySlot(fixedDay.value, fixedMinutes.value, now.value),
-  )
-
   /** The time the network is filtered to; none draws every line, whenever it runs. */
   const filterDate = computed(() =>
-    appearanceStore.appearanceOf(TRANSIT_GROUP_ID)?.id === 'full-service' ? null : serviceDate.value,
-  )
-
-  /** What the control renders — live mode mirrors the clock. */
-  const displayDay = computed(() => portolanDay(serviceDate.value))
-  const displayMinutes = computed(() => minutesOfDay(serviceDate.value))
-  const isLive = computed(() => mode.value === 'live')
-
-  function setFixedTime(day: number, minutes: number) {
-    mode.value = 'fixed'
-    fixedDay.value = day
-    fixedMinutes.value = minutes
-  }
-
-  function goLive() {
-    now.value = new Date()
-    mode.value = 'live'
-  }
-
-  // Tick only while the tick means something: feature on AND tracking now.
-  let tickId: ReturnType<typeof setInterval> | null = null
-  watch(
-    [active, mode],
-    ([on, m]) => {
-      if (on && m === 'live') {
-        if (!tickId) tickId = setInterval(() => (now.value = new Date()), TICK_MS)
-      } else if (tickId) {
-        clearInterval(tickId)
-        tickId = null
-      }
-    },
-    { immediate: true },
+    appearanceStore.appearanceOf(TRANSIT_GROUP_ID)?.id === 'full-service' ? null : mapTimeStore.time,
   )
 
   // ── renderer wiring ──────────────────────────────────────────────────
@@ -161,12 +108,6 @@ export const usePortolanTransitStore = defineStore('portolan-transit', () => {
     groupVisible,
     classGroups,
     setClassGroupVisible,
-    isLive,
-    displayDay,
-    displayMinutes,
-    serviceDate,
-    setFixedTime,
-    goLive,
     handleStyleLoad,
   }
 })

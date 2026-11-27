@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CustomRenderMethodInput, Map } from 'maplibre-gl'
 import { GlobeSky } from './globe-sky'
 import { moonPosition } from './moon'
+import { globeSunDirection } from '@/lib/daynight/daynight'
 
 function context() {
   const calls = {
@@ -108,7 +109,7 @@ describe('GlobeSky', () => {
     sky.onRemove(map(), gl)
   })
 
-  it('keeps cloud, ocean, and city-light imagery off the standard map', () => {
+  it('keeps cloud and ocean imagery off the standard map but lights its cities', () => {
     const { gl, calls } = context()
     const host = {
       getZoom: () => 2, getPixelRatio: () => 1,
@@ -126,15 +127,16 @@ describe('GlobeSky', () => {
     satellite = false
     sky.render(gl, input(1))
     expect(calls.uniform1f).toHaveBeenCalledWith('u_cloud_blend', 0)
-    expect(calls.uniform1f).toHaveBeenCalledWith('u_lights_blend', 0)
     expect(calls.uniform1f).toHaveBeenCalledWith('u_ocean_blend', 0)
     expect(calls.uniform1f).toHaveBeenCalledWith('u_moon_visible', 0)
+    expect(calls.uniform1f).toHaveBeenCalledWith('u_night_brightness', 0.16)
     expect(fetch).not.toHaveBeenCalled()
     sky.onRemove(host, gl)
     sky.onAdd(host, gl)
     sky.render(gl, input(1))
     const urls = vi.mocked(fetch).mock.calls.map(([url]) => String(url))
-    expect(urls.some(url => /clouds|night-lights|ocean-mask/.test(url))).toBe(false)
+    expect(urls.some(url => /clouds|ocean-mask/.test(url))).toBe(false)
+    expect(urls.some(url => /night-lights/.test(url))).toBe(true)
     sky.onRemove(host, gl)
   })
 
@@ -193,6 +195,21 @@ describe('GlobeSky', () => {
     complete = true
     sky.render(gl, input(1))
     expect(calls.drawArrays).toHaveBeenCalledOnce()
+    sky.onRemove(host, gl)
+  })
+
+  it('places the sun and moon for the time it is given rather than the clock', () => {
+    const { gl, calls } = context()
+    const host = { ...map(), triggerRepaint: vi.fn() } as unknown as Map
+    vi.stubGlobal('DOMMatrix', {
+      fromFloat32Array: () => ({ inverse: () => ({ toFloat32Array: () => new Float32Array(16) }) }),
+    })
+    const chosen = new Date('2026-06-21T03:00:00Z')
+    const sky = new GlobeSky(() => true, () => false, () => chosen)
+    sky.onAdd(host, gl)
+    sky.render(gl, input(1))
+    expect(calls.uniform3fv).toHaveBeenCalledWith('u_sun', globeSunDirection(chosen))
+    expect(calls.uniform3fv).toHaveBeenCalledWith('u_moon', moonPosition(chosen))
     sky.onRemove(host, gl)
   })
 })

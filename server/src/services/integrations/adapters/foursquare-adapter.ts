@@ -6,6 +6,7 @@ import type {
   OpeningHours,
   OpeningTime,
   Review,
+  PlaceAction,
 } from '../../../types/place.types'
 import { SOURCE } from '../../../lib/constants'
 
@@ -97,8 +98,21 @@ export interface FoursquarePlace {
   hours_popular?: Array<{ day: number; open: string; close: string }>
   /** Menu URL. */
   menu?: string
+  /** Third-party booking and ordering pages (Premium). */
+  place_actions?: Array<{ action?: string; url?: string; provider_id?: string }>
   /** ISO date the place was marked permanently closed. */
   date_closed?: string
+}
+
+/** Foursquare's catch-all categories, which say nothing about what a place is. */
+const PLACEHOLDER_CATEGORIES = new Set([
+  '4f2a23984b9023bd5841ed2c', // Moving Target
+])
+
+function categoriesOf(data: FoursquarePlace) {
+  return (data.categories ?? []).filter(
+    (category) => !PLACEHOLDER_CATEGORIES.has(category.fsq_category_id || category.id || ''),
+  )
 }
 
 const attr = <T>(value: T): AttributedValue<T> => ({
@@ -120,6 +134,7 @@ export class FoursquareAdapter {
   adaptPlace(data: FoursquarePlace, id?: string): Place {
     const primaryId = id || `${SOURCE.FOURSQUARE}/${data.fsq_place_id}`
     const now = new Date().toISOString()
+    const category = categoriesOf(data)[0]
 
     return {
       id: primaryId,
@@ -128,7 +143,7 @@ export class FoursquareAdapter {
       },
       name: { value: data.name ?? null, sourceId: SOURCE.FOURSQUARE },
       description: null,
-      placeType: attr(data.categories?.[0]?.name || 'unknown'),
+      placeType: attr(category?.name ?? ''),
       geometry: attr({
         type: 'point' as const,
         center: {
@@ -150,6 +165,7 @@ export class FoursquareAdapter {
       ratings: this.extractRatings(data),
       popularity: data.popularity != null ? attr(data.popularity) : undefined,
       popularHours: this.extractPopularHours(data) ?? undefined,
+      placeActions: this.extractActions(data),
       sources: [
         {
           id: SOURCE.FOURSQUARE,
@@ -325,11 +341,9 @@ export class FoursquareAdapter {
     const amenities: Record<string, AttributedValue<string | boolean | number>> =
       {}
 
-    if (data.categories?.length) {
-      for (const category of data.categories) {
-        const key = category.fsq_category_id || category.id
-        if (key) amenities[`type:${key}`] = attr(category.name || key)
-      }
+    for (const category of categoriesOf(data)) {
+      const key = category.fsq_category_id || category.id
+      if (key) amenities[`type:${key}`] = attr(category.name || key)
     }
 
     if (data.price !== undefined) {
@@ -337,6 +351,21 @@ export class FoursquareAdapter {
     }
 
     return amenities
+  }
+
+  /** Reservation and delivery pages, kept only when they are http(s) URLs. */
+  private extractActions(data: FoursquarePlace): AttributedValue<PlaceAction[]> | undefined {
+    const actions: PlaceAction[] = []
+    for (const { action, url } of data.place_actions ?? []) {
+      if ((action !== 'reservation' && action !== 'delivery') || !url) continue
+      try {
+        const parsed = new URL(url)
+        if (parsed.protocol === 'https:' || parsed.protocol === 'http:') actions.push({ kind: action, url: parsed.toString() })
+      } catch {
+        continue
+      }
+    }
+    return actions.length ? attr(actions) : undefined
   }
 
   /**

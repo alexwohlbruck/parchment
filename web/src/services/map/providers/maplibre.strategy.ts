@@ -3,6 +3,7 @@ import { CLOUDS_ATTRIBUTION } from '@/lib/map-globe/clouds'
 import { attachPoiElevation } from '@/services/map/poi-elevation.service'
 import { attachBridgeLabels } from '@/services/map/bridge-labels.service'
 import { GlobeSky } from '@/lib/map-globe/globe-sky'
+import { mapTime } from '@/services/map/map-time.service'
 import { MILKY_WAY_ATTRIBUTION } from '@/lib/map-globe/celestial'
 import { attachGolfPins } from '@/services/map/golf-pins.service'
 import { attachIndoor } from '@/services/map/indoor.service'
@@ -583,7 +584,7 @@ export class MaplibreStrategy extends MapStrategy {
       this.elevateLines()
     })
     this.mapInstance.on('style.load', () => {
-      this.mapInstance.addLayer(new GlobeSky(() => this.currentBasemap !== 'standard', () => this.currentBasemap === 'standard' && themeEngraved(this.options.mapStyle)))
+      this.mapInstance.addLayer(new GlobeSky(() => this.currentBasemap !== 'standard', () => this.currentBasemap === 'standard' && themeEngraved(this.options.mapStyle), mapTime))
       // The old decks' labels are not this style's to leave out.
       this.bridgeLabelKey = null
       this.groundPaint.clear()
@@ -1193,7 +1194,7 @@ export class MaplibreStrategy extends MapStrategy {
     const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
     // Already drawing: a flavor change is a uniform, not a rebuild.
     if (map.getLayer(OBJECT_LAYER_ID) && this.objectLayer) {
-      this.objectLayer.setFlavor(objectPalette(flavor), seasonRamps(flavor))
+      this.objectLayer.setFlavor(objectPalette(flavor), seasonRamps(flavor, this.seasons))
       this.objectLayer.setYear(this.plantYear())
       return flat()
     }
@@ -1201,7 +1202,7 @@ export class MaplibreStrategy extends MapStrategy {
     this.objectLayer = new ObjectLayer(OBJECT_SPECS, models, objectPalette(flavor), {
       id: OBJECT_LAYER_ID,
       solid: OBJECT_SOLID,
-      seasons: { ramps: seasonRamps(flavor), deciduous: DECIDUOUS, year: this.plantYear() },
+      seasons: { ramps: seasonRamps(flavor, this.seasons), deciduous: DECIDUOUS, year: this.plantYear() },
       standOn: (lng, lat, along) => this.deckLayer?.standOn(lng, lat, along) ?? null,
       surfaceAt: (lng, lat) => this.deckLayer?.surfaceAt(lng, lat) ?? null,
     })
@@ -1424,6 +1425,8 @@ export class MaplibreStrategy extends MapStrategy {
 
   override setSeasons(value: boolean) {
     this.seasons = value
+    const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
+    this.objectLayer?.setFlavor(objectPalette(flavor), seasonRamps(flavor, value))
     this.applyYear()
   }
 

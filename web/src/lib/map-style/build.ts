@@ -5,6 +5,7 @@ import type { MapStyleId } from '@/types/map.types'
 import { MapProjection } from '@/types/map.types'
 import { getCustomColorTint } from '@/lib/color-tint'
 import { hidingReplaced } from '@/lib/map-objects/landmarks'
+import { withEntrance } from './layer-entrance'
 import spec from './spec.json'
 import {
   detailSources,
@@ -68,6 +69,7 @@ import {
 } from './cycling-layers'
 import { barrelmanBuildingsReady, barrelmanBuildingsTiles } from './barrelman-buildings'
 import { poiDotLayer, POI_DOTS_LAYER } from './poi-dots'
+import { BUILDING_LABELS_LAYER, withBuildingLabels } from './building-labels'
 import { BASEMAP_CONTINENT_LABELS, GLOBE_CONTINENT_LABELS, GLOBE_NAMES, GLOBE_SOURCE, globeSources, withGlobeLayers } from './globe-layers'
 import { NEIGHBOURHOOD_SOURCE, NEIGHBOURHOOD_TILES, neighbourhoodSource, withNeighbourhoodLabels } from './neighbourhood-labels'
 import { ABORIGINAL_LANDS_SOURCE, ABORIGINAL_LANDS_TILES, aboriginalLandsSource, withAboriginalLands } from './aboriginal-lands'
@@ -359,6 +361,7 @@ function isTransitStopLayer(l: any): boolean {
 export const layerGroups = {
   poi: [
     POI_DOTS_LAYER,
+    BUILDING_LABELS_LAYER,
     ...idsWhere(
       l => l.type === 'symbol' && ['poi', 'housenumber', 'aerodrome_label', 'mountain_peak'].includes(l['source-layer']),
     ),
@@ -508,6 +511,7 @@ export function buildLayers(options: {
   base = withRoundedRoofEdge(base)
   base = useBarrelmanBuildings(base, flavor, paint)
   base = withPoiDots(base)
+  base = withBuildingLabels(base)
   base = withGlobeLayers(base, flavor, themeGlobe(mapStyle, flavor))
 
   const converted = withAboriginalLands(withNeighbourhoodLabels(base
@@ -527,7 +531,7 @@ export function buildLayers(options: {
   const fixtures = resolve(fixtureLayer(), tokens, categories, flavor)
   const layers = spliceIndoorLayers(spliceDetailLayers(darkenRoads(converted, flavor, mapStyle), flavor, hdRoads, detailLabel, mapStyle), flavor, indoorLabels, fixtures)
   const engraved = themeEngraved(mapStyle) ? withChartEngraving(layers, flavor) : layers
-  return withTypography(engraved, themeTypography(mapStyle)) as LayerSpecification[]
+  return (withTypography(engraved, themeTypography(mapStyle)) as LayerSpecification[]).map(withEntrance)
 }
 
 /** Basemap layers whose places a floor plan may draw itself, on their own level. */

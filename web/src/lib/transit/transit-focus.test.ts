@@ -4,6 +4,7 @@ import {
   routeIdsByFeed,
   localTripId,
   yourVehicleIds,
+  boardRunTripId,
 } from './transit-focus'
 import type { TransitVehiclePosition } from '@/types/multimodal.types'
 
@@ -155,6 +156,17 @@ describe('yourVehicleIds', () => {
     expect(ids).toEqual(new Set(['mine']))
   })
 
+  it('matches a subway train, whose live trip drops the shape suffix', () => {
+    const legs = focusedLegs({
+      segments: [transitSegment({ route: { id: '5_A' }, trip: { id: '20261126_09:05_5_054550_A..S57R' } })],
+    })
+    const ids = yourVehicleIds(legs, [
+      vehicle({ vehicleId: 'mine', feedId: '5', tripId: '5_054550_A..S' }),
+      vehicle({ vehicleId: 'other', feedId: '5', tripId: '5_055900_A..S' }),
+    ])
+    expect(ids).toEqual(new Set(['mine']))
+  })
+
   it('follows the run guidance moved the leg to', () => {
     const moved = { ...transitSegment({ trip: { id: 'f1_trip-7' } }), tripId: 'f1_trip-9' }
     const ids = yourVehicleIds(focusedLegs({ segments: [moved] }), [
@@ -174,5 +186,19 @@ describe('yourVehicleIds', () => {
   it('is empty when the run is named but no vehicle is reporting it', () => {
     const legs = focusedLegs({ segments: [transitSegment()] })
     expect(yourVehicleIds(legs, [vehicle({ tripId: 'f1_trip-99' })]).size).toBe(0)
+  })
+})
+
+describe('boardRunTripId', () => {
+  it('reduces a board run id to the feed trip id', () => {
+    expect(boardRunTripId('20261125_17:42_5_106200_2..N14R', '5')).toBe('106200_2..N14R')
+  })
+
+  it('keeps underscores inside the trip id itself', () => {
+    expect(boardRunTripId('20261125_9:05_886_A_1_wk', '886')).toBe('A_1_wk')
+  })
+
+  it('leaves a bare trip id alone', () => {
+    expect(boardRunTripId('106200_2..N14R', '5')).toBe('106200_2..N14R')
   })
 })

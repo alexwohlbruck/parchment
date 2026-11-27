@@ -438,6 +438,15 @@ export interface ContactInfo {
   socials?: Record<string, string> // platform -> URL
 }
 
+/** What looking a business up on its own website found. */
+/** A place still being read from the web, without a location until its address is placed. */
+export type PlaceDraft = Omit<Place, 'geometry'> & Partial<Pick<Place, 'geometry'>>
+
+export type WebPlaceLookup =
+  | { status: 'found'; place: Place; corroboratedBy: string[] }
+  | { status: 'mapped'; place: Place }
+  | { status: 'not-found'; reason: string }
+
 export interface Place {
   id: string // A unique identifier
   externalIds: Record<SourceId, string> // Source -> external ID mapping
@@ -469,6 +478,8 @@ export interface Place {
   popularity?: AttributedValue<number>
   // Typical busy hours, same shape as openingHours (e.g. Foursquare hours_popular).
   popularHours?: AttributedValue<OpeningHours>
+  /** Links to book or order from the place on third-party sites. */
+  placeActions?: AttributedValue<PlaceAction[]>
   transit?: AttributedValue<TransitStopInfo> | null
   relations?: AttributedValue<PlaceRelation[]> | null
 
@@ -501,6 +512,19 @@ export interface Place {
   // Icon/category for display
   icon?: PlaceIcon
 
+  // A business found on its own website that OSM doesn't have yet, with the
+  // tags a new node for it would carry, all from that site
+  unmapped?: {
+    tags: Record<string, string>
+    presetId: string | null
+    /** Its site says it hasn't opened yet, so OSM gets it under a `construction:` prefix. */
+    opensSoon?: boolean
+    /** An element already on the map at the same address, with no business there now, to take over. */
+    replaces?: { type: 'node' | 'way'; id: number; formerName?: string }
+    /** A note for mappers carrying every tag, ready to post as it is. */
+    noteText: string
+  }
+
   // IANA timezone resolved from coordinates (e.g. "America/New_York")
   timezone?: string
 
@@ -514,4 +538,11 @@ export interface Place {
   // User-specific data
   bookmark?: Bookmark
   collectionIds?: string[]
+}
+
+export type PlaceActionKind = 'reservation' | 'delivery'
+
+export interface PlaceAction {
+  kind: PlaceActionKind
+  url: string
 }

@@ -1,26 +1,17 @@
 <script setup lang="ts">
 /**
- * Service-time control for the Transit layer group: a day-of-week strip
- * (Monday-first, matching portolan's acts masks), a time-of-day slider,
- * and a Live chip.
- *
- * Live is the default and follows the ticking clock; touching the slider
- * or a day detaches into a fixed time, and Live snaps back to now. State
- * lives in portolan.store and is session-only by design — a reload always
- * reopens on the live network, never on last Tuesday's.
+ * The time every active temporal layer draws: a Monday-first day strip, a
+ * time-of-day slider, and a chip that snaps back to now.
  */
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RadioIcon } from 'lucide-vue-next'
 import { Slider } from '@/components/ui/slider'
-import { usePortolanTransitStore } from '@/stores/portolan.store'
-import { dateAtDaySlot } from '@/services/layers/features/portolan/portolan-ui'
+import { useMapTimeStore } from '@/stores/map-time.store'
 
-const store = usePortolanTransitStore()
+const store = useMapTimeStore()
 const { t, locale } = useI18n()
 
-/** The slider's granularity: five minutes reads smoothly and the acts
- *  filter only resolves to the hour anyway. */
 const STEP_MINUTES = 5
 const MAX_MINUTES = 24 * 60 - STEP_MINUTES
 
@@ -32,8 +23,8 @@ const dayLabels = computed(() => {
 })
 
 const timeLabel = computed(() =>
-  new Intl.DateTimeFormat(locale.value, { hour: 'numeric', minute: '2-digit' }).format(
-    dateAtDaySlot(store.displayDay, store.displayMinutes),
+  new Intl.DateTimeFormat(locale.value, { weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(
+    store.time,
   ),
 )
 
@@ -51,12 +42,9 @@ function pickDay(day: number) {
 </script>
 
 <template>
-  <div class="space-y-2 rounded-md bg-accent/40 px-2.5 py-2">
+  <div class="space-y-2 rounded-md border bg-card/70 px-2.5 py-2">
     <div class="flex items-center gap-2">
-      <span class="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground">
-        {{ t('layers.transit.serviceTime') }}
-      </span>
-      <span class="shrink-0 text-xs tabular-nums text-muted-foreground">
+      <span class="min-w-0 flex-1 truncate text-sm font-medium tabular-nums">
         {{ timeLabel }}
       </span>
       <button
@@ -71,7 +59,7 @@ function pickDay(day: number) {
         @click="store.goLive()"
       >
         <RadioIcon class="size-3" />
-        {{ t('layers.transit.live') }}
+        {{ t('layers.time.now') }}
       </button>
     </div>
 
@@ -99,7 +87,7 @@ function pickDay(day: number) {
       :min="0"
       :max="MAX_MINUTES"
       :step="STEP_MINUTES"
-      :aria-label="t('layers.transit.serviceTime')"
+      :aria-label="t('layers.time.title')"
       @update:model-value="onSlide"
     />
   </div>

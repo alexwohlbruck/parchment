@@ -142,7 +142,6 @@ function onRowClick() {
           {{ filter.name }}
         </button>
       </div>
-      <slot name="options" />
     </div>
 
     <div

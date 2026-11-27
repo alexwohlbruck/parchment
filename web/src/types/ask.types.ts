@@ -1,7 +1,10 @@
-import type { AskCitation, AskEvent, AskSource } from '@server/types/ask.types'
+import type { AskCitation, AskEvent, AskSkill, AskSource } from '@server/types/ask.types'
 import type { IsochroneGeometry } from '@server/types/isochrone.types'
 import type { QueryIntent } from '@/types/search.types'
 import type { TripsResponse } from '@/types/directions.types'
+import type { PlaceDraft } from '@/types/place.types'
+
+export { ASK_SKILLS } from '@server/types/ask.types'
 
 export type {
   AskAccess,
@@ -10,6 +13,7 @@ export type {
   AskStop,
   AskEvent,
   AskPoint,
+  AskSkill,
   AskSource,
   AskTripKind,
   AskTurn,
@@ -29,10 +33,14 @@ export interface AskTripPlan {
 }
 
 export interface AskExchange {
+  /** What the user asked, or a skill's subject. */
   question: string
+  skill?: AskSkill
   steps: AskStep[]
   text: string
   places: AskCitation[]
+  /** Places a lookup is still reading, by lookup, until the answer cites what it found. */
+  drafts?: Record<string, PlaceDraft>
   /** The travel-time area a question like "within a 10 min walk" searched. */
   reach?: IsochroneGeometry
   browse?: QueryIntent

@@ -180,6 +180,7 @@ const router = createRouter({
           component: () => import('@/views/ask/Ask.vue'),
           props: route => ({
             question: route.query.q,
+            skill: route.query.skill,
             placeId: route.query.place,
             placeName: route.query.name,
             lat: route.query.lat,

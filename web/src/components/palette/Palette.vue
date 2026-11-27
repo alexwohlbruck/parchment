@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, watch, onMounted, nextTick } from 'vue'
+import RemoveRecentButton from '@/components/recents/RemoveRecentButton.vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onClickOutside, useMagicKeys, useDebounceFn } from '@vueuse/core'
 import { useAbortController } from '@/composables/useAbortController'
@@ -45,10 +46,13 @@ import { TransitionSlide } from '@morev/vue-transitions'
 import { useSettingsIndex } from '@/composables/settings/useSettingsIndex'
 import { useSettingsScrollTarget } from '@/composables/settings/useSettingsScrollTarget'
 import { Spinner } from '@/components/ui/spinner'
-import { ASK_OPTION } from '@/services/search-suggestions.service'
+import { ASK_OPTION, FULL_SEARCH_OPTION } from '@/services/search-suggestions.service'
 import { useAskStore } from '@/stores/ask.store'
 import { isAskOffered } from '@/lib/ask/ask-access'
 import { groupByCategory } from '@/lib/command/group-by-category'
+import { groupByContext } from '@/lib/command/group-by-context'
+import { SUGGESTED_COMMAND_LIMIT } from '@/lib/command/command-usage'
+import { useCommandUsageStore } from '@/stores/command-usage.store'
 
 const emit = defineEmits<{
   (e: 'inputFocused'): void
@@ -127,19 +131,49 @@ const input = ref<InstanceType<typeof CommandInput>>()
 useTapToFocus(() => input.value?.inputElement)
 const { escape } = useMagicKeys()
 
-const filteredCommands = computed(() => {
-  const availableCommands = commandStore.commands.filter(command =>
+const commandUsageStore = useCommandUsageStore()
+
+function filterCommands(commands: TCommand[]) {
+  const available = commands.filter(command =>
     commandStore.commandIsAvailable(command),
   )
-
   return filterFunction.value
-    ? filterFunction.value(availableCommands, query.value)
-    : availableCommands
-})
+    ? filterFunction.value(available, query.value)
+    : available
+}
 
-const commandGroups = computed(() =>
-  groupByCategory(filteredCommands.value, !!query.value),
+const filteredCommands = computed(() => filterCommands(commandStore.commands))
+
+// While typing, only the closest matches are promoted, so a command used often
+// can't jump ahead of the one being spelled out.
+const suggestedCommands = computed<TCommand[]>(() =>
+  commandUsageStore.suggest(
+    query.value
+      ? filteredCommands.value.slice(0, SUGGESTED_COMMAND_LIMIT)
+      : filteredCommands.value,
+  ),
 )
+
+const commandGroups = computed(() => {
+  const suggested = new Set(suggestedCommands.value)
+  const byCategory = groupByCategory(
+    filteredCommands.value.filter(command => !suggested.has(command)),
+    !!query.value,
+  )
+  return [
+    ...groupByContext(filterCommands(commandStore.contextualCommands)).map(
+      group => ({ key: `context:${group.context}`, heading: group.context, items: group.items }),
+    ),
+    ...(suggested.size
+      ? [{ key: 'suggested', heading: t('palette.suggested'), items: suggestedCommands.value }]
+      : []),
+    ...byCategory.map(group => ({
+      key: group.category,
+      heading: t(`palette.categories.${group.category}`),
+      items: group.items,
+    })),
+  ]
+})
 
 // --- Settings entries in the palette ---------------------------------------
 // The settings index drives a "Settings" group in the palette so users can
@@ -169,7 +203,6 @@ const SEARCH_GROUP_ORDER = [
   'ask',
   'frequents',
   'suggestedCategories',
-  'fullSearch',
   'recents',
   'brands',
   'categories',
@@ -336,6 +369,27 @@ function onTab(event: KeyboardEvent) {
   onArgumentSelected(ASK_OPTION)
 }
 
+// Enter runs the full search until a row is picked with the arrow keys, so it
+// never waits on suggestions or lands on whichever row happened to load first.
+const rowPicked = ref(false)
+const enterSearches = computed(() => isSearch.value && !!query.value.trim() && !rowPicked.value)
+
+function onKeydownCapture(event: KeyboardEvent) {
+  if (!enterSearches.value || event.target !== input.value?.inputElement) return
+  if (event.key === 'Enter' && !event.isComposing) {
+    event.preventDefault()
+    event.stopPropagation()
+    onArgumentSelected(FULL_SEARCH_OPTION)
+  } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    rowPicked.value = true
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      event.stopPropagation()
+      commandPalette.value?.highlightFirstItem()
+    }
+  }
+}
+
 function onBackspace() {
   if (query.value === '') {
     resetCommand()
@@ -421,14 +475,6 @@ watch(activeArgument, async newArg => {
   }
 })
 
-// The highlight otherwise stays on whichever row had it, so a query that turns
-// into an Ask question would still run a plain search on Enter.
-watch(argumentOptions, async () => {
-  if (!query.value.trim()) return
-  await nextTick()
-  commandPalette.value?.highlightFirstItem()
-})
-
 // Create a debounced function for loading search options.
 // nextSignal() cancels the previous in-flight autocomplete request before issuing a new one.
 //
@@ -446,6 +492,7 @@ const debouncedLoadOptions = useDebounceFn(async () => {
 
 // Watch query and handle search
 watch(query, newQuery => {
+  rowPicked.value = false
   // First update the search query in the command service immediately
   updateSearchQuery(newQuery)
 
@@ -503,7 +550,7 @@ const filterFunction = computed(() => {
 </script>
 
 <template>
-  <div ref="container">
+  <div ref="container" @keydown.capture="onKeydownCapture">
     <Command
       class="border bg-background/85 backdrop-blur-xl backdrop-saturate-150"
       ref="commandPalette"
@@ -517,6 +564,7 @@ const filterFunction = computed(() => {
         @focus="inputFocused($event)"
         @keydown.backspace="onBackspace()"
         @keydown.tab="onTab"
+        :enterkeyhint="isSearch ? 'search' : undefined"
       >
         <template v-slot:prefix>
           <component :is="icon" class="size-4! shrink-0 opacity-50" />
@@ -560,12 +608,12 @@ const filterFunction = computed(() => {
         <CommandList v-if="!activeArgument" :style="listStyle">
           <CommandGroup
             v-for="group in commandGroups"
-            :key="group.category"
-            :heading="t(`palette.categories.${group.category}`)"
+            :key="group.key"
+            :heading="group.heading"
           >
             <CommandItem
               v-for="command in group.items"
-              :key="command.id"
+              :key="`${group.key}:${command.id}`"
               :value="command"
               class="flex gap-2"
               @select="onCommandSelected(command)"
@@ -622,6 +670,7 @@ const filterFunction = computed(() => {
         <CommandList
           v-if="activeArgument && (!isSearch || query.length || (groupedArgumentOptions && groupedArgumentOptions.length > 0))"
           :style="listStyle"
+          :class="{ '[&_[data-highlighted]:not(:hover)]:bg-transparent': enterSearches }"
         >
           <div v-if="loadingOptions" class="py-6 text-center">
             <Spinner size="icon" class="mx-auto opacity-50" />
@@ -748,6 +797,12 @@ const filterFunction = computed(() => {
                     {{ argumentOption.description }}
                   </span>
                 </div>
+                <RemoveRecentButton
+                  v-if="argumentOption.recentId"
+                  :identity="argumentOption.recentId"
+                  class="-my-1 -mr-1"
+                  @removed="argumentOptions = argumentOptions.filter(o => o.recentId !== argumentOption.recentId)"
+                />
               </CommandItem>
             </CommandGroup>
           </template>

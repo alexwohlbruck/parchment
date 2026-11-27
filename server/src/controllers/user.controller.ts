@@ -1372,7 +1372,7 @@ const AppPreferencesSchema = t.Partial(
       map: clientSettings('Map look and behavior that suits any device: basemap, labels, projection, snapping.'),
       general: clientSettings('Floor numbering and where the home sheet opens.'),
       layerAppearances: clientSettings('The look chosen for each built-in layer, by layer id.'),
-      security: clientSettings('The signing key whose recovery words the user has confirmed they saved.'),
+      security: clientSettings('The signing key whose recovery words the user has confirmed they saved, and when to next remind them if not.'),
     },
     { additionalProperties: false },
   ),

@@ -22,6 +22,7 @@ import {
   type FriendShareBinding,
   type LocationData,
 } from '@/lib/identity/federation-crypto'
+import { isShareActive } from '@server/lib/location-share'
 
 interface BatteryManager extends EventTarget {
   charging: boolean
@@ -50,7 +51,7 @@ function e2eeLocationBroadcastComposable() {
   const isBroadcasting = ref(false)
   const lastBroadcastTime = ref<Date | null>(null)
   const broadcastError = ref<string | null>(null)
-  const sharedHandles = ref<Set<string>>(new Set())
+  const shareExpiries = ref<Map<string, Date | null>>(new Map())
   const isActive = ref(false)
 
   let stopLocationWatch: (() => void) | null = null
@@ -67,14 +68,19 @@ function e2eeLocationBroadcastComposable() {
   const friendsWithSharing = computed(() =>
     friends.value.filter(
       (f) =>
-        sharedHandles.value.has(f.friendHandle.toLowerCase()) &&
+        shareExpiries.value.has(f.friendHandle.toLowerCase()) &&
         !!f.friendEncryptionKey &&
         !!f.friendSigningKey,
     ),
   )
 
+  function isStillShared(friendHandle: string): boolean {
+    const expiresAt = shareExpiries.value.get(friendHandle.toLowerCase()) ?? null
+    return isShareActive({ enabled: true, expiresAt })
+  }
+
   const shouldRun = computed(
-    () => isActive.value && isSetupComplete.value && sharedHandles.value.size > 0,
+    () => isActive.value && isSetupComplete.value && shareExpiries.value.size > 0,
   )
 
   async function initBatteryMonitor() {
@@ -90,8 +96,10 @@ function e2eeLocationBroadcastComposable() {
     if (!isActive.value) return
     try {
       const configs = await locationService.getE2eeConfigs()
-      sharedHandles.value = new Set(
-        configs.filter((c) => c.enabled).map((c) => c.friendHandle.toLowerCase()),
+      shareExpiries.value = new Map(
+        configs
+          .filter((c) => c.enabled)
+          .map((c) => [c.friendHandle.toLowerCase(), c.expiresAt ?? null]),
       )
     } catch (error) {
       console.error('Failed to load sharing configs:', error)
@@ -191,7 +199,9 @@ function e2eeLocationBroadcastComposable() {
     const signingPriv = signingPrivateKey.value
     if (!location || !senderHandle || !signingPriv || isBroadcasting.value) return
 
-    const recipients = friendsWithSharing.value
+    const recipients = friendsWithSharing.value.filter((f) =>
+      isStillShared(f.friendHandle),
+    )
     if (recipients.length === 0) {
       markBroadcast(location)
       return
@@ -233,7 +243,7 @@ function e2eeLocationBroadcastComposable() {
       return
     }
     const myGeneration = ++generation
-    if (sharedHandles.value.size === 0) await loadFriendsWithSharing()
+    if (shareExpiries.value.size === 0) await loadFriendsWithSharing()
     await initBatteryMonitor()
     if (myGeneration !== generation) return
 
@@ -275,7 +285,7 @@ function e2eeLocationBroadcastComposable() {
     if (configPollId) clearInterval(configPollId)
     configPollId = null
     stop()
-    sharedHandles.value = new Set()
+    shareExpiries.value = new Map()
     currentLocation = null
   }
 

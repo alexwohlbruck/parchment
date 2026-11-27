@@ -9,7 +9,7 @@ const BRIEF =
 const webSearch: AskTool<{ query: string }> = {
   name: 'web_search',
   description:
-    "Search the web for what the map doesn't know: events and what's on, news, closures, menus and prices, opening dates, tickets. Not for finding places; their results can't be cited as places.",
+    "Search the web for what the map doesn't know: events and what's on, news, closures, menus and prices, opening dates, tickets. Not for finding places; their results can't be cited as places. For a business the map doesn't have, use find_place_on_web.",
   parameters: {
     type: 'object',
     properties: {

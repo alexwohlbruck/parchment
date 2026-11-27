@@ -9,7 +9,7 @@ import { meterModel } from '../lib/ask/ask-usage'
 import { knownPlaces } from '../lib/ask/known-places'
 import { RoutingPreferencesSchema, TripModeTokenSchema, VehicleSchema } from '../types/directions-api.types'
 import { getAskPreferences } from '../services/user-preferences.service'
-import type { AskAccess, AskEvent } from '../types/ask.types'
+import { ASK_SKILLS, type AskAccess, type AskEvent } from '../types/ask.types'
 import type { Place } from '../types/place.types'
 import type { Vehicle } from '../types/trip.types'
 
@@ -79,7 +79,7 @@ const app = new Elysia()
           try {
             await runAsk(
               meter.model,
-              { question: body.question, history: body.history, origin, placeId: body.placeId, point: body.point },
+              { question: body.question, history: body.history, origin, placeId: body.placeId, point: body.point, skill: body.skill },
               {
                 userId: user.id,
                 language,
@@ -94,6 +94,7 @@ const app = new Elysia()
                 signal: request.signal,
                 seen: new Map<string, Place>(),
                 reviews: new Map(),
+                userText: [...(body.history ?? []).filter((turn) => turn.role === 'user').map((turn) => turn.content), body.question].join('\n'),
                 model: preferences.webSearch ? meter.model : undefined,
                 sources: new Map(),
                 emit,
@@ -132,6 +133,11 @@ const app = new Elysia()
             }),
             { maxItems: 12 },
           ),
+        ),
+        skill: t.Optional(
+          t.UnionEnum(ASK_SKILLS, {
+            description: 'A task the app starts, e.g. "find-on-web". The question is then its subject, such as a business name, and the server writes the prompt.',
+          }),
         ),
         placeId: t.Optional(
           t.String({ description: 'A place the question is about, e.g. "osm/node/123". Its details and reviews are read first.' }),
@@ -177,7 +183,7 @@ const app = new Elysia()
         tags: ['Ask'],
         summary: 'Answer a question about places',
         description:
-          'Streams Server-Sent Events while a language model searches Parchment\'s place data. `step` events report each search as it runs (`running`, then `done` or `failed`); `reach` carries a travel-time polygon when the question implies one; `answer` carries a short text and the cited places, every one of which came from a search; `error` and then `done` close the stream. `history` holds earlier turns of the same conversation, oldest first. `here` and `places` give the model names (\"here\", \"home\") it can route between; their coordinates go to tools, never into the prompt. A `trip` event carries the trip the answer recommends, for opening in Directions; `route` and `canvas` events name a route or canvas saved to the user\'s library. Every question counts toward the user\'s monthly usage; on the system key, a used-up allowance returns 429 with `reason: quota-exceeded` and `resetsAt`.',
+          'Streams Server-Sent Events while a language model searches Parchment\'s place data. `step` events report each search as it runs (`running`, then `done` or `failed`); `reach` carries a travel-time polygon when the question implies one; `draft` carries a place a web lookup is still reading, keyed by lookup, with no `geometry` until its address is placed, or `null` when that page fell through; `answer` carries a short text and the cited places, every one of which came from a search; `error` and then `done` close the stream. `history` holds earlier turns of the same conversation, oldest first. `here` and `places` give the model names (\"here\", \"home\") it can route between; their coordinates go to tools, never into the prompt. A `trip` event carries the trip the answer recommends, for opening in Directions; `route` and `canvas` events name a route or canvas saved to the user\'s library. Every question counts toward the user\'s monthly usage; on the system key, a used-up allowance returns 429 with `reason: quota-exceeded` and `resetsAt`.',
       },
     },
   )

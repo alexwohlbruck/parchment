@@ -64,8 +64,9 @@ export function useNotesService() {
     return response.data
   }
 
-  async function createNote(lat: number, lng: number, text: string) {
-    const response = await api.post<OsmNote>('/notes/create', { lat, lng, text })
+  /** Posts a note; a place found on the web it's about then gets no automatic note. */
+  async function createNote(lat: number, lng: number, text: string, webPlaceId?: string) {
+    const response = await api.post<OsmNote>('/notes/create', { lat, lng, text, webPlaceId })
     store.updateNote(response.data)
     return response.data
   }

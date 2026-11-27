@@ -35,6 +35,8 @@ import { resetBlobKeyVersion } from '@/lib/identity/personal-blob'
 import { flushAllPendingRevocations } from '@/services/revocations.service'
 import { useFriendsStore } from '@/stores/friends.store'
 
+const RECOVERY_WORDS_REMINDER_INTERVAL_MS = 120 * 24 * 60 * 60 * 1000
+
 /**
  * True if the given error is a user-cancelled WebAuthn prompt (closed
  * the biometric sheet, hit escape, tapped outside, etc.). Callers
@@ -163,7 +165,22 @@ export const useIdentityStore = defineStore('identity', () => {
     recoveryWordsSavedFor.value = exportPublicKey(localKeys.value.signing.publicKey)
     return true
   }
-  
+
+  /** When the hint to save the words may next show, synced with the account. */
+  const recoveryWordsRemindAfter = ref<string | null>()
+  const isRecoveryWordsReminderDue = computed(
+    () =>
+      !isLoading.value &&
+      isSetupComplete.value &&
+      !isStale.value &&
+      hasSavedRecoveryWords.value === false &&
+      recoveryWordsRemindAfter.value !== undefined &&
+      (!recoveryWordsRemindAfter.value || Date.parse(recoveryWordsRemindAfter.value) <= Date.now()),
+  )
+  function snoozeRecoveryWordsReminder() {
+    recoveryWordsRemindAfter.value = new Date(Date.now() + RECOVERY_WORDS_REMINDER_INTERVAL_MS).toISOString()
+  }
+
   // Key accessors for encryption
   const signingPrivateKey = computed(() => localKeys.value?.signing.privateKey || null)
   const signingPublicKey = computed(() => localKeys.value?.signing.publicKey || null)
@@ -382,6 +399,7 @@ export const useIdentityStore = defineStore('identity', () => {
     passkeySlotCredentialIds.value = new Set()
     isStale.value = false
     recoveryWordsSavedFor.value = undefined
+    recoveryWordsRemindAfter.value = undefined
   }
 
   /**
@@ -748,6 +766,8 @@ export const useIdentityStore = defineStore('identity', () => {
     pendingRecoveryWords,
     recoveryWordsSavedFor,
     hasSavedRecoveryWords,
+    recoveryWordsRemindAfter,
+    isRecoveryWordsReminderDue,
     hasAnyPasskeySlot,
     passkeySlotCredentialIds,
     passkeyListVersion,
@@ -776,6 +796,7 @@ export const useIdentityStore = defineStore('identity', () => {
     importFromRecoveryWords,
     fetchRecoveryWords,
     markRecoveryWordsSaved,
+    snoozeRecoveryWordsReminder,
     updateAlias,
     clear,
     refreshSlotAvailability,

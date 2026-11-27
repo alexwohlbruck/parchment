@@ -25,6 +25,7 @@ import { resolvePresetIcon } from '../lib/place-categories'
 import { getPlaceGroup } from '../lib/place-groups'
 import { isDestination, isPlacePermanentlyClosed } from '../lib/place-tags'
 import { resolveCoordinateQuery } from './coordinate-search.service'
+import { confidentMatch, normalizeName } from '../lib/search/confident-match'
 
 /**
  * Relevance subtracted from a permanently closed place, large enough to drop it
@@ -72,11 +73,6 @@ const STREET_QUERY =
 /** Relevance of a partial brand match when a place is named exactly what was
  *  typed: below the first five places (0.90 down to 0.82). */
 const BRAND_BELOW_NAMED_PLACE = 0.8
-
-/** Normalize a brand/query string for exact-match comparison. */
-function normalizeBrandText(s: string): string {
-  return s.toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, ' ').trim()
-}
 
 /**
  * Convert a brand catalog row to a SearchResult ("See all McDonald's
@@ -439,13 +435,13 @@ export async function search(
   // first few places instead: "austin" put Austin Bank (4 locations) second,
   // under the city, and "portland" did the same with Portland Glass.
   if (brands.length > 0) {
-    const qNorm = normalizeBrandText(query || '')
+    const qNorm = normalizeName(query || '')
     const streetQuery = ADDRESS_QUERY.test(query || '') || STREET_QUERY.test(query || '')
     const placeNamedAsTyped = scoredResults.some(
-      (s) => s.result.type === 'place' && normalizeBrandText(s.result.title || '') === qNorm,
+      (s) => s.result.type === 'place' && normalizeName(s.result.title || '') === qNorm,
     )
     for (let i = 0; i < brands.length; i++) {
-      const exact = normalizeBrandText(brands[i].name) === qNorm
+      const exact = normalizeName(brands[i].name) === qNorm
       if (!exact && streetQuery) continue
       scoredResults.push({
         result: convertBrandToSearchResult(brands[i]),
@@ -464,25 +460,30 @@ export async function search(
   // Apply result limit
   const limitedResults = allResults.slice(0, maxResults)
 
-  // Return autocomplete format if requested
+  const intent = classifyQuery(query, {
+    language,
+    resultTitles: limitedResults.map((r) => r.title),
+  })
+
   if (autocomplete) {
-    const autocompleteResults = limitedResults.map(convertToAutocompleteResult)
     return {
       query,
-      results: autocompleteResults,
+      results: limitedResults.map(convertToAutocompleteResult),
       totalCount: allResults.length,
-      intent: classifyQuery(query, {
-        language,
-        resultTitles: limitedResults.map((r) => r.title),
-      }),
+      intent,
     } as AutocompleteResponse
   }
 
-  // Return full format
   return {
     query,
     results: limitedResults,
     totalCount: allResults.length,
+    intent,
+    match: confidentMatch(
+      query,
+      scoredResults.slice(0, maxResults),
+      lat != null && lng != null ? { lat, lng } : undefined,
+    ),
   } as SearchResponse
 }
 

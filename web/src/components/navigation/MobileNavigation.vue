@@ -8,6 +8,7 @@ import DashboardHome from '@/components/dashboard/DashboardHome.vue'
 import BottomSheet from '@/components/sheet/BottomSheet.vue'
 import AccountDropdown from '@/components/navigation/AccountDropdown.vue'
 import SyncStatus from '@/components/sync/SyncStatus.vue'
+import RecoveryWordsHint from '@/components/identity/RecoveryWordsHint.vue'
 import { SheetFooter } from '@/components/sheet'
 
 const route = useRoute()
@@ -94,7 +95,8 @@ watch(
       <div
         class="pointer-events-none absolute inset-x-0 bottom-full h-8 bg-gradient-to-t from-muted to-transparent"
       />
-      <div class="mb-1.5 empty:hidden">
+      <div class="mb-1.5 flex flex-col gap-1.5 empty:hidden">
+        <RecoveryWordsHint />
         <SyncStatus />
       </div>
       <AccountDropdown @update:open="open => { if (open) minimizeSheet() }" />

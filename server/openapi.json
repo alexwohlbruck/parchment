@@ -121,7 +121,7 @@
           "Ask"
         ],
         "summary": "Answer a question about places",
-        "description": "Streams Server-Sent Events while a language model searches Parchment's place data. `step` events report each search as it runs (`running`, then `done` or `failed`); `reach` carries a travel-time polygon when the question implies one; `answer` carries a short text and the cited places, every one of which came from a search; `error` and then `done` close the stream. `history` holds earlier turns of the same conversation, oldest first. `here` and `places` give the model names (\"here\", \"home\") it can route between; their coordinates go to tools, never into the prompt. A `trip` event carries the trip the answer recommends, for opening in Directions; `route` and `canvas` events name a route or canvas saved to the user's library. Every question counts toward the user's monthly usage; on the system key, a used-up allowance returns 429 with `reason: quota-exceeded` and `resetsAt`.",
+        "description": "Streams Server-Sent Events while a language model searches Parchment's place data. `step` events report each search as it runs (`running`, then `done` or `failed`); `reach` carries a travel-time polygon when the question implies one; `draft` carries a place a web lookup is still reading, keyed by lookup, with no `geometry` until its address is placed, or `null` when that page fell through; `answer` carries a short text and the cited places, every one of which came from a search; `error` and then `done` close the stream. `history` holds earlier turns of the same conversation, oldest first. `here` and `places` give the model names (\"here\", \"home\") it can route between; their coordinates go to tools, never into the prompt. A `trip` event carries the trip the answer recommends, for opening in Directions; `route` and `canvas` events name a route or canvas saved to the user's library. Every question counts toward the user's monthly usage; on the system key, a used-up allowance returns 429 with `reason: quota-exceeded` and `resetsAt`.",
         "requestBody": {
           "required": true,
           "content": {
@@ -162,6 +162,14 @@
                         "content"
                       ]
                     }
+                  },
+                  "skill": {
+                    "default": "find-on-web",
+                    "description": "A task the app starts, e.g. \"find-on-web\". The question is then its subject, such as a business name, and the server writes the prompt.",
+                    "type": "string",
+                    "enum": [
+                      "find-on-web"
+                    ]
                   },
                   "placeId": {
                     "description": "A place the question is about, e.g. \"osm/node/123\". Its details and reviews are read first.",
@@ -525,6 +533,14 @@
                       ]
                     }
                   },
+                  "skill": {
+                    "default": "find-on-web",
+                    "description": "A task the app starts, e.g. \"find-on-web\". The question is then its subject, such as a business name, and the server writes the prompt.",
+                    "type": "string",
+                    "enum": [
+                      "find-on-web"
+                    ]
+                  },
                   "placeId": {
                     "description": "A place the question is about, e.g. \"osm/node/123\". Its details and reviews are read first.",
                     "type": "string"
@@ -886,6 +902,14 @@
                         "content"
                       ]
                     }
+                  },
+                  "skill": {
+                    "default": "find-on-web",
+                    "description": "A task the app starts, e.g. \"find-on-web\". The question is then its subject, such as a business name, and the server writes the prompt.",
+                    "type": "string",
+                    "enum": [
+                      "find-on-web"
+                    ]
                   },
                   "placeId": {
                     "description": "A place the question is about, e.g. \"osm/node/123\". Its details and reviews are read first.",
@@ -7744,6 +7768,7 @@
           "Feedback"
         ],
         "summary": "Submit feedback",
+        "description": "Accepts JSON, or multipart form data to attach up to 4 screenshots (JPEG, PNG or WebP, 10MB each, judged by their contents). Screenshots are stored as public WebP files and embedded in the post.",
         "requestBody": {
           "required": true,
           "content": {
@@ -7761,8 +7786,18 @@
                     "type": "string"
                   },
                   "content": {
-                    "maxLength": 10000,
+                    "maxLength": 9000,
                     "type": "string"
+                  },
+                  "screenshots": {
+                    "elysiaMeta": "Files",
+                    "default": "Files",
+                    "type": "array",
+                    "items": {
+                      "default": "Files",
+                      "type": "string",
+                      "format": "binary"
+                    }
                   }
                 },
                 "required": [
@@ -7785,8 +7820,18 @@
                     "type": "string"
                   },
                   "content": {
-                    "maxLength": 10000,
+                    "maxLength": 9000,
                     "type": "string"
+                  },
+                  "screenshots": {
+                    "elysiaMeta": "Files",
+                    "default": "Files",
+                    "type": "array",
+                    "items": {
+                      "default": "Files",
+                      "type": "string",
+                      "format": "binary"
+                    }
                   }
                 },
                 "required": [
@@ -7809,8 +7854,18 @@
                     "type": "string"
                   },
                   "content": {
-                    "maxLength": 10000,
+                    "maxLength": 9000,
                     "type": "string"
+                  },
+                  "screenshots": {
+                    "elysiaMeta": "Files",
+                    "default": "Files",
+                    "type": "array",
+                    "items": {
+                      "default": "Files",
+                      "type": "string",
+                      "format": "binary"
+                    }
                   }
                 },
                 "required": [
@@ -15027,6 +15082,7 @@
           "Location"
         ],
         "summary": "Get location sharing configuration for all friends",
+        "description": "Shares whose `expiresAt` has passed are left out, as though sharing had been turned off.",
         "responses": {
           "200": {}
         }
@@ -15038,7 +15094,7 @@
           "Location"
         ],
         "summary": "Set location sharing configuration for a friend",
-        "description": "The handle must be an accepted friend on this server; sharing with friends on other servers is refused with 400. Turning sharing off also deletes the location held for that friend and clears their marker.",
+        "description": "The handle must be an accepted friend on this server; sharing with friends on other servers is refused with 400. Turning sharing off also deletes the location held for that friend and clears their marker. An `expiresAt` in the past is refused with 400. Once a share expires the server stops accepting and serving locations for it, then removes it and clears the friend’s marker.",
         "requestBody": {
           "required": true,
           "content": {
@@ -15052,6 +15108,19 @@
                   },
                   "enabled": {
                     "type": "boolean"
+                  },
+                  "expiresAt": {
+                    "nullable": true,
+                    "anyOf": [
+                      {
+                        "format": "date-time",
+                        "description": "When sharing ends. Null or omitted shares until turned off.",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -15069,6 +15138,19 @@
                   },
                   "enabled": {
                     "type": "boolean"
+                  },
+                  "expiresAt": {
+                    "nullable": true,
+                    "anyOf": [
+                      {
+                        "format": "date-time",
+                        "description": "When sharing ends. Null or omitted shares until turned off.",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -15086,6 +15168,19 @@
                   },
                   "enabled": {
                     "type": "boolean"
+                  },
+                  "expiresAt": {
+                    "nullable": true,
+                    "anyOf": [
+                      {
+                        "format": "date-time",
+                        "description": "When sharing ends. Null or omitted shares until turned off.",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -15130,6 +15225,7 @@
           "Location"
         ],
         "summary": "Broadcast encrypted location to friends",
+        "description": "Items for a friend whose share has expired are refused with reason `expired`.",
         "requestBody": {
           "required": true,
           "content": {
@@ -15619,6 +15715,10 @@
                   },
                   "text": {
                     "type": "string"
+                  },
+                  "webPlaceId": {
+                    "description": "The place found on the web this note is about, so it gets no automatic note",
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -15640,6 +15740,10 @@
                   },
                   "text": {
                     "type": "string"
+                  },
+                  "webPlaceId": {
+                    "description": "The place found on the web this note is about, so it gets no automatic note",
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -15660,6 +15764,10 @@
                     "type": "number"
                   },
                   "text": {
+                    "type": "string"
+                  },
+                  "webPlaceId": {
+                    "description": "The place found on the web this note is about, so it gets no automatic note",
                     "type": "string"
                   }
                 },
@@ -16406,7 +16514,7 @@
           "OSM"
         ],
         "summary": "Submit a quick edit to OpenStreetMap",
-        "description": "Creates a changeset, uploads the change, and closes the changeset using the user's connected OSM account.",
+        "description": "Creates a changeset, uploads the change, and closes the changeset using the user's connected OSM account. With `webPlaceId`, the place found on the web is marked added, so it won't get an automatic note when its listing expires.",
         "requestBody": {
           "required": true,
           "content": {
@@ -16479,6 +16587,10 @@
                       "type",
                       "tags"
                     ]
+                  },
+                  "webPlaceId": {
+                    "description": "The place found on the web this edit adds, so it gets no automatic note",
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -16557,6 +16669,10 @@
                       "type",
                       "tags"
                     ]
+                  },
+                  "webPlaceId": {
+                    "description": "The place found on the web this edit adds, so it gets no automatic note",
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -16635,6 +16751,10 @@
                       "type",
                       "tags"
                     ]
+                  },
+                  "webPlaceId": {
+                    "description": "The place found on the web this edit adds, so it gets no automatic note",
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -16999,6 +17119,10 @@
                 {
                   "const": "overture",
                   "type": "string"
+                },
+                {
+                  "const": "web",
+                  "type": "string"
                 }
               ]
             },
@@ -17060,7 +17184,7 @@
           "Places"
         ],
         "summary": "Get place details by ID, name/location, or coordinates",
-        "description": "Lookup and enrich place data. Supports ID-based lookup (source+id), name-based lookup (name+lat+lng), or coordinate-based lookup (lat+lng). Coordinate-based lookups reverse geocode; when the coordinate lands on a named place, that place is returned fully enriched with its center pinned to the coordinate, otherwise the coordinate itself with its address.",
+        "description": "Lookup and enrich place data. Supports ID-based lookup (source+id; source `web` is a business Ask found on its own website, kept for a day), name-based lookup (name+lat+lng), or coordinate-based lookup (lat+lng). Coordinate-based lookups reverse geocode; when the coordinate lands on a named place, that place is returned fully enriched with its center pinned to the coordinate, otherwise the coordinate itself with its address.",
         "responses": {
           "200": {}
         }
@@ -17114,6 +17238,392 @@
           "Places"
         ],
         "summary": "Get nearest street-level image to a coordinate",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/places/stay-offers": {
+      "get": {
+        "parameters": [
+          {
+            "description": "Place source, e.g. osm",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "query",
+            "name": "source",
+            "required": true
+          },
+          {
+            "description": "Place id within its source, e.g. node/4176535246",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "query",
+            "name": "id",
+            "required": true
+          },
+          {
+            "description": "YYYY-MM-DD",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "in": "query",
+            "name": "checkin",
+            "required": true
+          },
+          {
+            "description": "YYYY-MM-DD",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "in": "query",
+            "name": "checkout",
+            "required": true
+          },
+          {
+            "schema": {
+              "minimum": 1,
+              "maximum": 8,
+              "default": 2,
+              "anyOf": [
+                {
+                  "format": "numeric",
+                  "default": 0,
+                  "type": "string"
+                },
+                {
+                  "minimum": 1,
+                  "maximum": 8,
+                  "default": 2,
+                  "type": "number"
+                }
+              ]
+            },
+            "in": "query",
+            "name": "adults",
+            "required": false
+          },
+          {
+            "description": "ISO 4217, default USD",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z]{3}$"
+            },
+            "in": "query",
+            "name": "currency",
+            "required": false
+          },
+          {
+            "description": "ISO 3166-1 alpha-2, default US",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z]{2}$"
+            },
+            "in": "query",
+            "name": "nationality",
+            "required": false
+          }
+        ],
+        "operationId": "getPlacesStay-offers",
+        "tags": [
+          "Places"
+        ],
+        "summary": "Compare sellers' prices for a hotel",
+        "description": "One offer per seller from Google Hotels (SerpApi) and from our booking partner (LiteAPI, `bookHere`), each with its nightly price before taxes, the stay total with taxes and fees, free cancellation, and a link to that seller's page for these dates. The hotel is matched to each source once, by name within 250 m, and stored in the match store (`google_hotels`, `liteapi`), a miss included. `offers` is null when no source is configured or none lists the hotel. Stays run 1 to 30 nights. Cached for 30 minutes.",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/places/listings/": {
+      "get": {
+        "parameters": [
+          {
+            "description": "Source of the place, e.g. `osm`",
+            "examples": [
+              "osm"
+            ],
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "source",
+            "required": true
+          },
+          {
+            "description": "Id in that source, e.g. `node/6493733562`",
+            "examples": [
+              "node/6493733562"
+            ],
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "operationId": "getPlacesListings",
+        "tags": [
+          "Places"
+        ],
+        "summary": "Get the business listings a place is matched to",
+        "description": "One entry per provider the place can be matched at: the matched listing (null for none), whether a person confirmed it, and whether candidates can be searched.",
+        "responses": {
+          "200": {}
+        }
+      },
+      "put": {
+        "parameters": [],
+        "operationId": "putPlacesListings",
+        "tags": [
+          "Places"
+        ],
+        "summary": "Correct the listing a place is matched to",
+        "description": "Sets the listing for one provider, or `providerPlaceId: null` for none. Stored as a confirmed match that automatic matching never replaces. OSM places only. Booking sites (`opentable`, `resy`, `booking`, `expedia`) take the venue id parsed from its page URL, e.g. `r/<slug>` or `us/<hotel>`; anything else is a 400.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "description": "Source of the place, e.g. `osm`",
+                    "examples": [
+                      "osm"
+                    ],
+                    "type": "string"
+                  },
+                  "id": {
+                    "description": "Id in that source, e.g. `node/6493733562`",
+                    "examples": [
+                      "node/6493733562"
+                    ],
+                    "type": "string"
+                  },
+                  "provider": {
+                    "pattern": "^[a-z][a-z0-9_-]{1,31}$",
+                    "description": "Provider of the listing, e.g. `google`, `foursquare`",
+                    "type": "string"
+                  },
+                  "providerPlaceId": {
+                    "nullable": true,
+                    "anyOf": [
+                      {
+                        "minLength": 1,
+                        "maxLength": 255,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "source",
+                  "id",
+                  "provider",
+                  "providerPlaceId"
+                ]
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "description": "Source of the place, e.g. `osm`",
+                    "examples": [
+                      "osm"
+                    ],
+                    "type": "string"
+                  },
+                  "id": {
+                    "description": "Id in that source, e.g. `node/6493733562`",
+                    "examples": [
+                      "node/6493733562"
+                    ],
+                    "type": "string"
+                  },
+                  "provider": {
+                    "pattern": "^[a-z][a-z0-9_-]{1,31}$",
+                    "description": "Provider of the listing, e.g. `google`, `foursquare`",
+                    "type": "string"
+                  },
+                  "providerPlaceId": {
+                    "nullable": true,
+                    "anyOf": [
+                      {
+                        "minLength": 1,
+                        "maxLength": 255,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "source",
+                  "id",
+                  "provider",
+                  "providerPlaceId"
+                ]
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "description": "Source of the place, e.g. `osm`",
+                    "examples": [
+                      "osm"
+                    ],
+                    "type": "string"
+                  },
+                  "id": {
+                    "description": "Id in that source, e.g. `node/6493733562`",
+                    "examples": [
+                      "node/6493733562"
+                    ],
+                    "type": "string"
+                  },
+                  "provider": {
+                    "pattern": "^[a-z][a-z0-9_-]{1,31}$",
+                    "description": "Provider of the listing, e.g. `google`, `foursquare`",
+                    "type": "string"
+                  },
+                  "providerPlaceId": {
+                    "nullable": true,
+                    "anyOf": [
+                      {
+                        "minLength": 1,
+                        "maxLength": 255,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "source",
+                  "id",
+                  "provider",
+                  "providerPlaceId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/places/listings/candidates": {
+      "get": {
+        "parameters": [
+          {
+            "description": "Source of the place, e.g. `osm`",
+            "examples": [
+              "osm"
+            ],
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "source",
+            "required": true
+          },
+          {
+            "description": "Id in that source, e.g. `node/6493733562`",
+            "examples": [
+              "node/6493733562"
+            ],
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "id",
+            "required": true
+          },
+          {
+            "description": "Provider of the listing, e.g. `google`, `foursquare`",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]{1,31}$"
+            },
+            "in": "query",
+            "name": "provider",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "q",
+            "required": false
+          }
+        ],
+        "operationId": "getPlacesListingsCandidates",
+        "tags": [
+          "Places"
+        ],
+        "summary": "Search nearby listings at one provider",
+        "description": "Listings within 500 m of the place, nearest first. `q` defaults to the place name.",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/places/booking-venues": {
+      "get": {
+        "parameters": [
+          {
+            "description": "Source of the place, e.g. `osm`",
+            "examples": [
+              "osm"
+            ],
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "source",
+            "required": true
+          },
+          {
+            "description": "Id in that source, e.g. `node/6493733562`",
+            "examples": [
+              "node/6493733562"
+            ],
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "operationId": "getPlacesBooking-venues",
+        "tags": [
+          "Places"
+        ],
+        "summary": "Get a place's venues on booking sites",
+        "description": "Venue ids on OpenTable, Resy, Booking.com and Expedia from the match store, keyed by provider, plus `unlisted`: sites a person marked as not listing the place. A booking page tagged on the place (`reservation:website`, `website:booking`, …) fills its site in on first request, unconfirmed.",
         "responses": {
           "200": {}
         }
@@ -17679,7 +18189,7 @@
           "Search"
         ],
         "summary": "Search for places",
-        "description": "Place matches are ranked by text relevance decayed with distance from lat/lng, so nearby matches lead and a distant match surfaces only when nothing closer matches. Exact-name cities and towns are listed first.\n\nWith `autocomplete=true` the response also carries `intent`: `lookup` for a name or address, `browse` for a category with filters category search can apply exactly (`category`, `attributes`, `tags` and `openNow`, e.g. \"cafes with outdoor seating open now\"), or `ask` for a query that needs judgement, such as \"quiet cafe for a date\" or a question.",
+        "description": "Place matches are ranked by text relevance decayed with distance from lat/lng, so nearby matches lead and a distant match surfaces only when nothing closer matches. Exact-name cities and towns are listed first.\n\nA full search (`autocomplete=false`) carries `match` when the query clearly means one result: a typed coordinate, the category it names (a category scoring 0.8 or more), a brand named exactly what was typed, the nearest address with the typed house number and street, or a top-ranked place or transit line whose name holds every typed word and that no other place nearby shares. Clients open it directly instead of listing results.\n\nEvery response also carries `intent`: `lookup` for a name or address, `browse` for a category with filters category search can apply exactly (`category`, `attributes`, `tags` and `openNow`, e.g. \"cafes with outdoor seating open now\"), or `ask` for a query that needs judgement, such as \"quiet cafe for a date\" or a question.",
         "responses": {
           "200": {}
         }
@@ -21919,7 +22429,7 @@
                         "security": {
                           "additionalProperties": true,
                           "maxProperties": 64,
-                          "description": "The signing key whose recovery words the user has confirmed they saved.",
+                          "description": "The signing key whose recovery words the user has confirmed they saved, and when to next remind them if not.",
                           "type": "object",
                           "properties": {}
                         }
@@ -22130,7 +22640,7 @@
                         "security": {
                           "additionalProperties": true,
                           "maxProperties": 64,
-                          "description": "The signing key whose recovery words the user has confirmed they saved.",
+                          "description": "The signing key whose recovery words the user has confirmed they saved, and when to next remind them if not.",
                           "type": "object",
                           "properties": {}
                         }
@@ -22341,7 +22851,7 @@
                         "security": {
                           "additionalProperties": true,
                           "maxProperties": 64,
-                          "description": "The signing key whose recovery words the user has confirmed they saved.",
+                          "description": "The signing key whose recovery words the user has confirmed they saved, and when to next remind them if not.",
                           "type": "object",
                           "properties": {}
                         }
@@ -22566,7 +23076,7 @@
                         "security": {
                           "additionalProperties": true,
                           "maxProperties": 64,
-                          "description": "The signing key whose recovery words the user has confirmed they saved.",
+                          "description": "The signing key whose recovery words the user has confirmed they saved, and when to next remind them if not.",
                           "type": "object",
                           "properties": {}
                         }
@@ -22777,7 +23287,7 @@
                         "security": {
                           "additionalProperties": true,
                           "maxProperties": 64,
-                          "description": "The signing key whose recovery words the user has confirmed they saved.",
+                          "description": "The signing key whose recovery words the user has confirmed they saved, and when to next remind them if not.",
                           "type": "object",
                           "properties": {}
                         }
@@ -22988,7 +23498,7 @@
                         "security": {
                           "additionalProperties": true,
                           "maxProperties": 64,
-                          "description": "The signing key whose recovery words the user has confirmed they saved.",
+                          "description": "The signing key whose recovery words the user has confirmed they saved, and when to next remind them if not.",
                           "type": "object",
                           "properties": {}
                         }
@@ -23228,7 +23738,7 @@
                       "security": {
                         "additionalProperties": true,
                         "maxProperties": 64,
-                        "description": "The signing key whose recovery words the user has confirmed they saved.",
+                        "description": "The signing key whose recovery words the user has confirmed they saved, and when to next remind them if not.",
                         "type": "object",
                         "properties": {}
                       }
@@ -23455,7 +23965,7 @@
                       "security": {
                         "additionalProperties": true,
                         "maxProperties": 64,
-                        "description": "The signing key whose recovery words the user has confirmed they saved.",
+                        "description": "The signing key whose recovery words the user has confirmed they saved, and when to next remind them if not.",
                         "type": "object",
                         "properties": {}
                       }
@@ -23682,7 +24192,7 @@
                       "security": {
                         "additionalProperties": true,
                         "maxProperties": 64,
-                        "description": "The signing key whose recovery words the user has confirmed they saved.",
+                        "description": "The signing key whose recovery words the user has confirmed they saved, and when to next remind them if not.",
                         "type": "object",
                         "properties": {}
                       }

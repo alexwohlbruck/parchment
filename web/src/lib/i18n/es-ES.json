@@ -4383,6 +4383,8 @@
     "save": "Guardar",
     "partial": "No se pudo exportar {modules}, así que el archivo no lo incluye",
     "unreadable": "1 elemento privado no se pudo abrir en este dispositivo, así que falta parte de él | {count} elementos privados no se pudieron abrir en este dispositivo, así que falta parte de ellos",
+    "private": "1 elemento privado | {count} elementos privados",
+    "privateLocked": "1 elemento privado, necesita tus palabras de recuperación | {count} elementos privados, necesitan tus palabras de recuperación",
     "modules": {
       "library": {
         "title": "Biblioteca",

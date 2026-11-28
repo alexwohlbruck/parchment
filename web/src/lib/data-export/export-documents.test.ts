@@ -11,6 +11,7 @@ import {
   exportRoute,
   isCanvasLocked,
   isNameLocked,
+  isPrivate,
   isRouteLocked,
   withoutCredentials,
 } from './export-documents'
@@ -164,5 +165,11 @@ describe('integrations', () => {
       config: { host: 'https://d.example.com' },
       capabilities: [{ id: 'locationHistory', active: true }],
     })
+  })
+
+  it('counts a record as private when it is end-to-end encrypted or its name is sealed', () => {
+    expect(isPrivate({ scheme: 'user-e2ee' })).toBe(true)
+    expect(isPrivate({ scheme: 'server-key', metadataEncrypted: 'ciphertext' })).toBe(true)
+    expect(isPrivate({ scheme: 'server-key', metadataEncrypted: null })).toBe(false)
   })
 })

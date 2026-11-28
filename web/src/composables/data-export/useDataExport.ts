@@ -16,6 +16,7 @@ import {
   isCollectionLocked,
   isRouteLocked,
   isNameLocked,
+  isPrivate,
   type ExportIssue,
 } from '@/lib/data-export/export-documents'
 import { useAuthStore } from '@/stores/auth.store'
@@ -161,6 +162,28 @@ export function useDataExport() {
     },
   }
 
+  const privateCounts = ref<Partial<Record<ExportModuleId, number>>>({})
+
+  /** How many of the user's records in each module need their key to read. */
+  async function loadPrivateCounts() {
+    const userId = authStore.me?.id
+    if (!userId) return
+    type Owned = { userId?: string | null; scheme?: string | null; metadataEncrypted?: string | null }
+    const count = (records: Owned[] | null) =>
+      (records ?? []).filter(r => r.userId === userId && isPrivate(r)).length
+    const [collections, canvases, routes, integrations] = await Promise.all([
+      collectionsService.loadCollections().catch(() => null),
+      canvasesService.loadCanvases().catch(() => null),
+      routesService.loadRoutes().catch(() => null),
+      integrationService.fetchConfiguredIntegrations().catch(() => null),
+    ])
+    privateCounts.value = {
+      library: count(collections) + count(canvases),
+      routes: count(routes),
+      integrations: count(integrations),
+    }
+  }
+
   async function exportData(modules: ExportModuleId[]): Promise<boolean> {
     const userId = authStore.me?.id
     if (!userId || !modules.length || exporting.value) return false
@@ -215,5 +238,5 @@ export function useDataExport() {
     }
   }
 
-  return { exporting, exportData }
+  return { exporting, exportData, privateCounts, loadPrivateCounts }
 }

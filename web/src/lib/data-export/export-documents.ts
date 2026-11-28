@@ -97,6 +97,10 @@ export const isCanvasLocked = (canvas: Canvas) =>
 
 export const isRouteLocked = (route: Route): boolean => !route.body
 
+/** Needs the user's own key to read: an end-to-end encrypted record, or one with a sealed name. */
+export const isPrivate = (record: { scheme?: string | null; metadataEncrypted?: string | null }) =>
+  record.scheme === 'user-e2ee' || !!record.metadataEncrypted
+
 export const isNameLocked = (record: { metadataEncrypted?: string | null; name?: string | null }) =>
   !!record.metadataEncrypted && record.name == null
 

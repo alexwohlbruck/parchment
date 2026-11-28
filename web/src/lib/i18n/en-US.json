@@ -4659,6 +4659,8 @@
     "save": "Save",
     "partial": "{modules} couldn't be exported, so the file is missing them",
     "unreadable": "1 private item couldn't be opened on this device, so parts of it are missing | {count} private items couldn't be opened on this device, so parts of them are missing",
+    "private": "1 private item | {count} private items",
+    "privateLocked": "1 private item, needs your recovery words | {count} private items, need your recovery words",
     "modules": {
       "library": {
         "title": "Library",

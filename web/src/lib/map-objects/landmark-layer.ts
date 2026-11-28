@@ -924,7 +924,13 @@ export class LandmarkLayer {
       yield* this.fill(landmark)
       if (!this.map) return
     }
-    this.placements = wanted.map(landmark => this.place(landmark, terrain, detailed(landmark)))
+    const placements: Placement[] = []
+    for (const landmark of wanted) {
+      placements.push(this.place(landmark, terrain, detailed(landmark)))
+      yield
+      if (!this.map) return
+    }
+    this.placements = placements
     this.carveFills()
     // The low model is always wanted, detailed or not: it is what stands in
     // until the detail model arrives, and its footprint is what hides the

@@ -1,44 +1,20 @@
-import type { Place } from '@/types/place.types'
+import { arrivalCategories } from '@server/lib/place/arrival-points'
+import type { AutocompleteResult } from '@/types/search.types'
 
-export interface ArrivalPointsQuery {
-  presetId: string
-  placeId: string
-  mode: string
-  north: number
-  south: number
-  east: number
-  west: number
+/** Rows a place's arrival points take before the rest fold behind "N more". */
+const SHOWN_BEFORE_MORE = 3
+
+/** Whether a search result holds precise destinations worth listing under it in this mode. */
+export function offersArrivalPoints(result: AutocompleteResult, mode: string): boolean {
+  return !!result.arrivalPresetId && arrivalCategories(result.arrivalPresetId, mode).length > 0
 }
 
-/** What to ask the server for, or null when a place is too small or too bare to have arrival points. */
-export function arrivalPointsQuery(
-  place: Partial<Place> | null | undefined,
-  mode: string,
-): ArrivalPointsQuery | null {
-  const presetId = place?.icon?.presetId
-  const bounds = place?.geometry?.value?.bounds
-  if (!place?.id || !presetId || !bounds) return null
+/** The arrival points to list under their place, and how many are folded away. */
+export function visibleArrivalPoints<T>(points: T[], expanded: boolean): { shown: T[]; hidden: number } {
+  // Folding a single row away saves nothing: the "more" row would take its place.
+  if (expanded || points.length <= SHOWN_BEFORE_MORE + 1) return { shown: points, hidden: 0 }
   return {
-    presetId,
-    placeId: place.id,
-    mode,
-    north: bounds.maxLat,
-    south: bounds.minLat,
-    east: bounds.maxLng,
-    west: bounds.minLng,
+    shown: points.slice(0, SHOWN_BEFORE_MORE),
+    hidden: points.length - SHOWN_BEFORE_MORE,
   }
-}
-
-/**
- * The large place whose arrival points are on offer. Picking one of its points
- * makes that point the destination, and the offer has to survive that.
- */
-export function arrivalParent<T extends { id?: string }>(
-  destination: T | null,
-  parent: T | null,
-  points: readonly { id: string }[],
-): T | null {
-  if (!destination?.id) return null
-  if (parent && points.some(point => point.id === destination.id)) return parent
-  return destination
 }

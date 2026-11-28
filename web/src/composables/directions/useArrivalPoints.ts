@@ -1,70 +1,42 @@
-import { computed, shallowRef, watch } from 'vue'
-import { storeToRefs } from 'pinia'
-import { useDirectionsStore } from '@/stores/directions.store'
-import { useLatestRequest, SUPERSEDED } from '@/composables/useLatestRequest'
+import { shallowRef, watch, type Ref } from 'vue'
 import { fetchArrivalPoints } from '@/services/place/arrival-points.service'
-import { arrivalParent, arrivalPointsQuery } from '@/lib/directions/arrival-points'
+import { offersArrivalPoints } from '@/lib/directions/arrival-points'
 import type { Place } from '@/types/place.types'
+import type { AutocompleteResult } from '@/types/search.types'
 
-/** The precise places to arrive at inside the trip's destination, and which one is chosen. */
-export function useArrivalPoints() {
-  const store = useDirectionsStore()
-  const { waypoints, selectedMode } = storeToRefs(store)
-  const loading = useLatestRequest('failed to load arrival points')
+/** Only the top few big places get their points listed; past that the list is noise. */
+const MAX_PARENTS = 2
 
-  const parent = shallowRef<Partial<Place> | null>(null)
-  const points = shallowRef<Place[]>([])
+/** Each search result's arrival points (an airport's terminals, a campus's parking), fetched once per mode. */
+export function useArrivalPoints(results: Ref<AutocompleteResult[]>, mode: Ref<string>) {
+  const found = shallowRef(new Map<string, Place[]>())
+  const asked = new Set<string>()
+  const keyFor = (id: string, forMode: string) => `${forMode}:${id}`
 
-  const destinationIndex = computed(() => {
-    const index = waypoints.value.map(wp => !!wp.lngLat).lastIndexOf(true)
-    return index > 0 ? index : -1
-  })
-  const destination = computed(() => waypoints.value[destinationIndex.value]?.place ?? null)
+  async function load(id: string, forMode: string) {
+    const key = keyFor(id, forMode)
+    if (asked.has(key)) return
+    asked.add(key)
+    try {
+      const points = await fetchArrivalPoints(id, forMode)
+      found.value = new Map(found.value).set(key, points)
+    } catch {
+      asked.delete(key)
+    }
+  }
 
   watch(
-    destination,
-    place => {
-      const next = arrivalParent(place, parent.value, points.value)
-      if (next?.id !== parent.value?.id) points.value = []
-      parent.value = next
+    [results, mode],
+    ([list, forMode]) => {
+      list
+        .filter(result => offersArrivalPoints(result, forMode))
+        .slice(0, MAX_PARENTS)
+        .forEach(result => load(result.id, forMode))
     },
     { immediate: true },
   )
 
-  const query = computed(() => arrivalPointsQuery(parent.value, selectedMode.value))
-
-  watch(
-    () => JSON.stringify(query.value),
-    async () => {
-      if (!query.value) {
-        loading.abort()
-        points.value = []
-        return
-      }
-      const found = await loading.run(signal => fetchArrivalPoints(query.value!, signal))
-      if (found !== SUPERSEDED) points.value = found ?? []
-    },
-    { immediate: true },
-  )
-
-  const selectedId = computed(() =>
-    destination.value?.id === parent.value?.id ? null : destination.value?.id ?? null)
-
-  function arriveAt(place: Partial<Place> | null) {
-    const center = place?.geometry?.value?.center
-    const index = destinationIndex.value
-    if (!place || !center || index < 0) return
-    store.setWaypoint(index, {
-      ...waypoints.value[index],
-      place: place as Place,
-      lngLat: { lat: center.lat, lng: center.lng },
-    })
+  return {
+    pointsFor: (id: string): Place[] => found.value.get(keyFor(id, mode.value)) ?? [],
   }
-
-  /** Choosing the point already chosen goes back to the place as a whole. */
-  function toggle(point: Place) {
-    arriveAt(point.id === selectedId.value ? parent.value : point)
-  }
-
-  return { points, selectedId, toggle }
 }

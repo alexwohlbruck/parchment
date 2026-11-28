@@ -52,6 +52,9 @@ import { fuzzyFilter } from '@/lib/utils'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { frequentChipMeta, type FrequentType } from '@/lib/frequents'
 import type { Bookmark } from '@/types/library.types'
+import { storeToRefs } from 'pinia'
+import { useArrivalPoints } from '@/composables/directions/useArrivalPoints'
+import { visibleArrivalPoints } from '@/lib/directions/arrival-points'
 
 const searchService = useSearchService()
 const mapCamera = useMapCamera()
@@ -293,6 +296,19 @@ const autocompleteResults = ref<AutocompleteResult[]>([])
 const isLoading = ref(false)
 const currentQuery = ref('')
 const { nextSignal } = useAbortController()
+
+const { selectedMode } = storeToRefs(directionsStore)
+const { pointsFor } = useArrivalPoints(autocompleteResults, selectedMode)
+const expandedArrivals = ref(new Set<string>())
+
+function arrivalRows(id: string) {
+  return visibleArrivalPoints(pointsFor(id), expandedArrivals.value.has(id))
+}
+
+function showAllArrivals(event: Event, id: string) {
+  event.preventDefault()
+  expandedArrivals.value = new Set(expandedArrivals.value).add(id)
+}
 
 // Combined results with current location prepended if not already used and matches query
 const combinedResults = computed(() => {
@@ -655,27 +671,55 @@ defineExpose({
                 </ComboboxEmpty>
 
                 <ComboboxGroup v-if="!isLoading || combinedResults.length > 0">
-                  <ComboboxItem
-                    v-for="result in combinedResults"
-                    :key="result.id"
-                    class="p-0"
-                    :value="autocompleteResultToPlace(result)"
-                    @select="selectPlace(index, autocompleteResultToPlace(result))"
-                  >
-                    <PlaceCard
-                      :display="autocompleteToDisplay(result, { isDark: themeStore.isDark })"
-                      variant="plain"
-                      size="sm"
-                      density="compact"
-                      icon-variant="ghost"
-                      :navigate="false"
-                      class="flex-1 min-w-0"
-                    />
+                  <template v-for="result in combinedResults" :key="result.id">
+                    <ComboboxItem
+                      class="p-0"
+                      :value="autocompleteResultToPlace(result)"
+                      @select="selectPlace(index, autocompleteResultToPlace(result))"
+                    >
+                      <PlaceCard
+                        :display="autocompleteToDisplay(result, { isDark: themeStore.isDark })"
+                        variant="plain"
+                        size="sm"
+                        density="compact"
+                        icon-variant="ghost"
+                        :navigate="false"
+                        class="flex-1 min-w-0"
+                      />
 
-                    <ComboboxItemIndicator>
-                      <Check :class="cn('mr-2 h-4 w-4')" />
-                    </ComboboxItemIndicator>
-                  </ComboboxItem>
+                      <ComboboxItemIndicator>
+                        <Check :class="cn('mr-2 h-4 w-4')" />
+                      </ComboboxItemIndicator>
+                    </ComboboxItem>
+
+                    <!-- Somewhere more precise inside it: an airport's
+                         terminals, a campus's parking -->
+                    <ComboboxItem
+                      v-for="point in arrivalRows(result.id).shown"
+                      :key="point.id"
+                      class="ml-7 p-0"
+                      :value="point"
+                      @select="selectPlace(index, point)"
+                    >
+                      <PlaceCard
+                        :place="point"
+                        variant="plain"
+                        size="xs"
+                        subtitle=""
+                        icon-variant="ghost"
+                        :navigate="false"
+                        class="flex-1 min-w-0"
+                      />
+                    </ComboboxItem>
+                    <ComboboxItem
+                      v-if="arrivalRows(result.id).hidden"
+                      class="ml-7 py-1 text-xs text-muted-foreground"
+                      :value="`more:${result.id}`"
+                      @select="(event: Event) => showAllArrivals(event, result.id)"
+                    >
+                      {{ $t('directions.moreArrivalPoints', { count: arrivalRows(result.id).hidden }) }}
+                    </ComboboxItem>
+                  </template>
                 </ComboboxGroup>
               </ComboboxList>
             </Combobox>

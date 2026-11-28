@@ -2,15 +2,19 @@
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.27.4] - 2026-11-28
+
+### Added
+
 * Connect Claude, ChatGPT and other MCP apps by signing in to Parchment, and choose what each one can see and change.
 * Create access tokens in **Settings → Account** that reach only what you allow, and revoke them or disconnect apps anytime.
 * Command palette options mark the one currently in use with a check, like your theme, map style or units.
 * Export your data from **Settings → Account**, all at once or one part at a time. Places also come as GeoJSON and KML, and routes as GPX.
 * Directions to an airport, campus, hospital or zoo now ask where inside it you're headed: its terminals, buildings or attractions, plus parking when you're driving.
-
-### Changed
-
-### Fixed
 
 ## [0.27.3] - 2026-11-27
 

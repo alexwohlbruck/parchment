@@ -2,6 +2,8 @@
 
 ### Added
 
+* Command palette options mark the one currently in use with a check, like your theme, map style or units.
+
 ### Changed
 
 ### Fixed

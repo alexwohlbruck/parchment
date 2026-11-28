@@ -261,3 +261,12 @@ export async function getPendingEdits(
     .orderBy(desc(osmEdits.createdAt))
     .limit(50)
 }
+
+/** Every quick edit the user has submitted, newest first. */
+export async function getEditHistory(userId: string): Promise<OsmEdit[]> {
+  return db
+    .select()
+    .from(osmEdits)
+    .where(eq(osmEdits.userId, userId))
+    .orderBy(desc(osmEdits.createdAt))
+}

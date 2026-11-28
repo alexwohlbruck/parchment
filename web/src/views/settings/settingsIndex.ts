@@ -119,6 +119,12 @@ export const settingsIndex: SettingsPageDef[] = [
         titleKey: 'settings.account.passkeys.title',
         keywords: ['webauthn', 'biometric', 'security key'],
       },
+      {
+        id: 'export',
+        titleKey: 'dataExport.title',
+        descriptionKey: 'dataExport.description',
+        keywords: ['download', 'backup', 'takeout', 'gdpr', 'gpx', 'kml', 'geojson', 'zip'],
+      },
     ],
   },
   {

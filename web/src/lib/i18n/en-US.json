@@ -4709,6 +4709,58 @@
       "csv": "Spreadsheet (CSV)"
     }
   },
+  "dataExport": {
+    "title": "Export your data",
+    "description": "A copy of everything you've saved, to keep or bring to another app",
+    "download": "Download",
+    "selectAll": "Select all",
+    "selectNone": "Select none",
+    "failed": "Couldn't export your data",
+    "ready": "Your export is ready",
+    "save": "Save",
+    "partial": "{modules} couldn't be exported, so the file is missing them",
+    "unreadable": "1 private item couldn't be opened on this device, so parts of it are missing | {count} private items couldn't be opened on this device, so parts of them are missing",
+    "private": "{count} private",
+    "privateLocked": "You'll need your recovery words to include private items",
+    "modules": {
+      "library": {
+        "title": "Library",
+        "description": "Collections, saved places and canvases"
+      },
+      "routes": {
+        "title": "Saved routes",
+        "description": "Opens in GPS devices and fitness apps too"
+      },
+      "vehicles": {
+        "title": "Vehicles",
+        "description": "Your vehicles and where you parked them"
+      },
+      "preferences": {
+        "title": "Preferences",
+        "description": "Settings that follow your account"
+      },
+      "history": {
+        "title": "Search history",
+        "description": "Searches and places you've looked at"
+      },
+      "friends": {
+        "title": "Friends",
+        "description": "Friends, invitations and who sees your location"
+      },
+      "integrations": {
+        "title": "Connected services",
+        "description": "Settings only, no passwords or keys"
+      },
+      "osmEdits": {
+        "title": "Map edits",
+        "description": "Changes you've made to OpenStreetMap"
+      },
+      "account": {
+        "title": "Profile",
+        "description": "Your name, email and username"
+      }
+    }
+  },
   "profilePhoto": {
     "cropTitle": "Adjust your photo",
     "zoom": "Zoom",

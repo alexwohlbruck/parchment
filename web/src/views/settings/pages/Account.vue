@@ -21,6 +21,7 @@ import Sessions from '@/components/auth/Sessions.vue'
 import AccessTokens from '@/components/auth/AccessTokens.vue'
 import IdentitySettings from '@/components/identity/IdentitySettings.vue'
 import Billing from '@/components/subscription/BillingSection.vue'
+import DataExportSection from '@/components/data-export/DataExportSection.vue'
 
 const authService = useAuthService()
 const authStore = useAuthStore()
@@ -244,6 +245,8 @@ async function saveName() {
       <AccessTokens />
 
       <Passkeys />
+
+      <DataExportSection />
     </template>
   </div>
 </template>

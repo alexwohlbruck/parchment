@@ -187,15 +187,20 @@ export const useCanvasesService = createSharedComposable(() => {
     return { body, bodyEncrypted: null }
   }
 
+  /** Canvases, decrypted. Throws when the server can't be read. */
+  async function loadCanvases(): Promise<Canvas[]> {
+    const { data } = await api.get('/library/canvases')
+    const userId = authStore.me?.id
+    const hydrated = await Promise.all(
+      ((data ?? []) as Canvas[]).map(c => hydrateCanvas(c, userId)),
+    )
+    canvasesStore.setCanvases(hydrated)
+    return hydrated
+  }
+
   async function fetchCanvases(): Promise<Canvas[]> {
     try {
-      const { data } = await api.get('/library/canvases')
-      const userId = authStore.me?.id
-      const hydrated = await Promise.all(
-        ((data ?? []) as Canvas[]).map(c => hydrateCanvas(c, userId)),
-      )
-      canvasesStore.setCanvases(hydrated)
-      return hydrated
+      return await loadCanvases()
     } catch (error) {
       toast.error('Failed to load canvases', { cause: error })
       return []
@@ -627,6 +632,7 @@ export const useCanvasesService = createSharedComposable(() => {
 
   return {
     displayName,
+    loadCanvases,
     fetchCanvases,
     fetchCanvasById,
     createCanvas,

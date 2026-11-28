@@ -73,7 +73,7 @@ export function arrivalCategories(presetId: string, mode?: string): string[] {
 }
 
 const MAX_PER_CATEGORY = 8
-const MAX_CHILDREN = 40
+const MAX_CHILDREN = 150
 
 const CLOSED_ACCESS = new Set(['private', 'no', 'permit', 'employees', 'delivery'])
 
@@ -84,9 +84,12 @@ function isOpenToPublic(place: Place): boolean {
 const STRUCTURED_PARKING = new Set(['multi-storey', 'underground'])
 
 /** Garages and decks before surface lots: they are the ones signposted for visitors. */
-function prominence(place: Place): number {
-  return STRUCTURED_PARKING.has(getPlaceOsmTags(place).parking ?? '') ? 0 : 1
+function isGarage(place: Place): boolean {
+  return STRUCTURED_PARKING.has(getPlaceOsmTags(place).parking ?? '')
 }
+
+const byName = (a: Place, b: Place) =>
+  (a.name?.value ?? '').localeCompare(b.name?.value ?? '', undefined, { numeric: true })
 
 function isInside(place: Place, bounds: ArrivalBounds): boolean {
   const center = place.geometry?.value?.center
@@ -118,9 +121,7 @@ export function pickArrivalPoints(
   return places
     .filter((place) => isInside(place, bounds))
     .filter(keepFirstNamed(excludeId))
-    .sort((a, b) =>
-      prominence(a) - prominence(b)
-      || (a.name?.value ?? '').localeCompare(b.name?.value ?? '', undefined, { numeric: true }))
+    .sort((a, b) => Number(isGarage(b)) - Number(isGarage(a)) || byName(a, b))
     .slice(0, MAX_PER_CATEGORY)
 }
 
@@ -137,12 +138,25 @@ const NOT_ARRIVED_AT = [
   'waterway',
 ]
 
+/** Buildings that are there but nobody is visiting. */
+const BACK_OF_HOUSE = ['building/service', 'building/construction', 'building/storage', 'building/shed']
+
+/** Landmarks first, the back of house last, everything else between. */
+function prominence(place: Place): number {
+  const presetId = place.icon?.presetId ?? ''
+  if (BACK_OF_HOUSE.some((prefix) => presetId.startsWith(prefix))) return 2
+  return getPlaceOsmTags(place).wikidata || isGarage(place) ? 0 : 1
+}
+
 /**
- * Reduce a place's "Inside" list to the ones a trip can end at, keeping its
- * order. Parking only makes the list when a car is involved.
+ * Reduce a place's "Inside" list to the ones a trip can end at. Parking only
+ * makes the list when a car is involved, and then leads it: a driver parks
+ * before walking to a building. Within each group, landmarks come first and
+ * the rest run A–Z.
  */
 export function pickChildren(places: Place[], mode?: string, excludeId?: string): Place[] {
   const driving = isDriving(mode)
+  const isParking = (place: Place) => (place.icon?.presetId ?? '').startsWith(PARKING)
   return places
     .filter((place) => {
       const presetId = place.icon?.presetId ?? ''
@@ -152,5 +166,9 @@ export function pickChildren(places: Place[], mode?: string, excludeId?: string)
       return driving || !presetId.startsWith(PARKING)
     })
     .filter(keepFirstNamed(excludeId))
+    .sort((a, b) =>
+      Number(isParking(b)) - Number(isParking(a))
+      || prominence(a) - prominence(b)
+      || byName(a, b))
     .slice(0, MAX_CHILDREN)
 }

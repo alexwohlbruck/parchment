@@ -72,7 +72,7 @@ describe('getArrivalPoints', () => {
     const walking = await getArrivalPoints({ id: campus.id }, 'walking', deps([campus]))
     expect(walking.places.map((p) => p.id)).toEqual([library.id])
     const driving = await getArrivalPoints({ id: campus.id }, 'driving', deps([campus]))
-    expect(driving.places.map((p) => p.id)).toEqual([library.id, lot.id])
+    expect(driving.places.map((p) => p.id)).toEqual([lot.id, library.id])
   })
 
   test('offers nothing where no large place surrounds the point', async () => {

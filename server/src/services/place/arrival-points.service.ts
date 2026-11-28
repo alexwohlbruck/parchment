@@ -13,7 +13,9 @@ import {
 // Named destinations are a minority of what a search or an "Inside" list
 // returns — roads and paths crowd a campus — so fetch well past what gets shown.
 const FETCH_LIMIT = 60
-const CHILDREN_FETCH_LIMIT = 200
+// Barrelman serves at most 200 children a page, and roads take most of them.
+const CHILDREN_PAGE = 200
+const CHILDREN_PAGES = 3
 
 function barrelman(capability: IntegrationCapabilityId) {
   const record = integrationManager
@@ -34,7 +36,12 @@ async function lookupOutline(placeId: string): Promise<Place | null> {
 async function listChildren(parent: Place): Promise<Place[]> {
   const children = barrelman(IntegrationCapabilityId.SPATIAL_CHILDREN)?.capabilities.spatialChildren
   const osmId = parent.externalIds?.osm ?? parent.id.replace(/^osm\//, '')
-  return (await children?.getChildren(osmId, [], CHILDREN_FETCH_LIMIT)) ?? []
+  if (!children) return []
+  const pages = await Promise.all(
+    Array.from({ length: CHILDREN_PAGES }, (_, page) =>
+      children.getChildren(osmId, [], CHILDREN_PAGE, page * CHILDREN_PAGE)),
+  )
+  return pages.flat()
 }
 
 /** Areas around a point, smallest first. */

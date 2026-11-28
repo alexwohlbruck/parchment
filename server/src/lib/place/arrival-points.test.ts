@@ -109,11 +109,28 @@ describe('pickChildren', () => {
     child('osm/relation/9', 'University City', 'place/suburb', { place: 'suburb' }),
   ]
 
-  test('keeps named places someone would go to, in order', () => {
+  test('keeps named places someone would go to', () => {
     expect(pickChildren(inside, 'walking').map((p) => p.id)).toEqual(['osm/way/1'])
   })
 
-  test('adds public parking when driving', () => {
-    expect(pickChildren(inside, 'driving').map((p) => p.id)).toEqual(['osm/way/1', 'osm/way/6'])
+  test('leads with public parking when driving', () => {
+    expect(pickChildren(inside, 'driving').map((p) => p.id)).toEqual(['osm/way/6', 'osm/way/1'])
+  })
+
+  test('puts landmarks first, the back of house last, the rest A–Z', () => {
+    const campus = [
+      child('osm/way/1', 'Athletic Storage', 'building/service'),
+      child('osm/way/2', 'Woodward Hall', 'building/university', { wikidata: 'Q1' }),
+      child('osm/way/3', 'Hall 10', 'building/university'),
+      child('osm/way/4', 'Belk Gym', 'building/university', { wikidata: 'Q2' }),
+      child('osm/way/5', 'Hall 9', 'building/university'),
+    ]
+    expect(pickChildren(campus, 'walking').map((p) => p.name?.value)).toEqual([
+      'Belk Gym',
+      'Woodward Hall',
+      'Hall 9',
+      'Hall 10',
+      'Athletic Storage',
+    ])
   })
 })

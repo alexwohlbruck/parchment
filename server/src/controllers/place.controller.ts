@@ -17,6 +17,7 @@ import { getStayOffers } from '../services/stay.service'
 import { isValidStay, MAX_STAY_ADULTS } from '../lib/place/stay-dates'
 import { isVenueId, isVenueProvider } from '../lib/place/booking-venues'
 import { getBookingVenues } from '../services/place/booking-venues.service'
+import { getArrivalPoints } from '../services/place/arrival-points.service'
 import { logError, logger } from '../lib/logger'
 import { i18nPlugin } from '../lib/i18n/plugin'
 import type { Source } from '../lib/constants'
@@ -243,6 +244,44 @@ app.get(
       summary: 'Get widget data for a place',
       description:
         'Fetch additional widget data (transit departures, etc.) separately from the base place lookup. Query parameters vary by widget type.',
+    },
+  },
+)
+
+app.get(
+  '/arrival-points',
+  async ({ query, status }) => {
+    const { presetId, mode, placeId, north, south, east, west } = query
+    try {
+      const places = await getArrivalPoints({
+        presetId,
+        mode,
+        placeId,
+        bounds: { north, south, east, west },
+      })
+      return { places }
+    } catch (err) {
+      logError('Error fetching arrival points', err)
+      return status(500, {
+        message: err instanceof Error ? err.message : 'Error fetching arrival points',
+      })
+    }
+  },
+  {
+    query: t.Object({
+      presetId: t.String({ minLength: 1 }),
+      north: t.Number(),
+      south: t.Number(),
+      east: t.Number(),
+      west: t.Number(),
+      mode: t.Optional(t.String()),
+      placeId: t.Optional(t.String()),
+    }),
+    detail: {
+      tags: ['Places'],
+      summary: 'Get precise destinations inside a large place',
+      description:
+        'Named places inside a large one that a trip can end at instead of its centre: an airport\'s terminals, and with `mode` set to `driving` or `multi`, its parking. Takes the parent\'s preset ID and bounds from its place details; `placeId` keeps the parent out of its own list. Returns an empty list for a place with nothing more precise to offer.',
     },
   },
 )

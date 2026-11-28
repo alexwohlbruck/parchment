@@ -1,11 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
-import { sourceFeatures, sourceTileFeatures } from './source-features'
+import { sourceFeatures, sourceTileFeatureSteps, sourceTileFeatures } from './source-features'
 
 function tile(key: string, features: any[]) {
   return {
     tileID: { canonical: { key } },
     latestFeatureIndex: { rawTileData: new ArrayBuffer(1) },
-    querySourceFeatures: vi.fn((out: any[]) => out.push(...features.map(f => ({ ...f })))),
+    querySourceFeatures: vi.fn((out: any[], { range }: { range: [number, number] }) => {
+      out.push(...features.slice(...range).map(f => ({ ...f })))
+      return features.length
+    }),
   }
 }
 
@@ -51,5 +54,22 @@ describe('sourceFeatures', () => {
     const [nextA, nextB] = sourceTileFeatures(map, 'detail', 'poi')
     expect(nextB).toBe(firstB)
     expect(nextA).not.toBe(firstA)
+  })
+
+  it('reads a dense tile a chunk a step, and shares the reading between two readers', () => {
+    const dense = tile('a', Array.from({ length: 1200 }, (_, id) => ({ id })))
+    const map = mapOf([dense])
+    const first = sourceTileFeatureSteps(map, 'detail', 'trees')
+    expect(first.next().done).toBe(false)
+    expect(dense.querySourceFeatures).toHaveBeenCalledTimes(1)
+
+    const [all] = sourceTileFeatures(map, 'detail', 'trees')
+    expect(all.map(f => f.id)).toEqual(Array.from({ length: 1200 }, (_, id) => id))
+    expect(dense.querySourceFeatures).toHaveBeenCalledTimes(3)
+
+    const done = first.next()
+    expect(done.done).toBe(true)
+    expect((done.value as any[][])[0]).toBe(all)
+    expect(dense.querySourceFeatures).toHaveBeenCalledTimes(3)
   })
 })

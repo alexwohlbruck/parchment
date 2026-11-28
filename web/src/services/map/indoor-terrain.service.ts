@@ -1,5 +1,6 @@
 /** Levels the terrain under each indoor venue in view, so its floors, rooms and walls all stand at one height. */
-import { sourceFeatures } from '@/lib/map/source-features'
+import { frameTask } from '@/lib/map/rendering/frame-task'
+import { sourceFeatureSteps } from '@/lib/map/source-features'
 import { grownOutline, standsOnGround, venueOutlines } from '@/lib/indoor/venue-outline'
 import { terrainSampler, type TerrainSampler } from '@/lib/map-decks/ground'
 import type { Point } from '@/lib/map-decks/decks'
@@ -35,8 +36,7 @@ export function attachIndoorTerrain(map: any, terrain: FineTerrain, carver: Terr
     return samples.includes(null) ? undefined : padHeight(samples as number[])
   }
 
-  function update() {
-    queued = 0
+  function* level(): Generator<void> {
     addLayer()
     const on = enabled && !!map.getTerrain?.() && map.getZoom() >= INDOOR_MINZOOM && !!map.getSource(INDOOR_SOURCE)
     const next = on ? terrainSampler(map, sampler, schedule, template => (template === TERRAIN_TILES ? (z, x, y) => terrain.heights(z, x, y) : undefined)) : sampler
@@ -44,7 +44,7 @@ export function attachIndoorTerrain(map: any, terrain: FineTerrain, carver: Terr
     sampler = next
     const pads = new Map<string, Carving>()
     if (on && sampler) {
-      for (const [id, pieces] of venueOutlines(sourceFeatures(map, INDOOR_SOURCE, INDOOR_VENUE_TILES).filter(standsOnGround))) {
+      for (const [id, pieces] of venueOutlines((yield* sourceFeatureSteps(map, INDOOR_SOURCE, INDOOR_VENUE_TILES)).filter(standsOnGround))) {
         const known = venues.get(id)
         const ring = grownOutline(known?.ring, pieces)
         venues.set(id, { ring, height: known?.height ?? heightOf(ring, sampler.ground) ?? undefined })
@@ -54,6 +54,12 @@ export function attachIndoorTerrain(map: any, terrain: FineTerrain, carver: Terr
       for (const [id, { ring, height }] of venues) if (height != null) pads.set(`${id}|${ring.join(';')}`, padCarving(pad(ring, height)))
     }
     carver.set(LAYER_ID, pads, { focus: true, widens: true })
+  }
+
+  const levelling = frameTask(level)
+  function update() {
+    queued = 0
+    levelling.request()
   }
 
   function schedule() {
@@ -91,6 +97,7 @@ export function attachIndoorTerrain(map: any, terrain: FineTerrain, carver: Terr
       map.off('moveend', schedule)
       map.off('terrain', schedule)
       if (queued) clearTimeout(queued)
+      levelling.cancel()
       if (map.getLayer(LAYER_ID)) map.removeLayer(LAYER_ID)
       carver.clear(LAYER_ID)
     },

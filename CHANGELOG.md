@@ -2,6 +2,8 @@
 
 ### Added
 
+* Command palette options mark the one currently in use with a check, like your theme, map style or units.
+
 ### Changed
 
 * Map tiles appear up to 3× faster, and panning, rotating and zooming stay smoother while they load.

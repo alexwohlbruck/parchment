@@ -33,6 +33,7 @@ import {
   TerminalIcon,
   XIcon,
   SettingsIcon,
+  CheckIcon,
 } from 'lucide-vue-next'
 import { ItemIcon } from '@/components/ui/item-icon'
 import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
@@ -530,6 +531,8 @@ const icon = computed(() => {
     : SearchIcon
 })
 
+const selectedValue = computed(() => activeArgument.value?.selected?.())
+
 const isSearch = computed(() => {
   return activeCommand.value?.id === CommandName.SEARCH
 })
@@ -817,6 +820,7 @@ const filterFunction = computed(() => {
               :key="argumentOption.value"
               :value="argumentOption"
               class="flex gap-2"
+              :aria-current="argumentOption.value === selectedValue || undefined"
               @select="onArgumentSelected(argumentOption.value)"
             >
               <component
@@ -859,6 +863,10 @@ const filterFunction = computed(() => {
                   </span>
                 </div>
               </template>
+              <CheckIcon
+                v-if="argumentOption.value === selectedValue"
+                class="size-4 shrink-0 text-primary"
+              />
             </CommandItem>
           </CommandGroup>
 

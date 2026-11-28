@@ -2,6 +2,8 @@
 
 ### Added
 
+* Directions to an airport now offer its terminals as destinations, plus parking when you're driving. Large campuses, hospitals, malls and stadiums offer their parking.
+
 ### Changed
 
 * Map tiles appear up to 3× faster, and panning, rotating and zooming stay smoother while they load.

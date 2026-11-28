@@ -19,6 +19,7 @@ import {
 import { useDirectionsStore, RIDESHARE_ENABLED } from '@/stores/directions.store'
 import { storeToRefs } from 'pinia'
 import WaypointInput from '@/components/directions/WaypointInput.vue'
+import ArrivalPointChips from '@/components/directions/ArrivalPointChips.vue'
 import TripsList from '@/components/directions/TripsList.vue'
 import OfflineDataNotice from '@/components/offline/OfflineDataNotice.vue'
 import TripList from '@/components/directions/TripList.vue'
@@ -293,7 +294,11 @@ useMapListener(
       <WaypointInput
         :model-value="waypoints"
         @update:modelValue="directionsService.setWaypoints"
-      />
+      >
+        <template #after-stops>
+          <ArrivalPointChips />
+        </template>
+      </WaypointInput>
 
       <!-- Departure time + sort + preferences -->
       <div class="flex items-center gap-1.5">

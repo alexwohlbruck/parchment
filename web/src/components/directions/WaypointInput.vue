@@ -698,6 +698,8 @@ defineExpose({
     </draggable>
   </div>
 
+  <slot name="after-stops" />
+
   <div class="-mt-1">
     <Button
       variant="outline"

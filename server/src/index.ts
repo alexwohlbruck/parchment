@@ -49,6 +49,7 @@ import {
   ask as askController,
   mcp as mcpController,
   accessTokens as accessTokensController,
+  oauth as oauthController,
 } from './controllers'
 import { initializeIntegrations } from './services/integration.service'
 import { migrateLegacyAvatars } from './services/avatar.service'
@@ -143,6 +144,7 @@ async function main() {
   app.use(askController)
   app.use(mcpController)
   app.use(accessTokensController)
+  app.use(oauthController)
 
   // Wire realtime subscribers (local WS fanout, and — in Phase 4 —
   // federation forwarding). Must run before the first write path emits.

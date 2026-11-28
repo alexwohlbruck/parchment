@@ -590,7 +590,7 @@ export interface SpatialParentsCapability {
 }
 
 export interface SpatialChildrenCapability {
-  getChildren(areaId: string, categories?: string[], limit?: number): Promise<Place[]>
+  getChildren(areaId: string, categories?: string[], limit?: number, offset?: number): Promise<Place[]>
 }
 
 export interface SearchAlongRouteCapability {

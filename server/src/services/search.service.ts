@@ -25,6 +25,7 @@ import { resolvePresetIcon } from '../lib/place-categories'
 import { getPlaceGroup } from '../lib/place-groups'
 import { isDestination, isPlacePermanentlyClosed } from '../lib/place-tags'
 import { resolveCoordinateQuery } from './coordinate-search.service'
+import { hasArrivalPoints } from '../lib/place/arrival-points'
 import { confidentMatch, normalizeName } from '../lib/search/confident-match'
 
 /**
@@ -101,6 +102,11 @@ function convertBrandToSearchResult(brand: BrandSummary): SearchResult {
   }
 }
 
+/** Ways and relations have an outline to look inside; nodes are only a point. */
+function hasOutline(id: string): boolean {
+  return id.startsWith('osm/way/') || id.startsWith('osm/relation/')
+}
+
 /**
  * Convert a full SearchResult to a lightweight AutocompleteResult
  */
@@ -109,6 +115,7 @@ function convertToAutocompleteResult(result: SearchResult): AutocompleteResult {
   let lat: number | undefined, lng: number | undefined
   let category: AutocompleteResult['category'] | undefined
   let brand: AutocompleteResult['brand'] | undefined
+  let arrivalPresetId: string | undefined
 
   if (result.type === 'bookmark' && result.metadata.bookmark) {
     lat = result.metadata.bookmark.lat
@@ -116,6 +123,8 @@ function convertToAutocompleteResult(result: SearchResult): AutocompleteResult {
   } else if (result.type === 'place' && result.metadata.place) {
     lat = result.metadata.place.geometry.value.center.lat
     lng = result.metadata.place.geometry.value.center.lng
+    const presetId = result.metadata.place.icon?.presetId
+    if (hasOutline(result.id) && hasArrivalPoints(presetId)) arrivalPresetId = presetId
   } else if (result.type === 'category' && result.metadata.category) {
     // Categories don't have coordinates, but include category metadata
     category = result.metadata.category
@@ -146,6 +155,7 @@ function convertToAutocompleteResult(result: SearchResult): AutocompleteResult {
     brand,
     transitLine: result.metadata.transitLine,
     transitStop: result.metadata.transitStop,
+    ...(arrivalPresetId && { arrivalPresetId }),
   }
 }
 

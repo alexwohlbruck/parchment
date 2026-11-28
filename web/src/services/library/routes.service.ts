@@ -120,15 +120,20 @@ export const useRoutesService = createSharedComposable(() => {
     return encryptRouteMetadata({ metadata, seed, userId, routeId })
   }
 
+  /** Saved routes, decrypted. Throws when the server can't be read. */
+  async function loadRoutes(): Promise<Route[]> {
+    const { data } = await api.get('/library/routes')
+    const userId = authStore.me?.id
+    const hydrated = await Promise.all(
+      ((data ?? []) as Route[]).map((r) => hydrateRoute(r, userId)),
+    )
+    routesStore.setRoutes(hydrated)
+    return hydrated
+  }
+
   async function fetchRoutes(): Promise<Route[]> {
     try {
-      const { data } = await api.get('/library/routes')
-      const userId = authStore.me?.id
-      const hydrated = await Promise.all(
-        ((data ?? []) as Route[]).map((r) => hydrateRoute(r, userId)),
-      )
-      routesStore.setRoutes(hydrated)
-      return hydrated
+      return await loadRoutes()
     } catch (error) {
       toast.error('Failed to load routes', { cause: error })
       return []
@@ -499,6 +504,7 @@ export const useRoutesService = createSharedComposable(() => {
     replayUpdate,
     replayDelete,
     getRouteDisplayName,
+    loadRoutes,
     fetchRoutes,
     fetchRouteById,
     createRoute,

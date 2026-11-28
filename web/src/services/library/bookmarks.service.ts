@@ -661,10 +661,15 @@ export const useBookmarksService = createSharedComposable(() => {
    * to a collection. Rows come back with `collectionIds`, which the map layer
    * needs to honour per-collection visibility.
    */
+  async function loadBookmarks(): Promise<Bookmark[]> {
+    const { data } = await api.get<Bookmark[]>('/library/bookmarks')
+    bookmarksStore.setBookmarks(data ?? [])
+    return data ?? []
+  }
+
   async function fetchBookmarks(): Promise<void> {
     try {
-      const { data } = await api.get<Bookmark[]>('/library/bookmarks')
-      bookmarksStore.setBookmarks(data ?? [])
+      await loadBookmarks()
     } catch (e) {
       // Non-fatal: the cached store still renders. Logged, not toasted —
       // this runs during boot and the user didn't ask for it.
@@ -777,6 +782,7 @@ export const useBookmarksService = createSharedComposable(() => {
     removeBookmark,
     isBookmarkSaved,
     getFrequentBookmarks,
+    loadBookmarks,
     fetchBookmarks,
     setFrequent,
     clearFrequent,

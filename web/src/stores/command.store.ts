@@ -184,7 +184,8 @@ const GRID_SNAP_LABELS: Record<GridSnapMode, string> = {
 
 export const useCommandStore = defineStore('command', () => {
   const router = useRouter()
-  const { setAccentColor, setRadius, setUiTheme, toggleDark } = useThemeStore()
+  const themeStore = useThemeStore()
+  const { setAccentColor, setRadius, setUiTheme, toggleDark } = themeStore
   const power = usePowerStore()
   const authService = useAuthService()
   const mapService = useMapService()
@@ -438,6 +439,7 @@ export const useCommandStore = defineStore('command', () => {
             id: 'color',
             name: t('palette.commands.updateThemeColor.arguments.color.name'),
             type: 'string',
+            selected: () => themeStore.accentColor,
             customItemComponent: ColorCommandArgumentOption,
             getItems() {
               // TODO: This get called for each item, should be called once
@@ -463,6 +465,7 @@ export const useCommandStore = defineStore('command', () => {
             id: 'radius',
             name: t('palette.commands.updateThemeRadius.arguments.radius.name'),
             type: 'number',
+            selected: () => themeStore.radius,
             getItems() {
               return allRadii.map(radius => ({
                 value: radius,
@@ -485,6 +488,7 @@ export const useCommandStore = defineStore('command', () => {
             id: 'style',
             name: t('palette.commands.updateUiTheme.arguments.style.name'),
             type: 'string',
+            selected: () => themeStore.uiTheme,
             getItems() {
               return uiThemes.map(theme => ({
                 value: theme,
@@ -507,6 +511,7 @@ export const useCommandStore = defineStore('command', () => {
             id: 'engine',
             name: t('palette.commands.chooseMapEngine.arguments.engine.name'),
             type: 'string',
+            selected: () => settings.value.engine,
             getItems() {
               const canUseMapbox = authService.hasPermission(PermissionId.PREMIUM_LAYERS)
               return [
@@ -547,6 +552,7 @@ export const useCommandStore = defineStore('command', () => {
             id: 'projection',
             name: t('palette.commands.mapProjection.arguments.projection.name'),
             type: 'string',
+            selected: () => settings.value.projection,
             getItems() {
               // Both engines project, but not into the same set of shapes.
               return ENGINE_PROJECTIONS[settings.value.engine].map(
@@ -575,6 +581,7 @@ export const useCommandStore = defineStore('command', () => {
             id: 'style',
             name: t('palette.commands.mapStyle.arguments.style.name'),
             type: 'string',
+            selected: () => settings.value.mapStyle,
             getItems() {
               return MAP_STYLE_IDS.map(style => ({
                 value: style,
@@ -624,6 +631,7 @@ export const useCommandStore = defineStore('command', () => {
             id: 'language',
             name: t('palette.commands.updateLanguage.arguments.language.name'),
             type: 'string',
+            selected: () => locale.value,
             getItems(): { value: Locale; name: string }[] {
               return [
                 {
@@ -671,6 +679,7 @@ export const useCommandStore = defineStore('command', () => {
             id: 'mode',
             name: t('palette.commands.mapShadows.arguments.mode.name'),
             type: 'string',
+            selected: () => settings.value.shadows,
             getItems() {
               return Object.values(ShadowMode).map(mode => ({
                 value: mode,
@@ -758,6 +767,7 @@ export const useCommandStore = defineStore('command', () => {
             id: 'style',
             name: t('palette.commands.placeIconStyle.arguments.style.name'),
             type: 'string',
+            selected: () => settings.value.poiStyle,
             getItems() {
               return POI_STYLES.map(style => ({
                 value: style,
@@ -789,6 +799,7 @@ export const useCommandStore = defineStore('command', () => {
             id: 'mode',
             name: t('palette.commands.gridSnap.arguments.mode.name'),
             type: 'string',
+            selected: () => settings.value.gridSnapMode,
             getItems() {
               return Object.values(GridSnapMode).map(mode => ({
                 value: mode,
@@ -812,6 +823,7 @@ export const useCommandStore = defineStore('command', () => {
             id: 'units',
             name: t('palette.commands.updateUnitSystem.arguments.units.name'),
             type: 'string',
+            selected: () => unitSystem.value,
             getItems() {
               return Object.values(UnitSystem).map(system => ({
                 value: system,
@@ -835,6 +847,7 @@ export const useCommandStore = defineStore('command', () => {
             id: 'level',
             name: t('palette.commands.batterySaver.arguments.level.name'),
             type: 'string',
+            selected: () => power.choice,
             getItems() {
               return POWER_SAVERS.map(level => ({
                 value: level,

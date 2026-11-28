@@ -17,6 +17,7 @@ import {
   getLiveElement,
   submitEdit,
   getPendingEdits,
+  getEditHistory,
   OsmEditError,
 } from '../services/osm-edit.service'
 import type { OsmElementType } from '../types/osm-edit.types'
@@ -426,6 +427,22 @@ authedApi.get(
     detail: {
       tags: ['OSM'],
       summary: "List the user's pending quick edits",
+    },
+  },
+)
+
+/**
+ * GET /osm/edits/history — Every quick edit the user has submitted.
+ */
+authedApi.get(
+  '/edits/history',
+  async ({ user }) => ({ edits: await getEditHistory(user.id) }),
+  {
+    detail: {
+      tags: ['OSM'],
+      summary: "List all of the user's quick edits",
+      description:
+        'Pending and resolved edits alike, newest first. Used by data export.',
     },
   },
 )

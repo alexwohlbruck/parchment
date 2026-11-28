@@ -94,6 +94,8 @@ export interface AutocompleteResult {
   // Transit metadata: how to open a GTFS line or GTFS-only stop
   transitLine?: TransitLineRef
   transitStop?: TransitStopRef
+  /** Preset of a place large enough to hold precise destinations, like an airport's terminals. */
+  arrivalPresetId?: string
 }
 
 export interface SearchOptions {

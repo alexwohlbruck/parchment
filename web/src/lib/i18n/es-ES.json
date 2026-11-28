@@ -1016,6 +1016,7 @@
     "currentLocation": "Ubicación actual",
     "useCurrentLocation": "Usar tu ubicación actual",
     "addStop": "Añadir parada",
+    "moreArrivalPoints": "{count} más",
     "tripModes": {
       "filter": "Modos",
       "transit": "Transporte público",
@@ -3224,6 +3225,67 @@
         "signOutOthersDescription": "Seguirás con la sesión iniciada aquí. Recomendado si un dispositivo se perdió o fue robado.",
         "signOutOthersSuccess": "Sesión cerrada en otros dispositivos.",
         "signOutOthersFailed": "No se pudo cerrar sesión en otros dispositivos."
+      },
+      "scopes": {
+        "places:read": {
+          "title": "Buscar lugares",
+          "description": "Encontrar lugares y ver sus detalles"
+        },
+        "trips:read": {
+          "title": "Planear viajes",
+          "description": "Indicaciones, salidas de transporte y bicicletas compartidas"
+        },
+        "weather:read": {
+          "title": "Consultar el clima",
+          "description": "Clima, calidad del aire e incendios"
+        },
+        "library:read": {
+          "title": "Ver tu biblioteca",
+          "description": "Lugares guardados, colecciones, rutas, lienzos y vehículos"
+        },
+        "library:write": {
+          "title": "Cambiar tu biblioteca",
+          "description": "Guardar lugares, y crear y compartir rutas y lienzos"
+        }
+      },
+      "tokens": {
+        "title": "Tokens de acceso",
+        "description": "Deja que un script o un cliente MCP use tu cuenta. Cada token llega solo a lo que permitas.",
+        "create": "Nuevo token",
+        "empty": "Aún no hay tokens",
+        "neverUsed": "Nunca usado",
+        "lastUsed": "Usado {when}",
+        "expires": "Vence el {date}",
+        "neverExpires": "No vence",
+        "revoke": "Revocar",
+        "revokeTitle": "¿Revocar {name}?",
+        "revokeDescription": "Todo lo que use este token dejará de funcionar de inmediato.",
+        "revokeFailed": "No se pudo revocar el token",
+        "dialog": {
+          "title": "Nuevo token de acceso",
+          "name": "Nombre",
+          "namePlaceholder": "Claude Desktop",
+          "scopes": "Qué puede hacer",
+          "lifetime": "Vence",
+          "lifetimes": {
+            "30": "En 30 días",
+            "90": "En 90 días",
+            "365": "En un año",
+            "never": "Nunca"
+          },
+          "submit": "Crear token",
+          "failed": "No se pudo crear el token",
+          "createdTitle": "Copia tu token",
+          "createdDescription": "No lo volverás a ver. Envíalo como token bearer.",
+          "copy": "Copiar",
+          "copied": "Token copiado"
+        }
+      },
+      "apps": {
+        "title": "Apps conectadas",
+        "disconnect": "Desconectar",
+        "disconnectTitle": "¿Desconectar {name}?",
+        "disconnectDescription": "Pierde el acceso de inmediato. Puedes volver a conectarla después."
       }
     },
     "billing": {
@@ -4372,6 +4434,58 @@
       "csv": "Hoja de cálculo (CSV)"
     }
   },
+  "dataExport": {
+    "title": "Exportar tus datos",
+    "description": "Una copia de todo lo que has guardado, para conservarla o llevarla a otra app",
+    "download": "Descargar",
+    "selectAll": "Seleccionar todo",
+    "selectNone": "No seleccionar nada",
+    "failed": "No se pudieron exportar tus datos",
+    "ready": "Tu exportación está lista",
+    "save": "Guardar",
+    "partial": "No se pudo exportar {modules}, así que el archivo no lo incluye",
+    "unreadable": "1 elemento privado no se pudo abrir en este dispositivo, así que falta parte de él | {count} elementos privados no se pudieron abrir en este dispositivo, así que falta parte de ellos",
+    "private": "{count} privados",
+    "privateLocked": "Necesitarás tus palabras de recuperación para incluir los elementos privados",
+    "modules": {
+      "library": {
+        "title": "Biblioteca",
+        "description": "Colecciones, lugares guardados y lienzos"
+      },
+      "routes": {
+        "title": "Rutas guardadas",
+        "description": "También se abre en dispositivos GPS y apps de deporte"
+      },
+      "vehicles": {
+        "title": "Vehículos",
+        "description": "Tus vehículos y dónde los aparcaste"
+      },
+      "preferences": {
+        "title": "Preferencias",
+        "description": "Ajustes que te siguen en tu cuenta"
+      },
+      "history": {
+        "title": "Historial de búsqueda",
+        "description": "Búsquedas y lugares que has visto"
+      },
+      "friends": {
+        "title": "Amigos",
+        "description": "Amigos, invitaciones y quién ve tu ubicación"
+      },
+      "integrations": {
+        "title": "Servicios conectados",
+        "description": "Solo ajustes, sin contraseñas ni claves"
+      },
+      "osmEdits": {
+        "title": "Ediciones del mapa",
+        "description": "Cambios que has hecho en OpenStreetMap"
+      },
+      "account": {
+        "title": "Perfil",
+        "description": "Tu nombre, correo y nombre de usuario"
+      }
+    }
+  },
   "profilePhoto": {
     "cropTitle": "Ajusta tu foto",
     "zoom": "Zoom",
@@ -4385,5 +4499,16 @@
   },
   "recents": {
     "remove": "Quitar de recientes"
+  },
+  "oauthConsent": {
+    "title": "{name} quiere usar tu cuenta",
+    "canDo": "Podrá",
+    "signedInAs": "Sesión iniciada como {email}",
+    "returnsTo": "Volverás a {host}",
+    "allow": "Permitir",
+    "cancel": "Cancelar",
+    "invalidTitle": "Este enlace de inicio de sesión no funciona",
+    "invalidDescription": "Vuelve a la app e intenta conectarla de nuevo.",
+    "failed": "No se pudo conectar la app"
   }
 }

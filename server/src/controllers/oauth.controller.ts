@@ -24,6 +24,7 @@ import {
   revokeOAuthSecret,
   type IssuedOAuthTokens,
 } from '../services/access-token.service'
+import type { AuthorizationRequestDetails } from '../types/access-token.types'
 
 const NO_STORE = { 'cache-control': 'no-store', pragma: 'no-cache' }
 
@@ -97,7 +98,7 @@ const consent = new Elysia()
     async ({ query, set }) => {
       try {
         const request = await resolveAuthorizationRequest(query)
-        return {
+        const details: AuthorizationRequestDetails = {
           client: {
             id: request.client.id,
             name: request.client.name,
@@ -106,6 +107,7 @@ const consent = new Elysia()
           scopes: request.scopes,
           denyUrl: authorizationRedirect(request, { error: 'access_denied' }),
         }
+        return details
       } catch (error) {
         if (error instanceof RedirectedOAuthError) {
           set.status = 400

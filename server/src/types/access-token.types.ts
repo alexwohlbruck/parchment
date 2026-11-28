@@ -41,3 +41,11 @@ export interface TokenGrant {
   scopes: TokenScope[]
   expiresAt: Date | null
 }
+
+/** What the consent screen shows for an authorization request. */
+export interface AuthorizationRequestDetails {
+  client: { id: string; name: string; redirectHost: string }
+  scopes: TokenScope[]
+  /** Where to send the user if they decline. */
+  denyUrl: string
+}

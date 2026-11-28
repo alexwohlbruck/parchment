@@ -48,6 +48,7 @@ export const TEST_SESSION = {
 
 let currentUser: TestUser | null = TEST_USER
 let currentHasPermission = true
+let currentScopes: string[] | null = null
 
 /** Set the identity seen by subsequent requests; `null` makes guards 401. */
 export function setAuthUser(user: TestUser | null): void {
@@ -59,10 +60,16 @@ export function setHasPermission(allowed: boolean): void {
   currentHasPermission = allowed
 }
 
+/** Authenticate as a scoped token holding `scopes`; `null` is a full session. */
+export function setAuthScopes(scopes: string[] | null): void {
+  currentScopes = scopes
+}
+
 /** Restore the default authenticated state — call in `beforeEach`. */
 export function resetAuth(): void {
   currentUser = TEST_USER
   currentHasPermission = true
+  currentScopes = null
 }
 
 function currentSession() {
@@ -80,12 +87,12 @@ export function authMockModule() {
       const user = currentUser
       const session = currentSession()
       if (!user || !session) return status(401, { message: 'Unauthorized' })
-      return { user, session }
+      return { user, session, scopes: currentScopes }
     })
 
   /** Non-blocking variant — leaves `user` null instead of rejecting. */
   const optional = (app: Elysia) =>
-    app.derive(() => ({ user: currentUser, session: currentSession() }))
+    app.derive(() => ({ user: currentUser, session: currentSession(), scopes: currentScopes }))
 
   return {
     getSessionId: () => (currentUser ? TEST_SESSION.id : null),

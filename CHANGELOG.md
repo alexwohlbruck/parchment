@@ -2,10 +2,20 @@
 
 ### Added
 
-* Export your data from account settings: your library, routes, vehicles, preferences, history, friends, connected services and map edits, as one zip or one part at a time. Places also come as GeoJSON and KML, and routes as GPX.
+* Connect Claude, ChatGPT and other MCP apps by signing in to Parchment, and choose what each one can see and change.
+* Create access tokens in **Settings → Account** that reach only what you allow, and revoke them or disconnect apps anytime.
+* Command palette options mark the one currently in use with a check, like your theme, map style or units.
+* Export your data from **Settings → Account**, all at once or one part at a time. Places also come as GeoJSON and KML, and routes as GPX.
 
 ### Changed
 
+### Fixed
+
+## [0.27.3] - 2026-11-27
+
+### Changed
+
+* Zooming, flying to a place and dragging across a city stutter far less.
 * Map tiles appear up to 3× faster, and panning, rotating and zooming stay smoother while they load.
 
 ### Fixed

@@ -3331,6 +3331,67 @@
         "signOutOthersDescription": "You'll stay signed in here. Recommended if a device was lost or stolen.",
         "signOutOthersSuccess": "Signed out of other devices.",
         "signOutOthersFailed": "Couldn't sign out other devices."
+      },
+      "scopes": {
+        "places:read": {
+          "title": "Search places",
+          "description": "Find places and see their details"
+        },
+        "trips:read": {
+          "title": "Plan trips",
+          "description": "Directions, transit departures and bike share"
+        },
+        "weather:read": {
+          "title": "Check the weather",
+          "description": "Weather, air quality and wildfires"
+        },
+        "library:read": {
+          "title": "See your library",
+          "description": "Saved places, collections, routes, canvases and vehicles"
+        },
+        "library:write": {
+          "title": "Change your library",
+          "description": "Save places, and build and share routes and canvases"
+        }
+      },
+      "tokens": {
+        "title": "Access tokens",
+        "description": "Let a script or an MCP client use your account. Each token reaches only what you allow.",
+        "create": "New token",
+        "empty": "No tokens yet",
+        "neverUsed": "Never used",
+        "lastUsed": "Used {when}",
+        "expires": "Expires {date}",
+        "neverExpires": "Never expires",
+        "revoke": "Revoke",
+        "revokeTitle": "Revoke {name}?",
+        "revokeDescription": "Anything using this token stops working right away.",
+        "revokeFailed": "Couldn't revoke the token",
+        "dialog": {
+          "title": "New access token",
+          "name": "Name",
+          "namePlaceholder": "Claude Desktop",
+          "scopes": "What it can do",
+          "lifetime": "Expires",
+          "lifetimes": {
+            "30": "In 30 days",
+            "90": "In 90 days",
+            "365": "In a year",
+            "never": "Never"
+          },
+          "submit": "Create token",
+          "failed": "Couldn't create the token",
+          "createdTitle": "Copy your token",
+          "createdDescription": "You won't see it again. Send it as a bearer token.",
+          "copy": "Copy",
+          "copied": "Token copied"
+        }
+      },
+      "apps": {
+        "title": "Connected apps",
+        "disconnect": "Disconnect",
+        "disconnectTitle": "Disconnect {name}?",
+        "disconnectDescription": "It loses access right away. You can connect it again later."
       }
     },
     "billing": {
@@ -4713,5 +4774,16 @@
   },
   "recents": {
     "remove": "Remove from recents"
+  },
+  "oauthConsent": {
+    "title": "{name} wants to use your account",
+    "canDo": "It will be able to",
+    "signedInAs": "Signed in as {email}",
+    "returnsTo": "You'll go back to {host}",
+    "allow": "Allow",
+    "cancel": "Cancel",
+    "invalidTitle": "This sign-in link doesn't work",
+    "invalidDescription": "Go back to the app and try connecting again.",
+    "failed": "Couldn't connect the app"
   }
 }

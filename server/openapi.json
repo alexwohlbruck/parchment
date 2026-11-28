@@ -11,6 +11,10 @@
       "description": "Authentication and session endpoints"
     },
     {
+      "name": "OAuth",
+      "description": "Sign-in for MCP clients and other apps: discovery, client registration, authorization and tokens"
+    },
+    {
       "name": "Users",
       "description": "User and profile management"
     },
@@ -100,6 +104,1060 @@
     }
   ],
   "paths": {
+    "/auth/tokens/": {
+      "get": {
+        "responses": {
+          "200": {
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "default": "personal",
+                  "type": "string",
+                  "enum": [
+                    "personal",
+                    "oauth"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "scopes": {
+                  "type": "array",
+                  "items": {
+                    "default": "places:read",
+                    "type": "string",
+                    "enum": [
+                      "places:read",
+                      "trips:read",
+                      "weather:read",
+                      "library:read",
+                      "library:write"
+                    ]
+                  }
+                },
+                "hint": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "anyOf": [
+                    {
+                      "type": "Date"
+                    },
+                    {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    {
+                      "format": "date",
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
+                "lastUsedAt": {
+                  "nullable": true,
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "type": "Date"
+                        },
+                        {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        {
+                          "format": "date",
+                          "type": "string"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "expiresAt": {
+                  "nullable": true,
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "type": "Date"
+                        },
+                        {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        {
+                          "format": "date",
+                          "type": "string"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "name",
+                "scopes",
+                "hint",
+                "createdAt",
+                "lastUsedAt",
+                "expiresAt"
+              ]
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "default": "personal",
+                        "type": "string",
+                        "enum": [
+                          "personal",
+                          "oauth"
+                        ]
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "scopes": {
+                        "type": "array",
+                        "items": {
+                          "default": "places:read",
+                          "type": "string",
+                          "enum": [
+                            "places:read",
+                            "trips:read",
+                            "weather:read",
+                            "library:read",
+                            "library:write"
+                          ]
+                        }
+                      },
+                      "hint": {
+                        "type": "string"
+                      },
+                      "createdAt": {
+                        "anyOf": [
+                          {
+                            "type": "Date"
+                          },
+                          {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          {
+                            "format": "date",
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      },
+                      "lastUsedAt": {
+                        "nullable": true,
+                        "anyOf": [
+                          {
+                            "anyOf": [
+                              {
+                                "type": "Date"
+                              },
+                              {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              {
+                                "format": "date",
+                                "type": "string"
+                              },
+                              {
+                                "type": "number"
+                              }
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "expiresAt": {
+                        "nullable": true,
+                        "anyOf": [
+                          {
+                            "anyOf": [
+                              {
+                                "type": "Date"
+                              },
+                              {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              {
+                                "format": "date",
+                                "type": "string"
+                              },
+                              {
+                                "type": "number"
+                              }
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "kind",
+                      "name",
+                      "scopes",
+                      "hint",
+                      "createdAt",
+                      "lastUsedAt",
+                      "expiresAt"
+                    ]
+                  }
+                }
+              },
+              "multipart/form-data": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "default": "personal",
+                        "type": "string",
+                        "enum": [
+                          "personal",
+                          "oauth"
+                        ]
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "scopes": {
+                        "type": "array",
+                        "items": {
+                          "default": "places:read",
+                          "type": "string",
+                          "enum": [
+                            "places:read",
+                            "trips:read",
+                            "weather:read",
+                            "library:read",
+                            "library:write"
+                          ]
+                        }
+                      },
+                      "hint": {
+                        "type": "string"
+                      },
+                      "createdAt": {
+                        "anyOf": [
+                          {
+                            "type": "Date"
+                          },
+                          {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          {
+                            "format": "date",
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      },
+                      "lastUsedAt": {
+                        "nullable": true,
+                        "anyOf": [
+                          {
+                            "anyOf": [
+                              {
+                                "type": "Date"
+                              },
+                              {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              {
+                                "format": "date",
+                                "type": "string"
+                              },
+                              {
+                                "type": "number"
+                              }
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "expiresAt": {
+                        "nullable": true,
+                        "anyOf": [
+                          {
+                            "anyOf": [
+                              {
+                                "type": "Date"
+                              },
+                              {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              {
+                                "format": "date",
+                                "type": "string"
+                              },
+                              {
+                                "type": "number"
+                              }
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "kind",
+                      "name",
+                      "scopes",
+                      "hint",
+                      "createdAt",
+                      "lastUsedAt",
+                      "expiresAt"
+                    ]
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "default": "personal",
+                        "type": "string",
+                        "enum": [
+                          "personal",
+                          "oauth"
+                        ]
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "scopes": {
+                        "type": "array",
+                        "items": {
+                          "default": "places:read",
+                          "type": "string",
+                          "enum": [
+                            "places:read",
+                            "trips:read",
+                            "weather:read",
+                            "library:read",
+                            "library:write"
+                          ]
+                        }
+                      },
+                      "hint": {
+                        "type": "string"
+                      },
+                      "createdAt": {
+                        "anyOf": [
+                          {
+                            "type": "Date"
+                          },
+                          {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          {
+                            "format": "date",
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      },
+                      "lastUsedAt": {
+                        "nullable": true,
+                        "anyOf": [
+                          {
+                            "anyOf": [
+                              {
+                                "type": "Date"
+                              },
+                              {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              {
+                                "format": "date",
+                                "type": "string"
+                              },
+                              {
+                                "type": "number"
+                              }
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "expiresAt": {
+                        "nullable": true,
+                        "anyOf": [
+                          {
+                            "anyOf": [
+                              {
+                                "type": "Date"
+                              },
+                              {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              {
+                                "format": "date",
+                                "type": "string"
+                              },
+                              {
+                                "type": "number"
+                              }
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "kind",
+                      "name",
+                      "scopes",
+                      "hint",
+                      "createdAt",
+                      "lastUsedAt",
+                      "expiresAt"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getAuthTokens",
+        "tags": [
+          "Auth"
+        ],
+        "summary": "List access tokens",
+        "description": "The caller's personal access tokens and the apps connected through OAuth. Secrets are never returned; `hint` is the first characters of one, and for an OAuth grant `expiresAt` is when it stops refreshing."
+      },
+      "post": {
+        "parameters": [],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "default": "personal",
+                      "type": "string",
+                      "enum": [
+                        "personal",
+                        "oauth"
+                      ]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "scopes": {
+                      "type": "array",
+                      "items": {
+                        "default": "places:read",
+                        "type": "string",
+                        "enum": [
+                          "places:read",
+                          "trips:read",
+                          "weather:read",
+                          "library:read",
+                          "library:write"
+                        ]
+                      }
+                    },
+                    "hint": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "anyOf": [
+                        {
+                          "type": "Date"
+                        },
+                        {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        {
+                          "format": "date",
+                          "type": "string"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ]
+                    },
+                    "lastUsedAt": {
+                      "nullable": true,
+                      "anyOf": [
+                        {
+                          "anyOf": [
+                            {
+                              "type": "Date"
+                            },
+                            {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            {
+                              "format": "date",
+                              "type": "string"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "expiresAt": {
+                      "nullable": true,
+                      "anyOf": [
+                        {
+                          "anyOf": [
+                            {
+                              "type": "Date"
+                            },
+                            {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            {
+                              "format": "date",
+                              "type": "string"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "secret": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "kind",
+                    "name",
+                    "scopes",
+                    "hint",
+                    "createdAt",
+                    "lastUsedAt",
+                    "expiresAt",
+                    "secret"
+                  ]
+                }
+              },
+              "multipart/form-data": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "default": "personal",
+                      "type": "string",
+                      "enum": [
+                        "personal",
+                        "oauth"
+                      ]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "scopes": {
+                      "type": "array",
+                      "items": {
+                        "default": "places:read",
+                        "type": "string",
+                        "enum": [
+                          "places:read",
+                          "trips:read",
+                          "weather:read",
+                          "library:read",
+                          "library:write"
+                        ]
+                      }
+                    },
+                    "hint": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "anyOf": [
+                        {
+                          "type": "Date"
+                        },
+                        {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        {
+                          "format": "date",
+                          "type": "string"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ]
+                    },
+                    "lastUsedAt": {
+                      "nullable": true,
+                      "anyOf": [
+                        {
+                          "anyOf": [
+                            {
+                              "type": "Date"
+                            },
+                            {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            {
+                              "format": "date",
+                              "type": "string"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "expiresAt": {
+                      "nullable": true,
+                      "anyOf": [
+                        {
+                          "anyOf": [
+                            {
+                              "type": "Date"
+                            },
+                            {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            {
+                              "format": "date",
+                              "type": "string"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "secret": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "kind",
+                    "name",
+                    "scopes",
+                    "hint",
+                    "createdAt",
+                    "lastUsedAt",
+                    "expiresAt",
+                    "secret"
+                  ]
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "default": "personal",
+                      "type": "string",
+                      "enum": [
+                        "personal",
+                        "oauth"
+                      ]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "scopes": {
+                      "type": "array",
+                      "items": {
+                        "default": "places:read",
+                        "type": "string",
+                        "enum": [
+                          "places:read",
+                          "trips:read",
+                          "weather:read",
+                          "library:read",
+                          "library:write"
+                        ]
+                      }
+                    },
+                    "hint": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "anyOf": [
+                        {
+                          "type": "Date"
+                        },
+                        {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        {
+                          "format": "date",
+                          "type": "string"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ]
+                    },
+                    "lastUsedAt": {
+                      "nullable": true,
+                      "anyOf": [
+                        {
+                          "anyOf": [
+                            {
+                              "type": "Date"
+                            },
+                            {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            {
+                              "format": "date",
+                              "type": "string"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "expiresAt": {
+                      "nullable": true,
+                      "anyOf": [
+                        {
+                          "anyOf": [
+                            {
+                              "type": "Date"
+                            },
+                            {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            {
+                              "format": "date",
+                              "type": "string"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "secret": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "kind",
+                    "name",
+                    "scopes",
+                    "hint",
+                    "createdAt",
+                    "lastUsedAt",
+                    "expiresAt",
+                    "secret"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postAuthTokens",
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Create a personal access token",
+        "description": "Returns the secret once; only its hash is stored. Send it as `Authorization: Bearer <secret>` to reach the routes and MCP tools its scopes allow. Scoped tokens can never manage tokens, sessions or the account.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "minLength": 1,
+                    "maxLength": 60,
+                    "type": "string"
+                  },
+                  "scopes": {
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "type": "array",
+                    "items": {
+                      "default": "places:read",
+                      "type": "string",
+                      "enum": [
+                        "places:read",
+                        "trips:read",
+                        "weather:read",
+                        "library:read",
+                        "library:write"
+                      ]
+                    }
+                  },
+                  "expiresInDays": {
+                    "nullable": true,
+                    "anyOf": [
+                      {
+                        "default": 30,
+                        "type": "number",
+                        "enum": [
+                          30,
+                          90,
+                          365
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "name",
+                  "scopes",
+                  "expiresInDays"
+                ]
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "minLength": 1,
+                    "maxLength": 60,
+                    "type": "string"
+                  },
+                  "scopes": {
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "type": "array",
+                    "items": {
+                      "default": "places:read",
+                      "type": "string",
+                      "enum": [
+                        "places:read",
+                        "trips:read",
+                        "weather:read",
+                        "library:read",
+                        "library:write"
+                      ]
+                    }
+                  },
+                  "expiresInDays": {
+                    "nullable": true,
+                    "anyOf": [
+                      {
+                        "default": 30,
+                        "type": "number",
+                        "enum": [
+                          30,
+                          90,
+                          365
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "name",
+                  "scopes",
+                  "expiresInDays"
+                ]
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "minLength": 1,
+                    "maxLength": 60,
+                    "type": "string"
+                  },
+                  "scopes": {
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "type": "array",
+                    "items": {
+                      "default": "places:read",
+                      "type": "string",
+                      "enum": [
+                        "places:read",
+                        "trips:read",
+                        "weather:read",
+                        "library:read",
+                        "library:write"
+                      ]
+                    }
+                  },
+                  "expiresInDays": {
+                    "nullable": true,
+                    "anyOf": [
+                      {
+                        "default": 30,
+                        "type": "number",
+                        "enum": [
+                          30,
+                          90,
+                          365
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "name",
+                  "scopes",
+                  "expiresInDays"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/tokens/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "operationId": "deleteAuthTokensById",
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Revoke an access token",
+        "description": "Works for personal tokens and OAuth grants alike; the token stops working at once.",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
     "/ask/access": {
       "get": {
         "operationId": "getAskAccess",
@@ -15488,7 +16546,7 @@
           "Ask"
         ],
         "summary": "Model Context Protocol endpoint",
-        "description": "A stateless MCP server (Streamable HTTP, JSON responses) exposing Ask's tools to MCP clients such as Claude or ChatGPT: place search and details, what is at a point, trip planning, transit departures and lines, weather and wildfires, the user's saved places, collections, routes, canvases and vehicles, and building, changing, sharing and archiving routes, canvases and saved places in their library. `tools/list` describes each. Send one JSON-RPC message per request; supports `initialize`, `ping`, `tools/list` and `tools/call`. Notifications are acknowledged with 202. Needs a signed-in user with the `premium:ask` permission and Ask turned on in their settings, by session cookie or `Authorization: Bearer <session token>`. Tool results are JSON text; a failed search returns `isError: true` with the reason.",
+        "description": "A stateless MCP server (Streamable HTTP, JSON responses) exposing Ask's tools to MCP clients such as Claude or ChatGPT: place search and details, what is at a point, trip planning, transit departures and lines, weather and wildfires, the user's saved places, collections, routes, canvases and vehicles, and building, changing, sharing and archiving routes, canvases and saved places in their library. `tools/list` describes each. Send one JSON-RPC message per request; supports `initialize`, `ping`, `tools/list` and `tools/call`. Notifications are acknowledged with 202. Needs a signed-in user with the `premium:ask` permission and Ask turned on in their settings, by session cookie, `Authorization: Bearer <session token>`, or a scoped token: a personal access token from Settings or an OAuth access token (see `/.well-known/oauth-protected-resource/mcp`). A scoped token lists and calls only the tools its scopes cover, and a call outside them answers 403 with `WWW-Authenticate: Bearer error=\"insufficient_scope\"`. Tool results are JSON text; a failed search returns `isError: true` with the reason.",
         "requestBody": {
           "required": true,
           "content": {
@@ -15956,6 +17014,520 @@
                 "type": "object",
                 "properties": {
                   "text": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/oauth/register": {
+      "post": {
+        "parameters": [],
+        "operationId": "postOauthRegister",
+        "tags": [
+          "OAuth"
+        ],
+        "summary": "Register a client",
+        "description": "RFC 7591 dynamic client registration. Clients are registered as public (`token_endpoint_auth_method: none`) whatever they ask for. Redirect URIs must be HTTPS, loopback HTTP, or an app scheme.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "redirect_uris": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "client_name": {
+                    "type": "string"
+                  },
+                  "client_uri": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "redirect_uris": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "client_name": {
+                    "type": "string"
+                  },
+                  "client_uri": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "redirect_uris": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "client_name": {
+                    "type": "string"
+                  },
+                  "client_uri": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/oauth/authorize": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "client_id",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "redirect_uri",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "response_type",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "code_challenge",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "code_challenge_method",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "scope",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "state",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "resource",
+            "required": false
+          }
+        ],
+        "operationId": "getOauthAuthorize",
+        "tags": [
+          "OAuth"
+        ],
+        "summary": "Start authorization",
+        "description": "Checks the request and sends the user to the consent screen in the web app. A bad client or redirect URI answers 400 here; any other problem is reported to the redirect URI.",
+        "responses": {
+          "200": {}
+        }
+      },
+      "post": {
+        "parameters": [],
+        "operationId": "postOauthAuthorize",
+        "tags": [
+          "OAuth"
+        ],
+        "summary": "Approve an authorization request",
+        "description": "Called by the consent screen with the original request and the scopes the user approved in `scope`. Returns the client redirect carrying a single-use code, valid for 5 minutes.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "client_id": {
+                    "type": "string"
+                  },
+                  "redirect_uri": {
+                    "type": "string"
+                  },
+                  "response_type": {
+                    "type": "string"
+                  },
+                  "code_challenge": {
+                    "type": "string"
+                  },
+                  "code_challenge_method": {
+                    "type": "string"
+                  },
+                  "scope": {
+                    "type": "string"
+                  },
+                  "state": {
+                    "type": "string"
+                  },
+                  "resource": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "client_id": {
+                    "type": "string"
+                  },
+                  "redirect_uri": {
+                    "type": "string"
+                  },
+                  "response_type": {
+                    "type": "string"
+                  },
+                  "code_challenge": {
+                    "type": "string"
+                  },
+                  "code_challenge_method": {
+                    "type": "string"
+                  },
+                  "scope": {
+                    "type": "string"
+                  },
+                  "state": {
+                    "type": "string"
+                  },
+                  "resource": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "client_id": {
+                    "type": "string"
+                  },
+                  "redirect_uri": {
+                    "type": "string"
+                  },
+                  "response_type": {
+                    "type": "string"
+                  },
+                  "code_challenge": {
+                    "type": "string"
+                  },
+                  "code_challenge_method": {
+                    "type": "string"
+                  },
+                  "scope": {
+                    "type": "string"
+                  },
+                  "state": {
+                    "type": "string"
+                  },
+                  "resource": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/oauth/authorize/request": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "client_id",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "redirect_uri",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "response_type",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "code_challenge",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "code_challenge_method",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "scope",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "state",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "resource",
+            "required": false
+          }
+        ],
+        "operationId": "getOauthAuthorizeRequest",
+        "tags": [
+          "OAuth"
+        ],
+        "summary": "Describe an authorization request",
+        "description": "What the consent screen shows: the client, the scopes it asked for (all of them when it named none), and where to send the user if they decline.",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/oauth/token": {
+      "post": {
+        "parameters": [],
+        "operationId": "postOauthToken",
+        "tags": [
+          "OAuth"
+        ],
+        "summary": "Exchange a code or refresh token",
+        "description": "Form-encoded or JSON. `authorization_code` needs `code`, `redirect_uri`, `client_id` and the PKCE `code_verifier`; `refresh_token` needs `refresh_token` and `client_id`. Access tokens last an hour. Each refresh returns a new refresh token and retires the old pair.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "grant_type": {
+                    "type": "string"
+                  },
+                  "client_id": {
+                    "type": "string"
+                  },
+                  "code": {
+                    "type": "string"
+                  },
+                  "redirect_uri": {
+                    "type": "string"
+                  },
+                  "code_verifier": {
+                    "type": "string"
+                  },
+                  "refresh_token": {
+                    "type": "string"
+                  },
+                  "resource": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "grant_type": {
+                    "type": "string"
+                  },
+                  "client_id": {
+                    "type": "string"
+                  },
+                  "code": {
+                    "type": "string"
+                  },
+                  "redirect_uri": {
+                    "type": "string"
+                  },
+                  "code_verifier": {
+                    "type": "string"
+                  },
+                  "refresh_token": {
+                    "type": "string"
+                  },
+                  "resource": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "grant_type": {
+                    "type": "string"
+                  },
+                  "client_id": {
+                    "type": "string"
+                  },
+                  "code": {
+                    "type": "string"
+                  },
+                  "redirect_uri": {
+                    "type": "string"
+                  },
+                  "code_verifier": {
+                    "type": "string"
+                  },
+                  "refresh_token": {
+                    "type": "string"
+                  },
+                  "resource": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/oauth/revoke": {
+      "post": {
+        "parameters": [],
+        "operationId": "postOauthRevoke",
+        "tags": [
+          "OAuth"
+        ],
+        "summary": "Revoke a token",
+        "description": "RFC 7009. Revoking the access or the refresh token ends the whole grant. Always answers 200.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string"
+                  },
+                  "token_type_hint": {
+                    "type": "string"
+                  },
+                  "client_id": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string"
+                  },
+                  "token_type_hint": {
+                    "type": "string"
+                  },
+                  "client_id": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string"
+                  },
+                  "token_type_hint": {
+                    "type": "string"
+                  },
+                  "client_id": {
                     "type": "string"
                   }
                 }

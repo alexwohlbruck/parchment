@@ -18,6 +18,7 @@ import ResponsiveDropdown, {
 import AvatarPicker from '@/components/profile/AvatarPicker.vue'
 import Passkeys from '@/components/auth/Passkeys.vue'
 import Sessions from '@/components/auth/Sessions.vue'
+import AccessTokens from '@/components/auth/AccessTokens.vue'
 import IdentitySettings from '@/components/identity/IdentitySettings.vue'
 import Billing from '@/components/subscription/BillingSection.vue'
 import DataExportSection from '@/components/data-export/DataExportSection.vue'
@@ -240,6 +241,8 @@ async function saveName() {
       <IdentitySettings />
 
       <Sessions />
+
+      <AccessTokens />
 
       <Passkeys />
 

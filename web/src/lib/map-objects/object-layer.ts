@@ -32,7 +32,7 @@
  * so the two cannot disagree about what exists.
  */
 import { Births, GRACE_SECONDS, GROW_SECONDS } from './births'
-import { sourceFeatures } from '@/lib/map/source-features'
+import { sourceFeatureSteps } from '@/lib/map/source-features'
 import { ghostBlend } from '@/lib/map/ghost-blend'
 import { MercatorCoordinate, type OcclusionFrame } from 'maplibre-gl'
 import type { GlbModel } from './glb.mjs'
@@ -1015,7 +1015,7 @@ export class ObjectLayer {
       births?.begin(this.clock())
       spec.prepare?.(this.map, spec)
       if (spec.prepareSteps) yield* spec.prepareSteps()
-      const features = sourceFeatures(this.map, spec.source, spec.sourceLayer)
+      const features = yield* sourceFeatureSteps(this.map, spec.source, spec.sourceLayer)
       yield
       const positions = spec.positions ?? pointPositions
       const candidates: Array<[any, number, number, number]> = []

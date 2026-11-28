@@ -136,9 +136,40 @@ export function ridesBridges(bridges: LngLat[][]): Rides {
   }
 }
 
-/** The bounding box of each deck's footprint. */
-export function deckBoxes(footprints: GeoJSON.MultiPolygon): Box[] {
-  return footprints.coordinates.map(polygon => boxOf(polygon[0]))
+/** Where decks are: each footprint's box, and whether a point is close enough to one to stand on it or beside it. */
+export type DeckReach = { boxes: Box[]; near: (lng: number, lat: number) => boolean }
+
+const cellKey = (cx: number, cy: number) => cx * 1_000_000 + cy
+
+/**
+ * The ground within reach of the decks, as grid cells. A footprint is a ribbon,
+ * one side out and the other back, so it is covered a crosswise slice at a time:
+ * its whole box would take in every street a diagonal viaduct passes.
+ */
+export function deckReach(footprints: GeoJSON.MultiPolygon): DeckReach {
+  const cells = new Set<number>()
+  const reach = (SIDE_REACH.at(-1)! + CLIP_HALF_WIDTH) / METRES_PER_DEGREE
+  const mark = (points: number[][]) => {
+    const [w, s, e, n] = boxOf(points)
+    const k = Math.cos((s * Math.PI) / 180)
+    for (let cx = Math.floor((w - reach / k) / CELL); cx <= Math.floor((e + reach / k) / CELL); cx++)
+      for (let cy = Math.floor((s - reach) / CELL); cy <= Math.floor((n + reach) / CELL); cy++) cells.add(cellKey(cx, cy))
+  }
+  for (const [ring] of footprints.coordinates) {
+    const sides = ring.length - 1
+    if (sides % 2) mark(ring)
+    else
+      for (let i = 0; i + 1 < sides / 2; i++) {
+        const [a, b, c, d] = [ring[i], ring[i + 1], ring[sides - 1 - i], ring[sides - 2 - i]]
+        const steps = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / (CELL / 2)))
+        const along = (from: number[], to: number[], t: number) => [from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t]
+        for (let k = 0; k < steps; k++) mark([along(a, b, k / steps), along(a, b, (k + 1) / steps), along(c, d, k / steps), along(c, d, (k + 1) / steps)])
+      }
+  }
+  return {
+    boxes: footprints.coordinates.map(polygon => boxOf(polygon[0])),
+    near: (lng, lat) => cells.has(cellKey(Math.floor(lng / CELL), Math.floor(lat / CELL))),
+  }
 }
 
 /**
@@ -146,16 +177,19 @@ export function deckBoxes(footprints: GeoJSON.MultiPolygon): Box[] {
  * profile and the feature's own properties. A line clear of every deck's box
  * is never sampled, and one repeated across tiles is copied once.
  */
-export function raisedLabelFeatures(features: Array<Pick<GeoJSON.Feature, 'geometry' | 'properties'>>, decks: Box[], surfaceAt: SurfaceAt, rides?: Rides): GeoJSON.Feature<GeoJSON.LineString>[] {
+export function raisedLabelFeatures(features: Array<Pick<GeoJSON.Feature, 'geometry' | 'properties'>>, decks: DeckReach, surfaceAt: SurfaceAt, rides: Rides = () => true): GeoJSON.Feature<GeoJSON.LineString>[] {
+  const reached: Rides = (p, heading) => decks.near(p[0], p[1]) && rides(p, heading)
   const seen = new Set<string>()
   const out: GeoJSON.Feature<GeoJSON.LineString>[] = []
   for (const { geometry, properties } of features) {
     for (const line of lines(geometry)) {
-      if (line.length < 2 || !decks.some(box => overlaps(box, boxOf(line)))) continue
+      if (line.length < 2) continue
+      const box = boxOf(line)
+      if (!decks.boxes.some(deck => overlaps(deck, box))) continue
       const key = `${JSON.stringify(properties)}|${line.flat().join(',')}`
       if (seen.has(key)) continue
       seen.add(key)
-      for (const stretch of deckStretches(line, surfaceAt, SAMPLE_STEP, rides))
+      for (const stretch of deckStretches(line, surfaceAt, SAMPLE_STEP, reached))
         out.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: stretch.map(([lng, lat]) => [lng, lat]) }, properties: { ...properties, elevation: encodeProfile(stretch) } })
     }
   }
@@ -170,7 +204,7 @@ type TileFeature = Pick<GeoJSON.Feature, 'geometry' | 'properties'>
  * where it runs along a bridge's road, not where it passes beneath a deck. A
  * tile's own roads answer that, its buffer reaching past any name inside it.
  */
-export function raisedTileLabels(roads: TileFeature[], names: TileFeature[], decks: Box[], surfaceAt: SurfaceAt): RaisedLabels {
+export function raisedTileLabels(roads: TileFeature[], names: TileFeature[], decks: DeckReach, surfaceAt: SurfaceAt): RaisedLabels {
   const bridges = roads.filter(f => f.properties?.brunnel === 'bridge')
   return {
     transportation: raisedLabelFeatures(bridges, decks, surfaceAt),

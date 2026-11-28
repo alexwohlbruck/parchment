@@ -1016,6 +1016,7 @@
     "currentLocation": "Ubicación actual",
     "useCurrentLocation": "Usar tu ubicación actual",
     "addStop": "Añadir parada",
+    "moreArrivalPoints": "{count} más",
     "tripModes": {
       "filter": "Modos",
       "transit": "Transporte público",

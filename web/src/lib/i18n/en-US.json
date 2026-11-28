@@ -1040,6 +1040,7 @@
     "currentLocation": "Current location",
     "useCurrentLocation": "Use your current location",
     "addStop": "Add stop",
+    "moreArrivalPoints": "{count} more",
     "tripModes": {
       "filter": "Modes",
       "transit": "Transit",

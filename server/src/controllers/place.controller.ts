@@ -17,6 +17,7 @@ import { getStayOffers } from '../services/stay.service'
 import { isValidStay, MAX_STAY_ADULTS } from '../lib/place/stay-dates'
 import { isVenueId, isVenueProvider } from '../lib/place/booking-venues'
 import { getBookingVenues } from '../services/place/booking-venues.service'
+import { getArrivalPoints } from '../services/place/arrival-points.service'
 import { logError, logger } from '../lib/logger'
 import { i18nPlugin } from '../lib/i18n/plugin'
 import type { Source } from '../lib/constants'
@@ -243,6 +244,38 @@ app.get(
       summary: 'Get widget data for a place',
       description:
         'Fetch additional widget data (transit departures, etc.) separately from the base place lookup. Query parameters vary by widget type.',
+    },
+  },
+)
+
+app.get(
+  '/arrival-points',
+  async ({ query, status }) => {
+    const { id, lat, lng, mode } = query
+    if (!id && (lat === undefined || lng === undefined)) {
+      return status(400, { message: 'Pass an id, or lat and lng' })
+    }
+    try {
+      return await getArrivalPoints({ id, lat, lng }, mode)
+    } catch (err) {
+      logError('Error fetching arrival points', err)
+      return status(500, {
+        message: err instanceof Error ? err.message : 'Error fetching arrival points',
+      })
+    }
+  },
+  {
+    query: t.Object({
+      id: t.Optional(t.String({ minLength: 1, examples: ['osm/way/158042008'] })),
+      lat: t.Optional(t.Number()),
+      lng: t.Optional(t.Number()),
+      mode: t.Optional(t.String({ examples: ['driving', 'transit'] })),
+    }),
+    detail: {
+      tags: ['Places'],
+      summary: 'Get precise destinations in or around a large place',
+      description:
+        "Named, public places a trip can end at instead of a large place's centre: an airport's terminals in any mode, and with `mode` set to `driving` or `multi`, parking at airports, campuses, hospitals, stadiums, malls, theme parks and zoos. Garages come before surface lots. Pass the place's `id`, or `lat`/`lng` for a point. When the place is not itself one of these (a terminal, a pin on a runway), the smallest such area containing it is used. Returns that area as `parent`, or `parent: null` and no places when there is none.",
     },
   },
 )

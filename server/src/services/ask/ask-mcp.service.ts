@@ -10,6 +10,8 @@ import { getActiveVehicles } from '../vehicle.service'
 import { getFrequentBookmarks } from '../library/bookmarks.service'
 import { knownPlaces } from '../../lib/ask/known-places'
 import type { Place } from '../../types/place.types'
+import type { TokenScope } from '../../types/access-token.types'
+import { toolScope } from '../../lib/auth/token-scopes'
 import type {
   JsonRpcId,
   JsonRpcRequest,
@@ -31,6 +33,8 @@ export const RpcErrorCode = {
 export interface McpCaller {
   userId: string
   language: Language
+  /** Null for a full session. */
+  scopes: readonly TokenScope[] | null
   signal?: AbortSignal
 }
 
@@ -51,8 +55,25 @@ export function rpcError(id: JsonRpcId, code: number, message: string): JsonRpcR
   return { jsonrpc: '2.0', id, error: { code, message } }
 }
 
-export function listMcpTools(): McpTool[] {
-  return mcpTools.map(({ name, description, parameters }) => ({
+function mayUse(toolName: string, scopes: McpCaller['scopes']) {
+  if (!scopes) return true
+  const scope = toolScope(toolName)
+  return scope !== undefined && scopes.includes(scope)
+}
+
+/** For a `tools/call` the caller's token can't make: the scope it lacks, or null if no scope would do. */
+export function deniedToolCall(
+  request: JsonRpcRequest,
+  scopes: McpCaller['scopes'],
+): { scope: TokenScope | null } | undefined {
+  if (request.method !== 'tools/call') return undefined
+  const name = request.params?.name
+  if (typeof name !== 'string' || !toolsByName.has(name) || mayUse(name, scopes)) return undefined
+  return { scope: toolScope(name) ?? null }
+}
+
+export function listMcpTools(scopes: McpCaller['scopes']): McpTool[] {
+  return mcpTools.filter((tool) => mayUse(tool.name, scopes)).map(({ name, description, parameters }) => ({
     name,
     description,
     inputSchema: parameters,
@@ -139,7 +160,7 @@ async function dispatch(request: JsonRpcRequest, caller: McpCaller): Promise<unk
     case 'ping':
       return {}
     case 'tools/list':
-      return { tools: listMcpTools() }
+      return { tools: listMcpTools(caller.scopes) }
     case 'tools/call':
       return callTool(request.params, caller)
     default:

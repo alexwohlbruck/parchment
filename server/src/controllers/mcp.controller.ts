@@ -2,7 +2,15 @@ import { Elysia, t } from 'elysia'
 import { optionalAuth } from '../middleware/auth.middleware'
 import { i18nPlugin } from '../lib/i18n/plugin'
 import { getPermissions, hasPermission } from '../services/auth.service'
-import { handleMcpRequest, rpcError, RpcErrorCode } from '../services/ask/ask-mcp.service'
+import {
+  deniedToolCall,
+  handleMcpRequest,
+  rpcError,
+  RpcErrorCode,
+} from '../services/ask/ask-mcp.service'
+import { mcpResourceMetadataUrl } from '../services/oauth.service'
+import { formatScopes, insufficientScopeChallenge } from '../lib/auth/token-scopes'
+import { TOKEN_SCOPES } from '../types/access-token.types'
 import { PermissionId } from '../types/auth.types'
 import { getAskPreferences } from '../services/user-preferences.service'
 import type { JsonRpcRequest } from '../types/mcp.types'
@@ -16,9 +24,10 @@ const app = new Elysia()
 
   .post(
     '/mcp',
-    async ({ body, user, language, request, set, status, t }) => {
+    async ({ body, user, scopes, language, request, set, status, t }) => {
       if (!user) {
-        set.headers['www-authenticate'] = 'Bearer'
+        set.headers['www-authenticate'] =
+          `Bearer resource_metadata="${mcpResourceMetadataUrl()}", scope="${formatScopes(TOKEN_SCOPES)}"`
         return status(401, rpcError(null, RpcErrorCode.UNAUTHORIZED, t('errors.auth.unauthorized')))
       }
       if (!hasPermission(await getPermissions(user.id), PermissionId.PREMIUM_ASK)) {
@@ -35,9 +44,17 @@ const app = new Elysia()
         return status(400, rpcError(null, RpcErrorCode.INVALID_REQUEST, 'Request id must not be null'))
       }
 
+      const denied = deniedToolCall(body as JsonRpcRequest, scopes)
+      if (denied) {
+        set.headers['www-authenticate'] =
+          `${insufficientScopeChallenge(denied.scope)}, resource_metadata="${mcpResourceMetadataUrl()}"`
+        return status(403, rpcError(body.id, RpcErrorCode.FORBIDDEN, t('errors.auth.tokenScope')))
+      }
+
       return handleMcpRequest(body as JsonRpcRequest, {
         userId: user.id,
         language,
+        scopes,
         signal: request.signal,
       })
     },
@@ -52,7 +69,7 @@ const app = new Elysia()
         tags: ['Ask'],
         summary: 'Model Context Protocol endpoint',
         description:
-          "A stateless MCP server (Streamable HTTP, JSON responses) exposing Ask's tools to MCP clients such as Claude or ChatGPT: place search and details, what is at a point, trip planning, transit departures and lines, weather and wildfires, the user's saved places, collections, routes, canvases and vehicles, and building, changing, sharing and archiving routes, canvases and saved places in their library. `tools/list` describes each. Send one JSON-RPC message per request; supports `initialize`, `ping`, `tools/list` and `tools/call`. Notifications are acknowledged with 202. Needs a signed-in user with the `premium:ask` permission and Ask turned on in their settings, by session cookie or `Authorization: Bearer <session token>`. Tool results are JSON text; a failed search returns `isError: true` with the reason.",
+          "A stateless MCP server (Streamable HTTP, JSON responses) exposing Ask's tools to MCP clients such as Claude or ChatGPT: place search and details, what is at a point, trip planning, transit departures and lines, weather and wildfires, the user's saved places, collections, routes, canvases and vehicles, and building, changing, sharing and archiving routes, canvases and saved places in their library. `tools/list` describes each. Send one JSON-RPC message per request; supports `initialize`, `ping`, `tools/list` and `tools/call`. Notifications are acknowledged with 202. Needs a signed-in user with the `premium:ask` permission and Ask turned on in their settings, by session cookie, `Authorization: Bearer <session token>`, or a scoped token: a personal access token from Settings or an OAuth access token (see `/.well-known/oauth-protected-resource/mcp`). A scoped token lists and calls only the tools its scopes cover, and a call outside them answers 403 with `WWW-Authenticate: Bearer error=\"insufficient_scope\"`. Tool results are JSON text; a failed search returns `isError: true` with the reason.",
       },
     },
   )

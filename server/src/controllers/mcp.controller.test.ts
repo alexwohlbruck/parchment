@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test'
-import { authMockModule, resetAuth, setAuthUser, TEST_USER } from '../test/auth-mock'
+import { authMockModule, resetAuth, setAuthScopes, setAuthUser, TEST_USER } from '../test/auth-mock'
 import { createTestApp, req } from '../test/app'
 
 mock.module('../middleware/auth.middleware', () => authMockModule())
@@ -48,6 +48,8 @@ mock.module('../services/geocoding.service', () => ({
 mock.module('../services/barrelman.service', () => ({ requestBarrelman: async () => new Response('{}') }))
 
 const { askTools } = await import('../services/ask/ask-tools')
+const { listMcpTools } = await import('../services/ask/ask-mcp.service')
+const { toolScope } = await import('../lib/auth/token-scopes')
 const { default: mcp } = await import('./mcp.controller')
 const app = createTestApp(mcp)
 
@@ -121,7 +123,9 @@ describe('MCP endpoint', () => {
     setAuthUser(null)
     const anonymous = await rpc('tools/list')
     expect(anonymous.status).toBe(401)
-    expect(anonymous.headers.get('www-authenticate')).toBe('Bearer')
+    expect(anonymous.headers.get('www-authenticate')).toMatch(
+      /^Bearer resource_metadata="[^"]*\/\.well-known\/oauth-protected-resource\/mcp", scope="places:read /,
+    )
     expect(anonymous.body).toMatchObject({ jsonrpc: '2.0', id: null, error: { code: -32001 } })
 
     resetAuth()
@@ -136,6 +140,34 @@ describe('MCP endpoint', () => {
     const { status, body } = await rpc('tools/list')
     expect(status).toBe(403)
     expect(body.error.code).toBe(-32003)
+  })
+
+  test('every MCP tool needs a scope, so a token can be granted it', () => {
+    expect(listMcpTools(null).filter((tool) => !toolScope(tool.name))).toEqual([])
+  })
+
+  test('a scoped token lists only the tools its scopes cover', async () => {
+    setAuthScopes(['weather:read'])
+    const { body } = await rpc('tools/list')
+    expect(body.result.tools.map((tool: { name: string }) => tool.name).sort()).toEqual(['weather', 'wildfires'])
+  })
+
+  test('a scoped token calling a tool outside its scopes gets 403 naming the scope', async () => {
+    setAuthScopes(['weather:read'])
+    const response = await callTool('find_places', { query: 'coffee', near: { lat: 40.7, lng: -74 } })
+    expect(response.status).toBe(403)
+    expect(response.headers.get('www-authenticate')).toMatch(
+      /^Bearer error="insufficient_scope", scope="places:read", resource_metadata="/,
+    )
+    expect(response.body).toMatchObject({ id: 1, error: { code: -32003 } })
+    expect(lookupPlacesByNameAndLocation).not.toHaveBeenCalled()
+  })
+
+  test('a scoped token runs a tool its scopes cover', async () => {
+    setAuthScopes(['places:read'])
+    const { status, body } = await callTool('find_places', { query: 'coffee', near: { lat: 40.7, lng: -74 } })
+    expect(status).toBe(200)
+    expect(body.result.isError).toBeUndefined()
   })
 
   test('offers no event stream or sessions', async () => {

@@ -1,11 +1,11 @@
 import { timingSafeEqual } from 'node:crypto'
-import { alphabet, generateRandomString, sha256 } from 'oslo/crypto'
-import { encodeHex } from 'oslo/encoding'
+import { alphabet, generateRandomString } from 'oslo/crypto'
 import { eq, and } from 'drizzle-orm'
 import { db } from '../db'
 import { generateId } from '../util'
 import { NewToken, Token, tokens } from '../schema/tokens.schema'
 import { User } from '../schema/users.schema'
+import { hashSecret } from '../lib/auth/secret-hash'
 
 /**
  * How long a server-issued token stays usable. Mirrors the column default in
@@ -50,7 +50,7 @@ export async function createServerToken(
   }
 
   if (hashed) {
-    payload.hash = encodeHex(await sha256(new TextEncoder().encode(code)))
+    payload.hash = hashSecret(code)
   } else {
     payload.value = code
   }
@@ -83,7 +83,7 @@ export async function validateServerToken(
     .from(tokens)
     .where(and(eq(tokens.type, type), eq(tokens.userId, userId)))
 
-  const hash = encodeHex(await sha256(new TextEncoder().encode(input)))
+  const hash = hashSecret(input)
   const now = new Date()
 
   for (let existing of matchingTokens) {

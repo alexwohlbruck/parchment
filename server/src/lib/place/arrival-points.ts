@@ -29,6 +29,8 @@ const rules: ArrivalRule[] = [
     presets: [
       'amenity/university',
       'amenity/college',
+      'education/university',
+      'education/college',
       'amenity/hospital',
       'leisure/stadium',
       'shop/mall',
@@ -41,6 +43,11 @@ const rules: ArrivalRule[] = [
 ]
 
 const DRIVING_MODES = new Set(['driving', 'multi'])
+
+/** Whether a place is big enough to hold precise destinations, in any mode. */
+export function hasArrivalPoints(presetId: string | undefined): boolean {
+  return !!presetId && rules.some((r) => r.presets.some((p) => presetId.startsWith(p)))
+}
 
 /** Child categories to offer as precise destinations inside a place, in display order. */
 export function arrivalCategories(presetId: string, mode?: string): string[] {
@@ -59,6 +66,13 @@ function isOpenToPublic(place: Place): boolean {
   return !CLOSED_ACCESS.has(getPlaceOsmTags(place).access ?? '')
 }
 
+const STRUCTURED_PARKING = new Set(['multi-storey', 'underground'])
+
+/** Garages and decks before surface lots: they are the ones signposted for visitors. */
+function prominence(place: Place): number {
+  return STRUCTURED_PARKING.has(getPlaceOsmTags(place).parking ?? '') ? 0 : 1
+}
+
 function isInside(place: Place, bounds: ArrivalBounds): boolean {
   const center = place.geometry?.value?.center
   return center != null
@@ -68,7 +82,7 @@ function isInside(place: Place, bounds: ArrivalBounds): boolean {
 
 /**
  * Reduce one category's raw results to the named places inside the parent,
- * one per name, in natural name order ("Terminal 4" before "Terminal 10").
+ * one per name: garages first, then natural name order ("Terminal 4" before "Terminal 10").
  */
 export function pickArrivalPoints(
   places: Place[],
@@ -83,7 +97,8 @@ export function pickArrivalPoints(
     if (!byName.has(name.toLowerCase())) byName.set(name.toLowerCase(), place)
   }
   return [...byName.entries()]
-    .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+    .sort(([a, pa], [b, pb]) =>
+      prominence(pa) - prominence(pb) || a.localeCompare(b, undefined, { numeric: true }))
     .slice(0, MAX_PER_CATEGORY)
     .map(([, place]) => place)
 }

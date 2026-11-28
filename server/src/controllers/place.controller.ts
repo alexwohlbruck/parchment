@@ -251,15 +251,8 @@ app.get(
 app.get(
   '/arrival-points',
   async ({ query, status }) => {
-    const { presetId, mode, placeId, north, south, east, west } = query
     try {
-      const places = await getArrivalPoints({
-        presetId,
-        mode,
-        placeId,
-        bounds: { north, south, east, west },
-      })
-      return { places }
+      return { places: await getArrivalPoints(query.id, query.mode) }
     } catch (err) {
       logError('Error fetching arrival points', err)
       return status(500, {
@@ -269,19 +262,14 @@ app.get(
   },
   {
     query: t.Object({
-      presetId: t.String({ minLength: 1 }),
-      north: t.Number(),
-      south: t.Number(),
-      east: t.Number(),
-      west: t.Number(),
-      mode: t.Optional(t.String()),
-      placeId: t.Optional(t.String()),
+      id: t.String({ minLength: 1, examples: ['osm/way/158042008'] }),
+      mode: t.Optional(t.String({ examples: ['driving', 'transit'] })),
     }),
     detail: {
       tags: ['Places'],
       summary: 'Get precise destinations inside a large place',
       description:
-        'Named places inside a large one that a trip can end at instead of its centre: an airport\'s terminals, and with `mode` set to `driving` or `multi`, its parking. Takes the parent\'s preset ID and bounds from its place details; `placeId` keeps the parent out of its own list. Returns an empty list for a place with nothing more precise to offer.',
+        "Named, public places inside a large one that a trip can end at instead of its centre: an airport's terminals in any mode, and with `mode` set to `driving` or `multi`, parking at airports, campuses, hospitals, stadiums, malls, theme parks and zoos. Garages come before surface lots. Autocomplete marks the places this applies to with `arrivalPresetId`; anything else returns an empty list.",
     },
   },
 )

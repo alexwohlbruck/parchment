@@ -2,7 +2,7 @@
 
 ### Added
 
-* Searching for an airport in directions lists its terminals right under it, plus its parking when you're driving. Campuses, hospitals and zoos list their parking too.
+* Directions to an airport, campus, hospital or zoo now ask where inside it you're headed: its terminals, buildings or attractions, plus parking when you're driving.
 
 ### Changed
 

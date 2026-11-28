@@ -25,6 +25,7 @@ import {
   ComboboxItem,
   ComboboxItemIndicator,
   ComboboxAnchor,
+  ComboboxViewport,
 } from '@/components/ui/combobox'
 import { Place } from '@/types/place.types'
 import { AutocompleteResult } from '@/types/search.types'
@@ -54,7 +55,8 @@ import { frequentChipMeta, type FrequentType } from '@/lib/frequents'
 import type { Bookmark } from '@/types/library.types'
 import { storeToRefs } from 'pinia'
 import { useArrivalPoints } from '@/composables/directions/useArrivalPoints'
-import { visibleArrivalPoints } from '@/lib/directions/arrival-points'
+import { useDestinationArrivals } from '@/composables/directions/useDestinationArrivals'
+import { SHOWN_BEFORE_MORE, visibleArrivalPoints } from '@/lib/directions/arrival-points'
 
 const searchService = useSearchService()
 const mapCamera = useMapCamera()
@@ -284,6 +286,7 @@ function selectPlace(index: number, place: Place) {
   }
 
   emit('update:modelValue', newWaypoints)
+  pickedHere.add(place.id)
 
   // Update input text to show the selected place name
   inputTexts.value[index] = getWaypointName(newWaypoints[index])
@@ -309,6 +312,45 @@ function showAllArrivals(event: Event, id: string) {
   event.preventDefault()
   expandedArrivals.value = new Set(expandedArrivals.value).add(id)
 }
+
+const destinationArrivals = useDestinationArrivals()
+const openField = ref<number | null>(null)
+/** Places chosen from these lists: the rider has already seen what they offer. */
+const pickedHere = new Set<string>()
+const autoOpened = new Set<string>()
+
+/** An untouched destination lists where to arrive at its place instead of searching for its own name. */
+function showsArrivalChoice(index: number) {
+  return (
+    index === destinationArrivals.index.value &&
+    destinationArrivals.points.value.length > 0 &&
+    !userModifiedInputs.value.has(index)
+  )
+}
+
+/** The chosen point stays in view even when it sits past the fold. */
+const destinationRows = computed(() => {
+  const { parent, points, selectedId } = destinationArrivals
+  const expanded = expandedArrivals.value.has(parent.value?.id ?? '')
+    || points.value.slice(SHOWN_BEFORE_MORE).some(p => p.id === selectedId.value)
+  return visibleArrivalPoints(points.value, expanded)
+})
+
+function setOpen(index: number, open: boolean) {
+  if (open) openField.value = index
+  else if (openField.value === index) openField.value = null
+}
+
+// A destination set from outside — the place page, a right-click — asks where
+// at the airport once, the first time its places turn up.
+watch(destinationArrivals.points, points => {
+  const parentId = destinationArrivals.parent.value?.id
+  const chosen = destinationArrivals.selectedId.value
+  if (!parentId || !points.length || autoOpened.has(parentId)) return
+  if (chosen && (pickedHere.has(chosen) || points.some(p => p.id === chosen))) return
+  autoOpened.add(parentId)
+  setOpen(destinationArrivals.index.value, true)
+})
 
 // Combined results with current location prepended if not already used and matches query
 const combinedResults = computed(() => {
@@ -524,6 +566,9 @@ defineExpose({
               ignore-filter
               :reset-search-term-on-select="false"
               :reset-search-term-on-blur="false"
+              :open="openField === index"
+              :open-on-click="showsArrivalChoice(index)"
+              @update:open="open => setOpen(index, open)"
             >
               <ComboboxAnchor>
                 <ComboboxInput
@@ -659,68 +704,120 @@ defineExpose({
               </ComboboxAnchor>
 
               <ComboboxList>
-                <div
-                  v-if="isLoading && combinedResults.length === 0"
-                  class="flex items-center justify-center p-4"
-                >
-                  <Spinner class="h-4 w-4" />
-                </div>
-
-                <ComboboxEmpty v-else-if="!isLoading && combinedResults.length === 0">
-                  No results found.
-                </ComboboxEmpty>
-
-                <ComboboxGroup v-if="!isLoading || combinedResults.length > 0">
-                  <template v-for="result in combinedResults" :key="result.id">
-                    <ComboboxItem
-                      class="p-0"
-                      :value="autocompleteResultToPlace(result)"
-                      @select="selectPlace(index, autocompleteResultToPlace(result))"
-                    >
-                      <PlaceCard
-                        :display="autocompleteToDisplay(result, { isDark: themeStore.isDark })"
-                        variant="plain"
-                        size="sm"
-                        density="compact"
-                        icon-variant="ghost"
-                        :navigate="false"
-                        class="flex-1 min-w-0"
-                      />
-
-                      <ComboboxItemIndicator>
-                        <Check :class="cn('mr-2 h-4 w-4')" />
-                      </ComboboxItemIndicator>
-                    </ComboboxItem>
-
-                    <!-- Somewhere more precise inside it: an airport's
-                         terminals, a campus's parking -->
-                    <ComboboxItem
-                      v-for="point in arrivalRows(result.id).shown"
-                      :key="point.id"
-                      class="ml-7 p-0"
-                      :value="point"
-                      @select="selectPlace(index, point)"
-                    >
-                      <PlaceCard
-                        :place="point"
-                        variant="plain"
-                        size="xs"
-                        subtitle=""
-                        icon-variant="ghost"
-                        :navigate="false"
-                        class="flex-1 min-w-0"
-                      />
-                    </ComboboxItem>
-                    <ComboboxItem
-                      v-if="arrivalRows(result.id).hidden"
-                      class="ml-7 py-1 text-xs text-muted-foreground"
-                      :value="`more:${result.id}`"
-                      @select="(event: Event) => showAllArrivals(event, result.id)"
-                    >
-                      {{ $t('directions.moreArrivalPoints', { count: arrivalRows(result.id).hidden }) }}
-                    </ComboboxItem>
-                  </template>
+                <ComboboxViewport class="max-h-[min(28rem,60dvh)]">
+                <ComboboxGroup v-if="showsArrivalChoice(index) && destinationArrivals.parent.value">
+                  <ComboboxItem
+                    class="p-0"
+                    :value="destinationArrivals.parent.value"
+                    @select="selectPlace(index, destinationArrivals.parent.value)"
+                  >
+                    <PlaceCard
+                      :place="destinationArrivals.parent.value"
+                      variant="plain"
+                      size="sm"
+                      density="compact"
+                      icon-variant="ghost"
+                      :navigate="false"
+                      class="flex-1 min-w-0"
+                    />
+                    <Check
+                      v-if="destinationArrivals.selectedId.value === destinationArrivals.parent.value.id"
+                      class="mr-2 size-4"
+                    />
+                  </ComboboxItem>
+                  <ComboboxItem
+                    v-for="point in destinationRows.shown"
+                    :key="point.id"
+                    class="ml-7 p-0"
+                    :value="point"
+                    @select="selectPlace(index, point)"
+                  >
+                    <PlaceCard
+                      :place="point"
+                      variant="plain"
+                      size="xs"
+                      subtitle=""
+                      icon-variant="ghost"
+                      :navigate="false"
+                      class="flex-1 min-w-0"
+                    />
+                    <Check v-if="destinationArrivals.selectedId.value === point.id" class="mr-2 size-4" />
+                  </ComboboxItem>
+                  <ComboboxItem
+                    v-if="destinationRows.hidden"
+                    class="ml-7 py-1 text-xs text-muted-foreground"
+                    value="more:destination"
+                    @select="(event: Event) => showAllArrivals(event, destinationArrivals.parent.value!.id)"
+                  >
+                    {{ $t('directions.moreArrivalPoints', { count: destinationRows.hidden }) }}
+                  </ComboboxItem>
                 </ComboboxGroup>
+
+                <template v-else>
+                  <div
+                    v-if="isLoading && combinedResults.length === 0"
+                    class="flex items-center justify-center p-4"
+                  >
+                    <Spinner class="h-4 w-4" />
+                  </div>
+
+                  <ComboboxEmpty v-else-if="!isLoading && combinedResults.length === 0">
+                    No results found.
+                  </ComboboxEmpty>
+
+                  <ComboboxGroup v-if="!isLoading || combinedResults.length > 0">
+                    <template v-for="result in combinedResults" :key="result.id">
+                      <ComboboxItem
+                        class="p-0"
+                        :value="autocompleteResultToPlace(result)"
+                        @select="selectPlace(index, autocompleteResultToPlace(result))"
+                      >
+                        <PlaceCard
+                          :display="autocompleteToDisplay(result, { isDark: themeStore.isDark })"
+                          variant="plain"
+                          size="sm"
+                          density="compact"
+                          icon-variant="ghost"
+                          :navigate="false"
+                          class="flex-1 min-w-0"
+                        />
+
+                        <ComboboxItemIndicator>
+                          <Check :class="cn('mr-2 h-4 w-4')" />
+                        </ComboboxItemIndicator>
+                      </ComboboxItem>
+
+                      <!-- Somewhere more precise inside it: an airport's
+                           terminals, a campus's parking -->
+                      <ComboboxItem
+                        v-for="point in arrivalRows(result.id).shown"
+                        :key="point.id"
+                        class="ml-7 p-0"
+                        :value="point"
+                        @select="selectPlace(index, point)"
+                      >
+                        <PlaceCard
+                          :place="point"
+                          variant="plain"
+                          size="xs"
+                          subtitle=""
+                          icon-variant="ghost"
+                          :navigate="false"
+                          class="flex-1 min-w-0"
+                        />
+                      </ComboboxItem>
+                      <ComboboxItem
+                        v-if="arrivalRows(result.id).hidden"
+                        class="ml-7 py-1 text-xs text-muted-foreground"
+                        :value="`more:${result.id}`"
+                        @select="(event: Event) => showAllArrivals(event, result.id)"
+                      >
+                        {{ $t('directions.moreArrivalPoints', { count: arrivalRows(result.id).hidden }) }}
+                      </ComboboxItem>
+                    </template>
+                  </ComboboxGroup>
+                </template>
+                </ComboboxViewport>
               </ComboboxList>
             </Combobox>
 

@@ -18,7 +18,7 @@ export function useArrivalPoints(results: Ref<AutocompleteResult[]>, mode: Ref<s
     if (asked.has(key)) return
     asked.add(key)
     try {
-      const points = await fetchArrivalPoints(id, forMode)
+      const { places: points } = await fetchArrivalPoints({ id }, forMode)
       found.value = new Map(found.value).set(key, points)
     } catch {
       asked.delete(key)

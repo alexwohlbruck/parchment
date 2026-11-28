@@ -48,6 +48,7 @@ import {
   speech as speechController,
   ask as askController,
   mcp as mcpController,
+  accessTokens as accessTokensController,
 } from './controllers'
 import { initializeIntegrations } from './services/integration.service'
 import { migrateLegacyAvatars } from './services/avatar.service'
@@ -141,6 +142,7 @@ async function main() {
   app.use(speechController)
   app.use(askController)
   app.use(mcpController)
+  app.use(accessTokensController)
 
   // Wire realtime subscribers (local WS fanout, and — in Phase 4 —
   // federation forwarding). Must run before the first write path emits.

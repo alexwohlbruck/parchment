@@ -44,6 +44,7 @@ import {
 } from 'lucide-vue-next'
 import UpdateBanner from '@/components/navigation/UpdateBanner.vue'
 import SyncStatus from '@/components/sync/SyncStatus.vue'
+import RecoveryWordsHint from '@/components/identity/RecoveryWordsHint.vue'
 import { useHotkeys } from '@/composables/useHotkeys'
 import { useFullscreen } from '@/composables/useFullscreen'
 import { CommandName } from '@/stores/command.store'
@@ -343,7 +344,8 @@ defineExpose({
     </SidebarContent>
 
     <!-- Slot for custom banner alerts. Default: the Tauri update banner. -->
-    <div class="px-2">
+    <div class="flex flex-col gap-1.5 px-2">
+      <RecoveryWordsHint :collapsed="collapsed" />
       <SyncStatus :collapsed="collapsed" />
       <slot name="banner">
         <template

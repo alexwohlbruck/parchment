@@ -69,4 +69,27 @@ describe('identity store', () => {
     expect(store.markRecoveryWordsSaved()).toBe(false)
     expect(store.recoveryWordsSavedFor).toBeNull()
   })
+
+  test('reminds an account that never saved its words, then not again for 4 months', async () => {
+    const store = useIdentityStore()
+    await store.initialize()
+    store.hasLocalIdentity = true
+    store.identity = { ...IDENTITY, signingKey: OWN_SIGNING_KEY }
+    store.recoveryWordsSavedFor = null
+    expect(store.isRecoveryWordsReminderDue).toBe(false)
+
+    store.recoveryWordsRemindAfter = null
+    expect(store.isRecoveryWordsReminderDue).toBe(true)
+
+    store.snoozeRecoveryWordsReminder()
+    expect(store.isRecoveryWordsReminderDue).toBe(false)
+    const daysAway = (Date.parse(store.recoveryWordsRemindAfter!) - Date.now()) / 86_400_000
+    expect(Math.round(daysAway)).toBe(120)
+
+    store.recoveryWordsRemindAfter = new Date(Date.now() - 1000).toISOString()
+    expect(store.isRecoveryWordsReminderDue).toBe(true)
+
+    store.recoveryWordsSavedFor = OWN_SIGNING_KEY
+    expect(store.isRecoveryWordsReminderDue).toBe(false)
+  })
 })

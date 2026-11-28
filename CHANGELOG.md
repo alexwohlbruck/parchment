@@ -6,6 +6,18 @@
 
 ### Fixed
 
+## [0.27.3] - 2026-11-27
+
+### Changed
+
+* Zooming, flying to a place and dragging across a city stutter far less.
+* Map tiles appear up to 3× faster, and panning, rotating and zooming stay smoother while they load.
+
+### Fixed
+
+* The map no longer freezes for seconds when zooming out over parks and woods.
+* Subway line bullets sit below a station's name again instead of over its second line.
+
 ## [0.27.2] - 2026-11-26
 
 ### Added
@@ -23,6 +35,7 @@
 
 ### Changed
 
+* Unsaved recovery words are now a small reminder above your account instead of a popup, and dismissing it hides it for 4 months on every device.
 * Photos, hours and ratings from business listings load faster when you reopen a place, and the place keeps the same listing each time.
 * Press Enter in search to see all results right away, without waiting for suggestions. When a search clearly means one place or address, it opens straight away, and Back shows the full results.
 * Searching for a kind of place or a chain, like "coffee" or "Starbucks", opens that browse straight away, and a question opens Ask.

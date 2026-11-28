@@ -95,6 +95,19 @@ describe('app preferences store', () => {
     expect(save).toHaveBeenCalledOnce()
   })
 
+  it('syncs when the recovery words reminder may next show, alongside the saved key', async () => {
+    const identity = useIdentityStore()
+    useAppPreferencesStore().adopt({ ...saved, security: { recoveryWordsRemindAfter: '2027-03-01T00:00:00.000Z' } })
+    await settle()
+    expect(identity.recoveryWordsRemindAfter).toBe('2027-03-01T00:00:00.000Z')
+
+    identity.recoveryWordsSavedFor = 'key-1'
+    await settle()
+    expect(save).toHaveBeenCalledExactlyOnceWith({
+      security: { recoveryWordsSavedFor: 'key-1', recoveryWordsRemindAfter: '2027-03-01T00:00:00.000Z' },
+    })
+  })
+
   it('reads an account that never saved its recovery words as unsaved, without writing that back', async () => {
     useAppPreferencesStore().adopt({ theme: {}, map: {}, general: {}, layerAppearances: {} })
     await settle()

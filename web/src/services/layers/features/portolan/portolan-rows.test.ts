@@ -99,6 +99,30 @@ describe('reading the advances off the engine', () => {
     expect(after).not.toBe(before)
   })
 
+  test('reads MapLibre 6’s per-character cache', () => {
+    const v6 = {
+      requests: { 0: Promise.resolve() },
+      glyphs: { default: { A: { metrics: { advance: 17 } }, B: null } },
+    }
+    const adv = glyphAdvances(mapWith({ Roboto: v6 }), ['Roboto'])!
+    expect(adv.of(65)).toBe(17)
+    expect(adv.of(66)).toBe(undefined)
+    expect(adv.of(67)).toBe(undefined)
+  })
+
+  test('a MapLibre 6 entry with no glyph cached yet is not an answer', () => {
+    const v6 = { requests: {}, glyphs: { default: {} } }
+    expect(glyphAdvances(mapWith({ Roboto: v6 }), ['Roboto'])).toBe(null)
+  })
+
+  test('the MapLibre 6 key changes as glyphs arrive', () => {
+    const one = { glyphs: { default: { A: { metrics: { advance: 17 } } } } }
+    const two = { glyphs: { default: { ...one.glyphs.default, B: { metrics: { advance: 11 } } } } }
+    expect(glyphAdvances(mapWith({ Roboto: two }), ['Roboto'])!.key).not.toBe(
+      glyphAdvances(mapWith({ Roboto: one }), ['Roboto'])!.key,
+    )
+  })
+
   test('an engine that keeps its glyphs elsewhere is survived, not thrown on', () => {
     expect(glyphAdvances({}, ['Roboto'])).toBe(null)
     expect(glyphAdvances(null, ['Roboto'])).toBe(null)

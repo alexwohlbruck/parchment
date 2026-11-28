@@ -8,7 +8,7 @@
  * MapLibre's `symbol-height-offset`. Re-hydrated when tiles settle, and only
  * when the set actually changed, so an idle map stays idle.
  */
-import { sourceFeatures } from '@/lib/map/source-features'
+import { sourceFeatureSteps, sourceTileFeatureSteps } from '@/lib/map/source-features'
 import { frameTask } from '@/lib/map/rendering/frame-task'
 import { layerGroups } from '@/lib/map-style'
 import {
@@ -18,6 +18,7 @@ import {
 } from '@/constants/layers'
 import { footprintIndex, poiElevation, raisedDiff, type BuildingFootprint } from '@/lib/map/poi-elevation'
 import { RAISED_POI_SOURCE } from '@/lib/map/basemap-poi-look'
+import { POINT_SOURCE_MAXZOOM } from '@/lib/map/point-source'
 
 const SOURCE = RAISED_POI_SOURCE
 const KEEPER = 'poi-tiles-keeper'
@@ -38,6 +39,42 @@ type Overlay = { raw: any; set: (data: any) => void; signature: string }
 
 type Ring = Array<[number, number]>
 
+/** A basemap POI with the keys a hydration compares by, and the raised copy it last made of it. */
+type PoiEntry = {
+  feature: any
+  point: [number, number]
+  at: string
+  key: string
+  heightKey: string
+  raised: any | null
+}
+
+/** A tile's POIs read into entries once; the tile's feature array is kept until the tile reloads. */
+const poiEntries = new WeakMap<any[], PoiEntry[]>()
+
+function tilePois(features: any[]): PoiEntry[] {
+  let entries = poiEntries.get(features)
+  if (entries) return entries
+  entries = []
+  for (const feature of features) {
+    const point = feature.geometry?.coordinates as [number, number]
+    if (!point) continue
+    const at = `${point}`
+    const p = feature.properties
+    entries.push({ feature, point, at, key: `${at}|${p?.name ?? ''}|${p?.class ?? ''}`, heightKey: `${at}|${p?.level ?? ''}`, raised: null })
+  }
+  poiEntries.set(features, entries)
+  return entries
+}
+
+function raisedPoi(entry: PoiEntry, _elev: number) {
+  if (entry.raised?.properties._elev !== _elev) {
+    const f = entry.feature
+    entry.raised = { type: 'Feature', id: f.id, properties: { ...f.properties, _elev }, geometry: f.geometry }
+  }
+  return entry.raised
+}
+
 /**
  * The loaded tiles' building footprints. A tile's buildings never change once
  * it has loaded, so each tile's geometry is read only on the first pass that
@@ -52,7 +89,7 @@ function footprintReader() {
     const previous = byTile
     byTile = new Map()
     let read = 0
-    for (const f of sourceFeatures(map, layer.source, layer.sourceLayer)) {
+    for (const f of yield* sourceFeatureSteps(map, layer.source, layer.sourceLayer)) {
       if (++read % 64 === 0) yield
       const tile = `${layer.source}/${layer.sourceLayer}/${f._z}/${f._x}/${f._y}`
       const known = previous.get(tile)
@@ -94,7 +131,7 @@ export function attachPoiElevation(map: any, raised: () => boolean) {
     )
     if (!layers.length) return false
     tiles = layers[0].source
-    map.addSource(SOURCE, { type: 'geojson', data: EMPTY })
+    map.addSource(SOURCE, { type: 'geojson', maxzoom: POINT_SOURCE_MAXZOOM, data: EMPTY })
     // MapLibre only parses a source-layer some layer reads, and hydration
     // queries the tiles: an invisible reader keeps the POIs in them.
     map.addLayer({
@@ -213,33 +250,43 @@ export function attachPoiElevation(map: any, raised: () => boolean) {
     const positions: string[] = []
     const nextElevations = new Map<string, number>()
     let read = 0
-    for (const f of sourceFeatures(map, tiles, 'poi')) {
-      if (++read % 32 === 0) yield
-      const point = f.geometry?.coordinates as [number, number]
-      if (!point) continue
-      const key = `${point}|${f.properties?.name ?? ''}|${f.properties?.class ?? ''}`
-      if (seen.has(key)) continue
-      seen.add(key)
-      const heightKey = `${point}|${f.properties?.level ?? ''}`
-      const _elev = lift
-        ? nextElevations.get(heightKey) ?? elevations.get(heightKey) ?? Math.round(poiElevation(point, f.properties?.level, currentNear) * 2) / 2
-        : 0
-      nextElevations.set(heightKey, _elev)
-      positions.push(`${point}:${_elev}`)
-      features.push({ type: 'Feature', id: f.id, properties: { ...f.properties, _elev }, geometry: f.geometry })
+    for (const tile of yield* sourceTileFeatureSteps(map, tiles, 'poi')) {
+      for (const entry of tilePois(tile)) {
+        if (++read % 64 === 0) yield
+        // A parent and a child tile can both be drawn: the same POI then comes from each, at a slightly different point.
+        const identity = entry.feature.id ?? entry.key
+        if (seen.has(identity)) continue
+        seen.add(identity)
+        const _elev = lift
+          ? nextElevations.get(entry.heightKey) ?? elevations.get(entry.heightKey) ?? Math.round(poiElevation(entry.point, entry.feature.properties?.level, currentNear) * 2) / 2
+          : 0
+        nextElevations.set(entry.heightKey, _elev)
+        positions.push(`${entry.at}:${_elev}`)
+        features.push(raisedPoi(entry, _elev))
+      }
     }
     elevations = nextElevations
     // setData re-tiles and repaints, which ends in another idle: an unchanged
     // set has to stop here or the map never rests.
-    const next = `${lift}|${positions.sort().join(';')}`
-    if (next === signature) return
-    signature = next
+    // Mid-gesture only new POIs go in; leaving tiles and late building heights wait for the pass after `moveend`, or each pass re-tiles thousands.
+    const moving = !!map.isMoving?.()
+    if (moving) signature = ''
+    else {
+      const next = `${lift}|${positions.sort().join(';')}`
+      if (next === signature) return
+      signature = next
+    }
     const source = map.getSource(SOURCE)
     // Only what changed, where the source can take it: writing every POI again re-tiles the whole view for a handful that arrived.
-    const diff = shown && source?.updateData ? raisedDiff(shown, features) : null
-    if (diff) source.updateData(diff)
-    else source?.setData({ type: 'FeatureCollection', features })
-    shown = raisedDiff(new Map(), features) ? new Map(features.map(f => [f.id, f.properties._elev])) : null
+    const diff = shown && source?.updateData ? raisedDiff(shown, features, moving) : null
+    if (diff) {
+      if (diff.add.length || diff.remove.length) source.updateData(diff)
+      for (const id of diff.remove) shown!.delete(id)
+      for (const f of diff.add) shown!.set(f.id, f.properties._elev)
+    } else {
+      source?.setData({ type: 'FeatureCollection', features })
+      shown = raisedDiff(new Map(), features) ? new Map(features.map(f => [f.id, f.properties._elev])) : null
+    }
   }
 
   const hydration = frameTask(hydrate)

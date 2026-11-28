@@ -5,7 +5,7 @@ import * as heights from '@/lib/map/poi-elevation'
 vi.mock('@/lib/map-style', () => ({ layerGroups: { building3d: 'buildings' } }))
 vi.mock('@/constants/layers', () => ({ COLLECTION_MARKERS_SOURCE_ID: 'collections', SEARCH_RESULTS_SOURCE_ID: 'search', RECENT_PLACES_SOURCE_ID: 'recents' }))
 
-function fixture(count = 1) {
+function fixture(count = 1, { diffs = false } = {}) {
   const handlers = new Map<string, Set<(event?: any) => void>>()
   const layers = new Map<string, any>([
     ['buildings', { id: 'buildings', type: 'fill-extrusion', source: 'detail', sourceLayer: 'building' }],
@@ -14,6 +14,7 @@ function fixture(count = 1) {
   const sources = new Map<string, any>()
   let height = 40
   let tile = 1
+  let moving = false
   const pois = Array.from({ length: count }, (_, id) => ({ id, properties: { name: `POI ${id}` }, geometry: { type: 'Point', coordinates: [0.0001, 0.0001] } }))
   const map = {
     on: (event: string, handler: (event?: any) => void) => {
@@ -26,7 +27,8 @@ function fixture(count = 1) {
     getSource: (id: string) => sources.get(id),
     getStyle: () => ({ layers: [...layers.values()] }),
     getLayersOrder: () => [...layers.keys()],
-    addSource: (id: string) => sources.set(id, { setData: vi.fn() }),
+    addSource: (id: string) => sources.set(id, diffs ? { setData: vi.fn(), updateData: vi.fn() } : { setData: vi.fn() }),
+    isMoving: () => moving,
     addLayer: (layer: any) => layers.set(layer.id, layer),
     removeLayer: (id: string) => layers.delete(id),
     getLayoutProperty: vi.fn(),
@@ -37,7 +39,7 @@ function fixture(count = 1) {
       geometry: { type: 'Polygon', coordinates: [[[0, 0], [0.001, 0], [0.001, 0.001], [0, 0.001], [0, 0]]] },
     }]),
   }
-  return { map, sources, setHeight: (value: number) => { height = value }, setTile: (value: number) => { tile = value } }
+  return { map, sources, setHeight: (value: number) => { height = value }, setTile: (value: number) => { tile = value }, setMoving: (value: boolean) => { moving = value } }
 }
 
 beforeEach(() => {
@@ -107,6 +109,24 @@ describe('POI elevation hydration', () => {
     attached.refresh()
     settle()
     expect(sources.get('poi-dots-raised').setData.mock.lastCall![0].features[0].properties._elev).toBe(0)
+    attached.detach()
+  })
+
+  it('holds height changes mid-gesture and applies them after it ends', () => {
+    const { map, sources, setHeight, setTile, setMoving } = fixture(1, { diffs: true })
+    const attached = attachPoiElevation(map, () => true)
+    settle()
+    const source = sources.get('poi-dots-raised')
+    setMoving(true)
+    setHeight(80)
+    setTile(2)
+    map.emit('sourcedata', { sourceId: 'detail', tile: {} })
+    settle()
+    expect(source.updateData).not.toHaveBeenCalled()
+    setMoving(false)
+    map.emit('moveend')
+    settle()
+    expect(source.updateData.mock.lastCall![0].add[0].properties._elev).toBe(80.5)
     attached.detach()
   })
 

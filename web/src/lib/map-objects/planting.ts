@@ -8,7 +8,7 @@
  * on every load and has no seams; each tile piece plants only inside its own
  * tile, so an area split across tiles is never planted twice.
  */
-import { sourceFeatures } from '@/lib/map/source-features'
+import { sourceFeatures, sourceFeatureSteps } from '@/lib/map/source-features'
 import { SOURCE as BASEMAP_SOURCE } from '@/lib/map-style/build'
 import { DETAIL_SOURCE, OBJECT_AREA_TILES, PARKING_TILES, PITCH_TILES } from '@/lib/map-style/detail-layers'
 import type { ObjectInstance, ObjectSourceSpec } from './object-layer'
@@ -67,8 +67,7 @@ export function spansAt(rings: Ring[], y: number): Span[] {
   const xs: number[] = []
   for (const ring of rings)
     for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-      const [x0, y0] = ring[j]
-      const [x1, y1] = ring[i]
+      const x0 = ring[j][0], y0 = ring[j][1], x1 = ring[i][0], y1 = ring[i][1]
       if ((y0 > y) !== (y1 > y)) xs.push(x0 + ((y - y0) / (y1 - y0)) * (x1 - x0))
     }
   xs.sort((a, b) => a - b)
@@ -83,8 +82,7 @@ function inside(rings: Ring[], x: number, y: number): boolean {
   let hit = false
   for (const ring of rings)
     for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-      const [x0, y0] = ring[j]
-      const [x1, y1] = ring[i]
+      const x0 = ring[j][0], y0 = ring[j][1], x1 = ring[i][0], y1 = ring[i][1]
       if ((y0 > y) !== (y1 > y) && x < x0 + ((y - y0) / (y1 - y0)) * (x1 - x0)) hit = !hit
     }
   return hit
@@ -333,6 +331,7 @@ const SCREEN_OBJECTS = 9000
 const MIN_SPACING = 5
 const DITHER = 0.7
 const BLOCK_CELLS = 16
+const CACHE_LIMIT = 20000
 /** Levels a cell shown last gather may slip before it is thinned, so a small pan never drops a visible tree. */
 const HYSTERESIS = 0.5
 
@@ -417,12 +416,12 @@ export function builtExclusionsFor(map: any, basemap: string = BASEMAP_SOURCE): 
 }
 
 function* exclusionsFor(map: any, basemap: string, detail: (sourceLayer: string) => [string, string?]): Generator<void, ForestExclusions> {
-  const ways = sourceFeatures(map, basemap, 'transportation')
+  const ways = yield* sourceFeatureSteps(map, basemap, 'transportation')
   yield
-  const areas = [...sourceFeatures(map, basemap, 'building'), ...sourceFeatures(map, basemap, 'water')]
+  const areas = [...(yield* sourceFeatureSteps(map, basemap, 'building')), ...(yield* sourceFeatureSteps(map, basemap, 'water'))]
   yield
-  areas.push(...sourceFeatures(map, basemap, 'landuse').filter((f: any) => OPEN_LANDUSE.has(f.properties?.class)))
-  for (const [layer, keep] of OPEN_DETAIL) areas.push(...sourceFeatures(map, ...detail(layer)).filter(keep))
+  areas.push(...(yield* sourceFeatureSteps(map, basemap, 'landuse')).filter((f: any) => OPEN_LANDUSE.has(f.properties?.class)))
+  for (const [layer, keep] of OPEN_DETAIL) areas.push(...(yield* sourceFeatureSteps(map, ...detail(layer))).filter(keep))
   yield
   return yield* exclusionSteps(ways, areas)
 }
@@ -502,6 +501,7 @@ export function plantedSpec(options: {
   type Shown = { points: PlantedPoint[]; levels: number[] }
   const planted = new Map<string, PlantedPoint[]>()
   const extents = new Map<string, Bounds>()
+  const rings = new Map<string, Ring[][]>()
   let shown = new Map<object, Shown>()
   let wasShown = new Set<number>()
   let nowShown = new Set<number>()
@@ -564,7 +564,6 @@ export function plantedSpec(options: {
     let extent = extents.get(key)
     if (!extent) {
       extent = extentOf(feature.geometry)
-      if (extents.size >= 20000) extents.clear()
       extents.set(key, extent)
     }
     let area = intersect(intersect(tile, extent), view ?? tile)
@@ -586,20 +585,28 @@ export function plantedSpec(options: {
 
   const cached = (b: Block) => planted.get(`${b.key}|${b.stride}`) ?? coarsened(b.key, b.stride)
 
-  function* plantSteps(feature: any, grid: Grid, b: Block, clear: boolean): Generator<void, PlantedPoint[]> {
-    if (clear && !exclusions) exclusions = map ? yield* exclusionsFor(map, basemap, detail) : buildExclusions([], [])
-    const planting = b.bounds.minX < b.bounds.maxX && b.bounds.minY < b.bounds.maxY
-      ? polygonsOf(feature.geometry).flatMap(rings => plant(rings, b.bounds, clear ? exclusions : null, grid, b.stride))
-      : []
-    if (planted.size >= 20000) planted.clear()
-    planted.set(`${b.key}|${b.stride}`, planting)
-    return planting
+  const ringsOf = (feature: any): Ring[][] => {
+    const key = pieceKey(feature)
+    let projected = rings.get(key)
+    if (!projected) {
+      projected = polygonsOf(feature.geometry)
+      rings.set(key, projected)
+    }
+    return projected
   }
 
-  const plantPiece = (feature: any, grid: Grid, tile: Bounds, clear: boolean): PlantedPoint[] => {
+  function* plantSteps(feature: any, grid: Grid, b: Block, clear: boolean): Generator<void> {
+    if (clear && !exclusions) exclusions = map ? yield* exclusionsFor(map, basemap, detail) : buildExclusions([], [])
+    const planting = b.bounds.minX < b.bounds.maxX && b.bounds.minY < b.bounds.maxY
+      ? ringsOf(feature).flatMap(polygon => plant(polygon, b.bounds, clear ? exclusions : null, grid, b.stride))
+      : []
+    planted.set(`${b.key}|${b.stride}`, planting)
+  }
+
+  /** Only what `prepareSteps` planted: planting here would run a whole piece in one task. */
+  const plantPiece = (feature: any, grid: Grid, tile: Bounds): PlantedPoint[] => {
     const points: PlantedPoint[] = []
-    for (const b of blocksOf(feature, grid, tile))
-      for (const p of cached(b) ?? finish(plantSteps(feature, grid, b, clear))) points.push(p)
+    for (const b of blocksOf(feature, grid, tile)) for (const p of cached(b) ?? []) points.push(p)
     return points
   }
 
@@ -616,7 +623,7 @@ export function plantedSpec(options: {
       const tile = tileBounds(feature)
       if (grid && tile) {
         const [sx, sy] = [grid.dx * MERCATOR_METRE, grid.dy * MERCATOR_METRE]
-        for (const p of plantPiece(feature, grid, tile, options.clear(feature))) {
+        for (const p of plantPiece(feature, grid, tile)) {
           const level = levelAt(grid, (p[2] + 0.5) * sx, (p[3] + 0.5) * sy)
           const id = cellId(p[2], p[3])
           const slack = wasShown.has(id) ? HYSTERESIS : 0
@@ -645,6 +652,8 @@ export function plantedSpec(options: {
       basemap = (spec as PlantedSpec).exclusionsFrom ?? BASEMAP_SOURCE
       detail = (spec as PlantedSpec).detailFrom ?? (layer => [DETAIL_SOURCE, layer])
       exclusions = null
+      // Evicted between gathers, never during one, so every block `prepareSteps` plants is still there for `positions`.
+      for (const cache of [planted, extents, rings] as Map<string, unknown>[]) if (cache.size >= CACHE_LIMIT) cache.clear()
       shown = new Map()
       strides = new Map()
       // A gather abandoned for a newer one leaves a partial set; keep the last full one instead.
@@ -659,7 +668,7 @@ export function plantedSpec(options: {
     },
     *prepareSteps() {
       if (!map) return
-      for (const feature of sourceFeatures(map, options.source, options.sourceLayer)) {
+      for (const feature of yield* sourceFeatureSteps(map, options.source, options.sourceLayer)) {
         if (feature.geometry?.type === 'Point') continue
         const grid = options.grid(feature)
         const tile = grid && tileBounds(feature)

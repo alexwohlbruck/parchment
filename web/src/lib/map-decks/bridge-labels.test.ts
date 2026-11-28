@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'vitest'
-import { deckBoxes, deckStretches, encodeProfile, raisedLabelFeatures, raisedLabelLayer, ridesBridges, stretchFootprints } from './bridge-labels'
+import { mercator } from './decks'
+import { deckFootprints } from './footprints'
+import { deckReach, deckStretches, encodeProfile, raisedLabelFeatures, raisedLabelLayer, raisedTileLabels, ridesBridges, stretchFootprints } from './bridge-labels'
 
 /** A deck between lng 0.001 and 0.002 whose surface climbs 10 m per 0.001°. */
 const surfaceAt = (lng: number) => (lng >= 0.001 && lng <= 0.002 ? 20 + (lng - 0.001) * 10_000 : null)
@@ -50,8 +52,8 @@ describe('ridesBridges', () => {
   test('raises a name only where it rides', () => {
     const under = { properties: { name: 'Water St' }, geometry: { type: 'LineString' as const, coordinates: [[0.0015, -0.001], [0.0015, 0.001]] } }
     const bridges = ridesBridges([[[0.001, 0], [0.002, 0]]])
-    const box: [number, number, number, number][] = [[0.001, -0.001, 0.002, 0.001]]
-    expect(raisedLabelFeatures([under], box, () => 30, bridges)).toEqual([])
+    const everywhere = { boxes: [[0.001, -0.001, 0.002, 0.001] as [number, number, number, number]], near: () => true }
+    expect(raisedLabelFeatures([under], everywhere, () => 30, bridges)).toEqual([])
   })
 })
 
@@ -61,7 +63,7 @@ test('encodeProfile writes the first point whole and the rest as deltas', () => 
 
 describe('raisedLabelFeatures', () => {
   const name = { type: 'Feature' as const, properties: { name: 'Brooklyn Bridge' }, geometry: { type: 'LineString' as const, coordinates: [[0, 0], [0.003, 0]] } }
-  const decks = deckBoxes({ type: 'MultiPolygon', coordinates: [[[[0.001, -0.0001], [0.002, -0.0001], [0.002, 0.0001], [0.001, 0.0001], [0.001, -0.0001]]]] })
+  const decks = deckReach({ type: 'MultiPolygon', coordinates: [[[[0.001, -0.0001], [0.002, -0.0001], [0.002, 0.0001], [0.001, 0.0001], [0.001, -0.0001]]]] })
 
   test('copies the stretch over a deck with its profile and properties', () => {
     const [raised, ...rest] = raisedLabelFeatures([name], decks, surfaceAt)
@@ -77,6 +79,38 @@ describe('raisedLabelFeatures', () => {
     const away = { ...name, geometry: { type: 'LineString' as const, coordinates: [[1, 1], [1.1, 1]] } }
     expect(raisedLabelFeatures([away], decks, () => { throw new Error('sampled') })).toEqual([])
   })
+})
+
+describe('deckReach', () => {
+  const diagonal = deckFootprints([{ points: [mercator([-74, 40.7]), mercator([-73.99, 40.71])], edges: [6, 6] }])
+  const reach = deckReach(diagonal)
+
+  test('holds the ground along a deck and beside it', () => {
+    expect(reach.near(-73.995, 40.705)).toBe(true)
+    expect(reach.near(-73.995, 40.7051)).toBe(true)
+  })
+
+  test('leaves out the corners of a diagonal deck\'s box', () => {
+    expect(reach.near(-73.991, 40.701)).toBe(false)
+    expect(reach.near(-73.999, 40.709)).toBe(false)
+  })
+
+  test('never samples a line that crosses a deck\'s box clear of the deck', () => {
+    const street = { type: 'Feature' as const, properties: {}, geometry: { type: 'LineString' as const, coordinates: [[-73.992, 40.7005], [-73.9905, 40.702]] } }
+    expect(raisedLabelFeatures([street], reach, () => { throw new Error('sampled') })).toEqual([])
+  })
+})
+
+test('raisedTileLabels raises a name only along a bridge of its tile', () => {
+  const along = { type: 'Feature' as const, properties: { name: 'Brooklyn Bridge' }, geometry: { type: 'LineString' as const, coordinates: [[0, 0], [0.003, 0]] } }
+  const beneath = { type: 'Feature' as const, properties: { name: 'Water Street' }, geometry: { type: 'LineString' as const, coordinates: [[0.0015, -0.001], [0.0015, 0.001]] } }
+  const road = (brunnel?: string) => ({ type: 'Feature' as const, properties: { brunnel }, geometry: along.geometry })
+  const decks = deckReach({ type: 'MultiPolygon', coordinates: [[[[0.001, -0.0001], [0.002, -0.0001], [0.002, 0.0001], [0.001, 0.0001], [0.001, -0.0001]]]] })
+
+  const raised = raisedTileLabels([road('bridge')], [along, beneath], decks, surfaceAt)
+  expect(raised.transportation).toHaveLength(1)
+  expect(raised.transportation_name.map(f => f.properties!.name)).toEqual(['Brooklyn Bridge'])
+  expect(raisedTileLabels([road()], [along], decks, surfaceAt)).toEqual({ transportation: [], transportation_name: [] })
 })
 
 test('raisedLabelLayer reads the raised source with the profile', () => {

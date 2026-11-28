@@ -31,6 +31,7 @@ import {
   collectionLabelPaint,
   poiLabelLayout,
 } from '@/constants/layers'
+import { POINT_SOURCE_MAXZOOM } from '@/lib/map/point-source'
 
 const LAYER_IDS = [COLLECTION_MARKERS_LAYER_ID, COLLECTION_LABELS_LAYER_ID]
 
@@ -143,6 +144,7 @@ export function useCollectionMarkersLayerService() {
     if (!map.getSource(COLLECTION_MARKERS_SOURCE_ID)) {
       map.addSource(COLLECTION_MARKERS_SOURCE_ID, {
         type: 'geojson',
+        maxzoom: POINT_SOURCE_MAXZOOM,
         data: { type: 'FeatureCollection', features: [] },
       } as any)
     }

@@ -4383,16 +4383,16 @@
     "save": "Guardar",
     "partial": "No se pudo exportar {modules}, así que el archivo no lo incluye",
     "unreadable": "1 elemento privado no se pudo abrir en este dispositivo, así que falta parte de él | {count} elementos privados no se pudieron abrir en este dispositivo, así que falta parte de ellos",
-    "private": "1 elemento privado | {count} elementos privados",
-    "privateLocked": "1 elemento privado, necesita tus palabras de recuperación | {count} elementos privados, necesitan tus palabras de recuperación",
+    "private": "{count} privados",
+    "privateLocked": "Necesitarás tus palabras de recuperación para incluir los elementos privados",
     "modules": {
       "library": {
         "title": "Biblioteca",
-        "description": "Colecciones, lugares guardados y lienzos, también en GeoJSON y KML"
+        "description": "Colecciones, lugares guardados y lienzos"
       },
       "routes": {
         "title": "Rutas guardadas",
-        "description": "También en GPX, para dispositivos GPS y apps deportivas"
+        "description": "También se abre en dispositivos GPS y apps de deporte"
       },
       "vehicles": {
         "title": "Vehículos",

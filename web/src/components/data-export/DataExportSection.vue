@@ -60,7 +60,7 @@ function onKeyDialog(open: boolean) {
       </Button>
     </template>
 
-    <div class="flex flex-col gap-3">
+    <div class="grid gap-x-6 gap-y-4 sm:grid-cols-2">
       <label
         v-for="module in EXPORT_MODULES"
         :key="module"
@@ -73,34 +73,34 @@ function onKeyDialog(open: boolean) {
           @update:model-value="toggle(module, $event === true)"
         />
         <div class="flex flex-col">
-          <H6>{{ $t(`dataExport.modules.${module}.title`) }}</H6>
+          <div class="flex items-center gap-2">
+            <H6>{{ $t(`dataExport.modules.${module}.title`) }}</H6>
+            <span
+              v-if="privateCounts[module]"
+              class="inline-flex items-center gap-1 text-xs text-muted-foreground"
+            >
+              <LockIcon class="size-3" />
+              {{ $t('dataExport.private', { count: privateCounts[module] }) }}
+            </span>
+          </div>
           <Caption>{{ $t(`dataExport.modules.${module}.description`) }}</Caption>
-          <Caption
-            v-if="privateCounts[module]"
-            class="flex items-center gap-1"
-          >
-            <LockIcon class="size-3 shrink-0" />
-            {{
-              $t(
-                needsImport ? 'dataExport.privateLocked' : 'dataExport.private',
-                { count: privateCounts[module] },
-                privateCounts[module]!,
-              )
-            }}
-          </Caption>
         </div>
       </label>
     </div>
 
-    <Button
-      class="self-start"
-      :icon="DownloadIcon"
-      :loading="exporting"
-      :disabled="!selected.length"
-      @click="download"
-    >
-      {{ $t('dataExport.download') }}
-    </Button>
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <Button
+        :icon="DownloadIcon"
+        :loading="exporting"
+        :disabled="!selected.length"
+        @click="download"
+      >
+        {{ $t('dataExport.download') }}
+      </Button>
+      <Caption v-if="needsImport && selectedPrivate">
+        {{ $t('dataExport.privateLocked') }}
+      </Caption>
+    </div>
 
     <RecoveryWordsDialog
       :open="askingForKey"

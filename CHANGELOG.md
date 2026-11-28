@@ -4,6 +4,12 @@
 
 ### Changed
 
+### Fixed
+
+## [0.27.3] - 2026-11-27
+
+### Changed
+
 * Zooming, flying to a place and dragging across a city stutter far less.
 * Map tiles appear up to 3× faster, and panning, rotating and zooming stay smoother while they load.
 

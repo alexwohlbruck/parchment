@@ -1,8 +1,18 @@
 import { describe, expect, test } from 'bun:test'
 import type { Place } from '../../types/place.types'
-import { arrivalCategories, hasArrivalPoints, pickArrivalPoints } from './arrival-points'
+import {
+  arrivalCategories,
+  hasArrivalPoints,
+  offersArrivalPointsIn,
+  pickArrivalPoints,
+  pickChildren,
+} from './arrival-points'
 
 const bounds = { south: 40, north: 41, west: -74, east: -73 }
+
+function child(id: string, name: string | null, presetId: string, tags: Record<string, string> = {}): Place {
+  return { ...place(id, name, 40.5, -73.5, tags), icon: { presetId } } as unknown as Place
+}
 
 function place(
   id: string,
@@ -29,13 +39,12 @@ describe('arrivalCategories', () => {
       'aeroway/terminal',
       'amenity/parking',
     ])
-    expect(arrivalCategories('amenity/university', 'multi')).toEqual(['amenity/parking'])
-    expect(arrivalCategories('amenity/university', 'walking')).toEqual([])
   })
 
-  test('covers universities under either preset family', () => {
-    expect(arrivalCategories('education/university', 'driving')).toEqual(['amenity/parking'])
-    expect(hasArrivalPoints('education/college')).toBe(true)
+  test('covers campuses under either preset family, in every mode', () => {
+    expect(offersArrivalPointsIn('education/university', 'walking')).toBe(true)
+    expect(offersArrivalPointsIn('amenity/college', 'driving')).toBe(true)
+    expect(arrivalCategories('education/university', 'driving')).toEqual([])
   })
 
   test('offers nothing for an ordinary place', () => {
@@ -84,5 +93,27 @@ describe('pickArrivalPoints', () => {
       'parent',
     )
     expect(picked.map((p) => p.id)).toEqual(['ok'])
+  })
+})
+
+describe('pickChildren', () => {
+  const inside = [
+    child('osm/way/1', 'Atkins Library', 'amenity/library'),
+    child('osm/way/2', 'John Kirk Drive', 'highway/tertiary', { highway: 'tertiary' }),
+    child('osm/intersection/3', 'John Kirk Drive & Mary Alexander Road', ''),
+    child('osm/way/4', 'Toby Creek', 'waterway/stream'),
+    child('osm/node/5', null, 'amenity/bench'),
+    child('osm/way/6', 'Cone Deck', 'amenity/parking/multi-storey'),
+    child('osm/way/7', 'Atkins Library', 'building'),
+    child('osm/way/8', 'Staff Lot', 'amenity/parking', { access: 'private' }),
+    child('osm/relation/9', 'University City', 'place/suburb', { place: 'suburb' }),
+  ]
+
+  test('keeps named places someone would go to, in order', () => {
+    expect(pickChildren(inside, 'walking').map((p) => p.id)).toEqual(['osm/way/1'])
+  })
+
+  test('adds public parking when driving', () => {
+    expect(pickChildren(inside, 'driving').map((p) => p.id)).toEqual(['osm/way/1', 'osm/way/6'])
   })
 })

@@ -251,8 +251,12 @@ app.get(
 app.get(
   '/arrival-points',
   async ({ query, status }) => {
+    const { id, lat, lng, mode } = query
+    if (!id && (lat === undefined || lng === undefined)) {
+      return status(400, { message: 'Pass an id, or lat and lng' })
+    }
     try {
-      return { places: await getArrivalPoints(query.id, query.mode) }
+      return await getArrivalPoints({ id, lat, lng }, mode)
     } catch (err) {
       logError('Error fetching arrival points', err)
       return status(500, {
@@ -262,14 +266,16 @@ app.get(
   },
   {
     query: t.Object({
-      id: t.String({ minLength: 1, examples: ['osm/way/158042008'] }),
+      id: t.Optional(t.String({ minLength: 1, examples: ['osm/way/158042008'] })),
+      lat: t.Optional(t.Number()),
+      lng: t.Optional(t.Number()),
       mode: t.Optional(t.String({ examples: ['driving', 'transit'] })),
     }),
     detail: {
       tags: ['Places'],
-      summary: 'Get precise destinations inside a large place',
+      summary: 'Get precise destinations in or around a large place',
       description:
-        "Named, public places inside a large one that a trip can end at instead of its centre: an airport's terminals in any mode, and with `mode` set to `driving` or `multi`, parking at airports, campuses, hospitals, stadiums, malls, theme parks and zoos. Garages come before surface lots. Autocomplete marks the places this applies to with `arrivalPresetId`; anything else returns an empty list.",
+        "Named, public places a trip can end at instead of a large place's centre: an airport's terminals in any mode, and with `mode` set to `driving` or `multi`, parking at airports, campuses, hospitals, stadiums, malls, theme parks and zoos. Garages come before surface lots. Pass the place's `id`, or `lat`/`lng` for a point. When the place is not itself one of these (a terminal, a pin on a runway), the smallest such area containing it is used. Returns that area as `parent`, or `parent: null` and no places when there is none.",
     },
   },
 )

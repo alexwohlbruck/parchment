@@ -54,7 +54,11 @@ export const SUN_SHADOW_GLSL = `
 
 /** A mercator matrix — the sun's light, the occlusion's texture coordinates — taken to a mesh's own frame about `origin`; composed in double precision so the mesh keeps its float precision. */
 export function lightAbout(light: Mat4, origin: [number, number, number?]): Float32Array {
-  return Float32Array.from(multiply(light, [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, origin[0], origin[1], origin[2] ?? 0, 1]))
+  const out = new Float32Array(light)
+  const [x, y, z = 0] = origin
+  // A translation only moves the last column; the rest of the product is `light` itself.
+  for (let r = 0; r < 4; r++) out[12 + r] = light[r] * x + light[4 + r] * y + light[8 + r] * z + light[12 + r]
+  return out
 }
 
 export const SUN_SHADOW_UNIFORMS = ['u_sunShadow', 'u_sunOn', 'u_sunTexel', 'u_sunBias'] as const

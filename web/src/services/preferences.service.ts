@@ -6,14 +6,9 @@ import { UnitSystem } from '@/types/map.types'
 import type { NavigationPreferences } from '@/lib/preferences/navigation-preferences'
 import type { AskPreferences } from '@/types/ask.types'
 import type { AppPreferences } from '@server/types/app-preferences.types'
+import type { UserPreferences } from '@/types/preferences.types'
 
-export interface UserPreferences {
-  language: string
-  unitSystem: string
-  navigation: NavigationPreferences
-  ask: AskPreferences
-  app: AppPreferences
-}
+export type { UserPreferences }
 
 const SUPPORTED_LOCALES: Locale[] = ['en-US', 'es-ES']
 

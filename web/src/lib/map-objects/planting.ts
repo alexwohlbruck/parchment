@@ -8,7 +8,7 @@
  * on every load and has no seams; each tile piece plants only inside its own
  * tile, so an area split across tiles is never planted twice.
  */
-import { sourceFeatures } from '@/lib/map/source-features'
+import { sourceFeatures, sourceFeatureSteps } from '@/lib/map/source-features'
 import { SOURCE as BASEMAP_SOURCE } from '@/lib/map-style/build'
 import { DETAIL_SOURCE, OBJECT_AREA_TILES, PARKING_TILES, PITCH_TILES } from '@/lib/map-style/detail-layers'
 import type { ObjectInstance, ObjectSourceSpec } from './object-layer'
@@ -416,12 +416,12 @@ export function builtExclusionsFor(map: any, basemap: string = BASEMAP_SOURCE): 
 }
 
 function* exclusionsFor(map: any, basemap: string, detail: (sourceLayer: string) => [string, string?]): Generator<void, ForestExclusions> {
-  const ways = sourceFeatures(map, basemap, 'transportation')
+  const ways = yield* sourceFeatureSteps(map, basemap, 'transportation')
   yield
-  const areas = [...sourceFeatures(map, basemap, 'building'), ...sourceFeatures(map, basemap, 'water')]
+  const areas = [...(yield* sourceFeatureSteps(map, basemap, 'building')), ...(yield* sourceFeatureSteps(map, basemap, 'water'))]
   yield
-  areas.push(...sourceFeatures(map, basemap, 'landuse').filter((f: any) => OPEN_LANDUSE.has(f.properties?.class)))
-  for (const [layer, keep] of OPEN_DETAIL) areas.push(...sourceFeatures(map, ...detail(layer)).filter(keep))
+  areas.push(...(yield* sourceFeatureSteps(map, basemap, 'landuse')).filter((f: any) => OPEN_LANDUSE.has(f.properties?.class)))
+  for (const [layer, keep] of OPEN_DETAIL) areas.push(...(yield* sourceFeatureSteps(map, ...detail(layer))).filter(keep))
   yield
   return yield* exclusionSteps(ways, areas)
 }
@@ -668,7 +668,7 @@ export function plantedSpec(options: {
     },
     *prepareSteps() {
       if (!map) return
-      for (const feature of sourceFeatures(map, options.source, options.sourceLayer)) {
+      for (const feature of yield* sourceFeatureSteps(map, options.source, options.sourceLayer)) {
         if (feature.geometry?.type === 'Point') continue
         const grid = options.grid(feature)
         const tile = grid && tileBounds(feature)

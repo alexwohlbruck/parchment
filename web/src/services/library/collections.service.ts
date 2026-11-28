@@ -230,50 +230,52 @@ export const useCollectionsService = createSharedComposable(() => {
     })
   }
 
+  /** Owned and shared collections, decrypted. Throws when the server can't be read. */
+  async function loadCollections(): Promise<Collection[]> {
+    // Fetch owned + shared in parallel. Both are merged into the same
+    // list the UI renders, but the `role` field on each item tells the
+    // component whether to show write affordances. Owned rows have no
+    // role set — we stamp 'owner' for consistency downstream.
+    const [ownedResp, sharedResp] = await Promise.all([
+      api.get('/library/collections'),
+      api.get('/library/collections/shared-with-me').catch(() => ({
+        // Graceful degradation: older servers won't expose this endpoint
+        // yet. Treat as "no shared collections" rather than failing the
+        // whole library fetch.
+        data: [] as Collection[],
+      })),
+    ])
+    const owned = ((ownedResp.data ?? []) as Collection[]).map((c) => ({
+      ...c,
+      role: 'owner' as const,
+    }))
+    const shared = (sharedResp.data ?? []) as Collection[]
+
+    // Shared rows decrypt their display metadata from an ECIES envelope
+    // keyed by the sender's long-term X25519 pubkey — which lives on the
+    // friend record. The library view doesn't currently preload friends
+    // (it's done on-demand elsewhere), so the first library fetch after
+    // app start can race ahead of the friends store. Force a load now so
+    // decryption has what it needs.
+    if (shared.length > 0 && friendsStore.friends.length === 0) {
+      await friendsStore.loadFriends()
+    }
+
+    // Owner rows decrypt the K_m envelope; shared rows fall into the ECIES
+    // share-envelope branch inside hydrateDecryptedMetadata.
+    const hydrated = await Promise.all(
+      [...owned, ...shared].map(hydrateDecryptedMetadata),
+    )
+
+    await Promise.all(hydrated.filter(isUnnamedStarter).map(nameStarterCollection))
+
+    collectionsStore.setCollections(hydrated)
+    return hydrated
+  }
+
   async function fetchCollections() {
     try {
-      // Fetch owned + shared in parallel. Both are merged into the same
-      // list the UI renders, but the `role` field on each item tells the
-      // component whether to show write affordances. Owned rows have no
-      // role set — we stamp 'owner' for consistency downstream.
-      const [ownedResp, sharedResp] = await Promise.all([
-        api.get('/library/collections'),
-        api.get('/library/collections/shared-with-me').catch(() => ({
-          // Graceful degradation: older servers won't expose this endpoint
-          // yet. Treat as "no shared collections" rather than failing the
-          // whole library fetch.
-          data: [] as Collection[],
-        })),
-      ])
-      const owned = ((ownedResp.data ?? []) as Collection[]).map((c) => ({
-        ...c,
-        role: 'owner' as const,
-      }))
-      const shared = (sharedResp.data ?? []) as Collection[]
-
-      // Shared rows decrypt their display metadata from an ECIES envelope
-      // keyed by the sender's long-term X25519 pubkey — which lives on the
-      // friend record. The library view doesn't currently preload friends
-      // (it's done on-demand elsewhere), so the first library fetch after
-      // app start can race ahead of the friends store. Force a load now so
-      // decryption has what it needs.
-      if (shared.length > 0 && friendsStore.friends.length === 0) {
-        await friendsStore.loadFriends()
-      }
-
-      const userId = authStore.me?.id
-      const hydrated = await Promise.all(
-        [...owned, ...shared].map(async (c) => {
-          // Owner rows decrypt the K_m envelope; shared rows fall into
-          // the ECIES share-envelope branch inside hydrateDecryptedMetadata.
-          return hydrateDecryptedMetadata(c)
-        }),
-      )
-
-      await Promise.all(hydrated.filter(isUnnamedStarter).map(nameStarterCollection))
-
-      collectionsStore.setCollections(hydrated)
-      return hydrated
+      return await loadCollections()
     } catch (error) {
       toast.error(t('services.collections.fetchError'), { cause: error })
       return []
@@ -650,6 +652,7 @@ export const useCollectionsService = createSharedComposable(() => {
 
   return {
     viewCollectionAction,
+    loadCollections,
     fetchCollections,
     fetchCollectionById,
     createCollection,

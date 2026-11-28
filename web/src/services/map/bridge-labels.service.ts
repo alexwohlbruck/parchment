@@ -4,9 +4,10 @@
  * under each raised stretch; copies of their layers draw those stretches at
  * the deck's height.
  */
-import { sourceTileFeatures } from '@/lib/map/source-features'
+import { frameTask } from '@/lib/map/rendering/frame-task'
+import { sourceTileFeatureSteps } from '@/lib/map/source-features'
 import { SOURCE } from '@/lib/map-style'
-import { RAISED_SOURCE_LAYERS, deckBoxes, raisedLabelLayer, raisedLayerId, raisedSource, raisedTileLabels, stretchFootprints, type RaisedLabels, type SurfaceAt } from '@/lib/map-decks/bridge-labels'
+import { RAISED_SOURCE_LAYERS, deckReach, raisedLabelLayer, raisedLayerId, raisedSource, raisedTileLabels, stretchFootprints, type DeckReach, type RaisedLabels, type SurfaceAt } from '@/lib/map-decks/bridge-labels'
 import { isFlatBridgeLabel } from '@/lib/map-decks/flat-bridges'
 
 export type LabelDecks = { surfaceAt: SurfaceAt; footprints: () => GeoJSON.MultiPolygon | null; version: number }
@@ -17,7 +18,7 @@ const TILE_SETTLE_MS = 300
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
 
 /** What one deck version raises: the decks' ground, and each basemap tile's labels, read once per tile. */
-type Raised = { version: number; footprints: GeoJSON.MultiPolygon; boxes: ReturnType<typeof deckBoxes>; tiles: WeakMap<object, RaisedLabels> }
+type Raised = { version: number; footprints: GeoJSON.MultiPolygon; reach: DeckReach; tiles: WeakMap<object, RaisedLabels> }
 
 export function attachBridgeLabels(map: any, decks: () => LabelDecks | null) {
   let raised: Raised | null = null
@@ -62,32 +63,42 @@ export function attachBridgeLabels(map: any, decks: () => LabelDecks | null) {
     }
   }
 
-  function update() {
-    clearTimeout(timer)
-    timer = 0
+  function* raise(): Generator<void> {
     const current = decks()
     if (!current) return clear()
     if (raised?.version !== current.version) {
       const footprints = current.footprints()
-      raised = footprints?.coordinates.length ? { version: current.version, footprints, boxes: deckBoxes(footprints), tiles: new WeakMap() } : null
+      raised = footprints?.coordinates.length ? { version: current.version, footprints, reach: deckReach(footprints), tiles: new WeakMap() } : null
       written = null
     }
     if (!raised) return clear()
     const layers = originals()
     if (!layers.length) return
     mount(layers)
-    const { boxes, tiles } = raised
-    const names = sourceTileFeatures(map, SOURCE, 'transportation_name')
-    const labels = sourceTileFeatures(map, SOURCE, 'transportation').map((roads, i) => {
+    const { reach, tiles, footprints } = raised
+    const names = yield* sourceTileFeatureSteps(map, SOURCE, 'transportation_name')
+    const labels: RaisedLabels[] = []
+    for (const [i, roads] of (yield* sourceTileFeatureSteps(map, SOURCE, 'transportation')).entries()) {
       let tile = tiles.get(roads)
-      if (!tile) tiles.set(roads, (tile = raisedTileLabels(roads, names[i] ?? [], boxes, current.surfaceAt)))
-      return tile
-    })
+      if (!tile) {
+        yield
+        tiles.set(roads, (tile = raisedTileLabels(roads, names[i] ?? [], reach, current.surfaceAt)))
+      }
+      labels.push(tile)
+    }
     if (labels.length === written?.size && labels.every(tile => written!.has(tile))) return
+    yield
     written = new Set(labels)
     for (const sourceLayer of RAISED_SOURCE_LAYERS)
       map.getSource(raisedSource(sourceLayer))?.setData({ type: 'FeatureCollection', features: labels.flatMap(tile => tile[sourceLayer]) })
-    clip({ type: 'MultiPolygon', coordinates: [...raised.footprints.coordinates, ...stretchFootprints(labels.flatMap(tile => [...tile.transportation, ...tile.transportation_name])).coordinates] })
+    clip({ type: 'MultiPolygon', coordinates: [...footprints.coordinates, ...stretchFootprints(labels.flatMap(tile => [...tile.transportation, ...tile.transportation_name])).coordinates] })
+  }
+
+  const raising = frameTask(raise)
+  function update() {
+    clearTimeout(timer)
+    timer = 0
+    raising.request()
   }
 
   const onSourceData = (e: any) => {
@@ -106,6 +117,7 @@ export function attachBridgeLabels(map: any, decks: () => LabelDecks | null) {
     update,
     detach() {
       clearTimeout(timer)
+      raising.cancel()
       map.off('sourcedata', onSourceData)
       map.off('style.load', onStyle)
     },

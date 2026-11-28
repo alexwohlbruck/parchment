@@ -104,6 +104,11 @@ export function useQuickEditService() {
     return response.data.edits
   }
 
+  async function getEditHistory(): Promise<OsmEdit[]> {
+    const response = await api.get<{ edits: OsmEdit[] }>('/osm/edits/history')
+    return response.data.edits
+  }
+
   async function getOsmServer(): Promise<{ server: string; serverUrl: string } | null> {
     try {
       const response = await api.get<{ server: string; serverUrl: string }>(
@@ -125,6 +130,7 @@ export function useQuickEditService() {
     findDuplicates,
     submitEdit,
     getPendingEdits,
+    getEditHistory,
     getOsmServer,
   }
 }

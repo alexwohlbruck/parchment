@@ -20,7 +20,9 @@
       "challengeNotFound": "Could not find challenge cookie",
       "invalidSession": "Invalid or expired session",
       "otpExpired": "That code has expired. Request a new one to sign in.",
-      "insufficientPermissions": "Insufficient permissions"
+      "insufficientPermissions": "Insufficient permissions",
+      "tokenScope": "This token doesn't allow that",
+      "tokenNotAllowed": "Tokens can't be used here. Sign in instead."
     },
     "notFound": {
       "place": "Place not found",

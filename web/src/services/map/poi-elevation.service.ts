@@ -8,7 +8,7 @@
  * MapLibre's `symbol-height-offset`. Re-hydrated when tiles settle, and only
  * when the set actually changed, so an idle map stays idle.
  */
-import { sourceFeatures, sourceTileFeatures } from '@/lib/map/source-features'
+import { sourceFeatureSteps, sourceTileFeatureSteps } from '@/lib/map/source-features'
 import { frameTask } from '@/lib/map/rendering/frame-task'
 import { layerGroups } from '@/lib/map-style'
 import {
@@ -89,7 +89,7 @@ function footprintReader() {
     const previous = byTile
     byTile = new Map()
     let read = 0
-    for (const f of sourceFeatures(map, layer.source, layer.sourceLayer)) {
+    for (const f of yield* sourceFeatureSteps(map, layer.source, layer.sourceLayer)) {
       if (++read % 64 === 0) yield
       const tile = `${layer.source}/${layer.sourceLayer}/${f._z}/${f._x}/${f._y}`
       const known = previous.get(tile)
@@ -250,7 +250,7 @@ export function attachPoiElevation(map: any, raised: () => boolean) {
     const positions: string[] = []
     const nextElevations = new Map<string, number>()
     let read = 0
-    for (const tile of sourceTileFeatures(map, tiles, 'poi')) {
+    for (const tile of yield* sourceTileFeatureSteps(map, tiles, 'poi')) {
       for (const entry of tilePois(tile)) {
         if (++read % 64 === 0) yield
         // A parent and a child tile can both be drawn: the same POI then comes from each, at a slightly different point.

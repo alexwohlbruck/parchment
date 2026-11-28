@@ -52,6 +52,8 @@ export type CommandArgument = {
     query?: string,
     signal?: AbortSignal,
   ) => CommandArgumentOption[] | Promise<CommandArgumentOption[]>
+  /** The value currently in effect, marked in the option list. */
+  selected?: () => ArgumentType | undefined
   customItemComponent?: Component
 }
 

@@ -26,6 +26,7 @@ import type { SheetMeta } from '@/types/app.types'
 export enum AppRoute {
   OFFLINE = 'offline',
   SIGNIN = 'signin',
+  OAUTH_CONSENT = 'oauth-consent',
   MAP = 'map',
   PLACE = 'place',
   PLACE_PROVIDER = 'place-provider',
@@ -122,6 +123,15 @@ const router = createRouter({
       meta: {
         hideUI: true,
         transition: 'slide',
+      },
+    },
+    {
+      path: '/oauth/authorize',
+      name: AppRoute.OAUTH_CONSENT,
+      component: () => import('@/views/auth/OAuthConsent.vue'),
+      meta: {
+        auth: true,
+        hideUI: true,
       },
     },
     {

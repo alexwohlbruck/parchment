@@ -2,6 +2,9 @@
 
 ### Added
 
+* Connect Claude, ChatGPT and other MCP apps by signing in to Parchment, and choose what each one can see and change.
+* Create access tokens in **Settings → Account** that reach only what you allow, and revoke them or disconnect apps anytime.
+
 ### Changed
 
 * Map tiles appear up to 3× faster, and panning, rotating and zooming stay smoother while they load.

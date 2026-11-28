@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { deckBoxes, deckStretches, encodeProfile, raisedLabelFeatures, raisedLabelLayer, ridesBridges, stretchFootprints } from './bridge-labels'
+import { deckBoxes, deckStretches, encodeProfile, raisedLabelFeatures, raisedLabelLayer, raisedTileLabels, ridesBridges, stretchFootprints } from './bridge-labels'
 
 /** A deck between lng 0.001 and 0.002 whose surface climbs 10 m per 0.001°. */
 const surfaceAt = (lng: number) => (lng >= 0.001 && lng <= 0.002 ? 20 + (lng - 0.001) * 10_000 : null)
@@ -77,6 +77,18 @@ describe('raisedLabelFeatures', () => {
     const away = { ...name, geometry: { type: 'LineString' as const, coordinates: [[1, 1], [1.1, 1]] } }
     expect(raisedLabelFeatures([away], decks, () => { throw new Error('sampled') })).toEqual([])
   })
+})
+
+test('raisedTileLabels raises a name only along a bridge of its tile', () => {
+  const along = { type: 'Feature' as const, properties: { name: 'Brooklyn Bridge' }, geometry: { type: 'LineString' as const, coordinates: [[0, 0], [0.003, 0]] } }
+  const beneath = { type: 'Feature' as const, properties: { name: 'Water Street' }, geometry: { type: 'LineString' as const, coordinates: [[0.0015, -0.001], [0.0015, 0.001]] } }
+  const road = (brunnel?: string) => ({ type: 'Feature' as const, properties: { brunnel }, geometry: along.geometry })
+  const decks = deckBoxes({ type: 'MultiPolygon', coordinates: [[[[0.001, -0.0001], [0.002, -0.0001], [0.002, 0.0001], [0.001, 0.0001], [0.001, -0.0001]]]] })
+
+  const raised = raisedTileLabels([road('bridge')], [along, beneath], decks, surfaceAt)
+  expect(raised.transportation).toHaveLength(1)
+  expect(raised.transportation_name.map(f => f.properties!.name)).toEqual(['Brooklyn Bridge'])
+  expect(raisedTileLabels([road()], [along], decks, surfaceAt)).toEqual({ transportation: [], transportation_name: [] })
 })
 
 test('raisedLabelLayer reads the raised source with the profile', () => {

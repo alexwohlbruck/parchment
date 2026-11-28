@@ -4,8 +4,11 @@
 
 ### Changed
 
+* Map tiles appear up to 3× faster, and panning, rotating and zooming stay smoother while they load.
+
 ### Fixed
 
+* The map no longer freezes for seconds when zooming out over parks and woods.
 * Subway line bullets sit below a station's name again instead of over its second line.
 
 ## [0.27.2] - 2026-11-26

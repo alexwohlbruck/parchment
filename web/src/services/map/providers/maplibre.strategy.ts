@@ -24,6 +24,7 @@ import {
   LngLat as MaplibreLngLat,
   CameraOptions,
   setWorkerUrl,
+  setWorkerCount,
   prewarm,
   addProtocol,
 } from 'maplibre-gl'
@@ -43,6 +44,9 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 
 setWorkerUrl(maplibreWorkerUrl)
+// MapLibre parses every source on one worker outside Safari. Two cut tile waits 3-5x; more delivered tiles faster than the
+// main thread could take them and dropped frames mid-gesture.
+setWorkerCount(2)
 // Start the workers now, while the rest of the bundle is still evaluating,
 // rather than when the map is made at the end of it. Each fetches the worker
 // and then the chunk it imports, one after the other, and no tile can be laid
@@ -549,7 +553,7 @@ export class MaplibreStrategy extends MapStrategy {
     // are already attached, because MapLibre's layer-scoped delegates use
     // getLayer() on each event and automatically adapt to style changes.
     this.poiElevation = attachPoiElevation(this.mapInstance, () => this.map3dBuildings)
-    this.bridgeLabels = attachBridgeLabels(this.mapInstance, () => this.deckLayer && { surfaceAt: (lng, lat) => this.deckLayer?.surfaceAt(lng, lat) ?? null, footprints: () => this.deckLayer?.footprints() ?? null })
+    this.bridgeLabels = attachBridgeLabels(this.mapInstance, () => this.deckLayer && { surfaceAt: (lng, lat) => this.deckLayer?.surfaceAt(lng, lat) ?? null, footprints: () => this.deckLayer?.footprints() ?? null, version: this.deckLayer.version })
     this.golfPins = attachGolfPins(this.mapInstance)
     this.indoorTerrain = attachIndoorTerrain(this.mapInstance, fineTerrain, this.terrainCarver)
     this.indoorFlights = attachIndoorFlights(this.mapInstance, () => (this.options.theme === 'dark' ? 'dark' : 'light'))

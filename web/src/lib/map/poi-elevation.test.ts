@@ -54,6 +54,11 @@ describe('raisedDiff', () => {
     expect(raisedDiff(shown, [poi(1, 0), moved, fresh])).toEqual({ remove: [3], add: [moved, fresh] })
   })
 
+  test('only adds what is not shown when asked to', () => {
+    const fresh = poi(4, 0)
+    expect(raisedDiff(new Map([[2, 12], [3, 0]]), [poi(2, 20), fresh], true)).toEqual({ remove: [], add: [fresh] })
+  })
+
   test('changes nothing for the same set', () => {
     expect(raisedDiff(new Map([[1, 5]]), [poi(1, 5)])).toEqual({ remove: [], add: [] })
   })

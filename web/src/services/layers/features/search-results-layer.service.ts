@@ -23,6 +23,7 @@ import {
   poiLabelLayout,
 } from '@/constants/layers'
 import { basemapPoiLook, type BasemapPoiLook } from '@/lib/map/basemap-poi-look'
+import { POINT_SOURCE_MAXZOOM } from '@/lib/map/point-source'
 
 export function useSearchResultsLayerService() {
   // State tracking
@@ -94,6 +95,7 @@ export function useSearchResultsLayerService() {
     if (!mapInstance.getSource(SEARCH_RESULTS_SOURCE_ID)) {
       mapInstance.addSource(SEARCH_RESULTS_SOURCE_ID, {
         type: 'geojson',
+        maxzoom: POINT_SOURCE_MAXZOOM,
         data: currentGeoJSON,
       })
     } else {

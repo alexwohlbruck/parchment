@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { APP_VERSION } from '@/lib/constants'
 import { toast } from '@/lib/toast'
-import { saveFile } from '@/lib/file-save'
+import { saveFile, saveNeedsTap } from '@/lib/file-save'
 import { packageExport } from '@/lib/data-export/export-archive'
 import type { ExportData, ExportModuleId } from '@/lib/data-export/export-format'
 import {
@@ -168,19 +168,43 @@ export function useDataExport() {
     exporting.value = true
     const issues: ExportIssue[] = []
     try {
-      const entries = await Promise.all(
-        modules.map(async module => {
-          const collector = collectors[module] as Collector<typeof module>
-          return [module, await collector(userId, issue => issues.push(issue))] as const
-        }),
+      const results = await Promise.allSettled(
+        modules.map(module => (collectors[module] as Collector<typeof module>)(userId, issue => issues.push(issue))),
       )
-      const data = Object.fromEntries(entries) as Partial<ExportData>
+      const failed = modules.filter((module, i) => {
+        const result = results[i]
+        if (result.status === 'fulfilled') return false
+        console.error(`[data-export] ${module} failed`, result.reason)
+        return true
+      })
+      if (failed.length === modules.length) throw (results[0] as PromiseRejectedResult).reason
+
+      const data = Object.fromEntries(
+        modules.flatMap((module, i) => {
+          const result = results[i]
+          return result.status === 'fulfilled' ? [[module, result.value]] : []
+        }),
+      ) as Partial<ExportData>
       const { blob, filename } = packageExport(
         data,
         { exportedAt: new Date().toISOString(), appVersion: APP_VERSION },
         issues,
+        failed,
       )
-      await saveFile(blob, filename)
+
+      if (saveNeedsTap(blob, filename)) {
+        toast.success(t('dataExport.ready'), {
+          duration: Infinity,
+          action: { label: t('dataExport.save'), onClick: () => saveFile(blob, filename) },
+        })
+      } else {
+        await saveFile(blob, filename)
+      }
+
+      if (failed.length) {
+        const names = failed.map(module => t(`dataExport.modules.${module}.title`))
+        toast.warning(t('dataExport.partial', { modules: names.join(', ') }))
+      }
       if (issues.length) toast.warning(t('dataExport.unreadable', { count: issues.length }, issues.length))
       return true
     } catch (error) {

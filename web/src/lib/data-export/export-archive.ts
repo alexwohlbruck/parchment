@@ -33,6 +33,7 @@ export interface ExportManifest {
   modules: ExportModuleId[]
   files: Omit<ExportFile, 'content'>[]
   issues: ExportIssue[]
+  failedModules: ExportModuleId[]
 }
 
 export const MANIFEST_PATH = 'manifest.json'
@@ -87,6 +88,7 @@ export function exportManifest(
   files: ExportFile[],
   meta: ExportMeta,
   issues: ExportIssue[] = [],
+  failedModules: ExportModuleId[] = [],
 ): ExportManifest {
   return {
     format: EXPORT_FORMAT,
@@ -95,6 +97,7 @@ export function exportManifest(
     modules: exportedModules(data),
     files: files.map(({ content: _content, ...file }) => file),
     issues,
+    failedModules,
   }
 }
 
@@ -109,19 +112,21 @@ export interface ExportPackage {
 
 /**
  * A single file when that is all there is, otherwise a zip with a manifest
- * listing every file and anything this device couldn't decrypt.
+ * listing every file, anything this device couldn't decrypt, and any module
+ * that couldn't be fetched.
  */
 export function packageExport(
   data: Partial<ExportData>,
   meta: ExportMeta,
   issues: ExportIssue[] = [],
+  failedModules: ExportModuleId[] = [],
 ): ExportPackage {
   const files = exportFiles(data, meta)
   const modules = exportedModules(data)
   const date = dayjs(meta.exportedAt).format('YYYY-MM-DD')
   const name = modules.length === 1 ? `parchment-${slug(modules[0])}-${date}` : `parchment-export-${date}`
 
-  if (files.length === 1 && !issues.length) {
+  if (files.length === 1 && !issues.length && !failedModules.length) {
     const [file] = files
     return {
       blob: new Blob([file.content], { type: MIME[file.format] }),
@@ -129,7 +134,7 @@ export function packageExport(
     }
   }
 
-  const manifest = exportManifest(data, files, meta, issues)
+  const manifest = exportManifest(data, files, meta, issues, failedModules)
   const zip = zipFiles([
     { path: MANIFEST_PATH, content: JSON.stringify(manifest, null, 2) + '\n' },
     ...files,

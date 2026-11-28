@@ -75,4 +75,11 @@ describe('packageExport', () => {
 
     expect(JSON.parse(files[MANIFEST_PATH]).issues).toEqual(issues)
   })
+
+  it("lists in the manifest the modules that couldn't be fetched", async () => {
+    const { filename, blob } = packageExport({ vehicles: EXPORT.vehicles }, META, [], ['routes'])
+
+    expect(filename).toBe('parchment-vehicles-2026-11-27.zip')
+    expect(JSON.parse((await unzip(blob))[MANIFEST_PATH]).failedModules).toEqual(['routes'])
+  })
 })

@@ -4379,6 +4379,9 @@
     "selectAll": "Seleccionar todo",
     "selectNone": "No seleccionar nada",
     "failed": "No se pudieron exportar tus datos",
+    "ready": "Tu exportación está lista",
+    "save": "Guardar",
+    "partial": "No se pudo exportar {modules}, así que el archivo no lo incluye",
     "unreadable": "1 elemento privado no se pudo abrir en este dispositivo, así que falta parte de él | {count} elementos privados no se pudieron abrir en este dispositivo, así que falta parte de ellos",
     "modules": {
       "library": {

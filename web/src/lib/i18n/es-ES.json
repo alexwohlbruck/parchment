@@ -4372,6 +4372,53 @@
       "csv": "Hoja de cálculo (CSV)"
     }
   },
+  "dataExport": {
+    "title": "Exportar tus datos",
+    "description": "Una copia de todo lo que has guardado, para conservarla o llevarla a otra app",
+    "download": "Descargar",
+    "selectAll": "Seleccionar todo",
+    "selectNone": "No seleccionar nada",
+    "failed": "No se pudieron exportar tus datos",
+    "unreadable": "1 elemento privado no se pudo abrir en este dispositivo, así que falta parte de él | {count} elementos privados no se pudieron abrir en este dispositivo, así que falta parte de ellos",
+    "modules": {
+      "library": {
+        "title": "Biblioteca",
+        "description": "Colecciones, lugares guardados y lienzos, también en GeoJSON y KML"
+      },
+      "routes": {
+        "title": "Rutas guardadas",
+        "description": "También en GPX, para dispositivos GPS y apps deportivas"
+      },
+      "vehicles": {
+        "title": "Vehículos",
+        "description": "Tus vehículos y dónde los aparcaste"
+      },
+      "preferences": {
+        "title": "Preferencias",
+        "description": "Ajustes que te siguen en tu cuenta"
+      },
+      "history": {
+        "title": "Historial de búsqueda",
+        "description": "Búsquedas y lugares que has visto"
+      },
+      "friends": {
+        "title": "Amigos",
+        "description": "Amigos, invitaciones y quién ve tu ubicación"
+      },
+      "integrations": {
+        "title": "Servicios conectados",
+        "description": "Solo ajustes, sin contraseñas ni claves"
+      },
+      "osmEdits": {
+        "title": "Ediciones del mapa",
+        "description": "Cambios que has hecho en OpenStreetMap"
+      },
+      "account": {
+        "title": "Perfil",
+        "description": "Tu nombre, correo y nombre de usuario"
+      }
+    }
+  },
   "profilePhoto": {
     "cropTitle": "Ajusta tu foto",
     "zoom": "Zoom",

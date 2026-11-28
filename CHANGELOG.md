@@ -2,6 +2,8 @@
 
 ### Added
 
+* Export your data from account settings: your library, routes, vehicles, preferences, history, friends, connected services and map edits, as one zip or one part at a time. Places also come as GeoJSON and KML, and routes as GPX.
+
 ### Changed
 
 * Map tiles appear up to 3× faster, and panning, rotating and zooming stay smoother while they load.

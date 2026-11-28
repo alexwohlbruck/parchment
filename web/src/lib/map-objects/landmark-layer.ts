@@ -36,7 +36,7 @@
  * none in view stays idle, and it holds them at rest for anyone who prefers
  * reduced motion.
  */
-import { sourceFeatures } from '@/lib/map/source-features'
+import { sourceFeatureSteps } from '@/lib/map/source-features'
 import { parseGlb, poseGlb, type GlbAnimation, type GlbModel } from './glb.mjs'
 import {
   elevationGround, groundContacts, groundModel, groundSink, modelGround, type Contact, type ElevationGround, type ModelGround,
@@ -892,7 +892,7 @@ export class LandmarkLayer {
   private *gatherSteps(): Generator<void> {
     if (!this.map) return
     const zoom = this.map.getZoom()
-    let features = sourceFeatures(this.map, this.options.source, this.options.sourceLayer)
+    let features = yield* sourceFeatureSteps(this.map, this.options.source, this.options.sourceLayer)
     if (this.preview) features = [...features.filter(f => !this.preview!.supersede?.includes(f?.properties?.id)), ...(this.preview.features ?? [])]
     const terrain = this.groundSampler()
     this.version++
@@ -1167,7 +1167,7 @@ export class LandmarkLayer {
     this.tileJudgements = new Map()
     const verdict = new Map<string | number, string | false>()
     for (const { source, sourceLayer } of this.options.buildings ?? []) {
-      const features = sourceFeatures(this.map, source, sourceLayer)
+      const features = yield* sourceFeatureSteps(this.map, source, sourceLayer)
       yield
       const tiles = yield* groupByTile(`${source}/${sourceLayer}`, features)
       for (const [tile, pieces] of tiles) {

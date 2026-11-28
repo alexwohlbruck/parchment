@@ -5,7 +5,7 @@
  * the deck's height.
  */
 import { frameTask } from '@/lib/map/rendering/frame-task'
-import { sourceTileFeatures } from '@/lib/map/source-features'
+import { sourceTileFeatureSteps } from '@/lib/map/source-features'
 import { SOURCE } from '@/lib/map-style'
 import { RAISED_SOURCE_LAYERS, deckReach, raisedLabelLayer, raisedLayerId, raisedSource, raisedTileLabels, stretchFootprints, type DeckReach, type RaisedLabels, type SurfaceAt } from '@/lib/map-decks/bridge-labels'
 import { isFlatBridgeLabel } from '@/lib/map-decks/flat-bridges'
@@ -76,9 +76,9 @@ export function attachBridgeLabels(map: any, decks: () => LabelDecks | null) {
     if (!layers.length) return
     mount(layers)
     const { reach, tiles, footprints } = raised
-    const names = sourceTileFeatures(map, SOURCE, 'transportation_name')
+    const names = yield* sourceTileFeatureSteps(map, SOURCE, 'transportation_name')
     const labels: RaisedLabels[] = []
-    for (const [i, roads] of sourceTileFeatures(map, SOURCE, 'transportation').entries()) {
+    for (const [i, roads] of (yield* sourceTileFeatureSteps(map, SOURCE, 'transportation')).entries()) {
       let tile = tiles.get(roads)
       if (!tile) {
         yield

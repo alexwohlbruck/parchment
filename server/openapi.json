@@ -18371,6 +18371,19 @@
         }
       }
     },
+    "/osm/edits/history": {
+      "get": {
+        "operationId": "getOsmEditsHistory",
+        "tags": [
+          "OSM"
+        ],
+        "summary": "List all of the user's quick edits",
+        "description": "Pending and resolved edits alike, newest first. Used by data export.",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
     "/integrations/osm/callback": {
       "get": {
         "parameters": [
